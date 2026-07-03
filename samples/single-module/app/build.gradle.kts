@@ -1,0 +1,54 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+android {
+    namespace = "dev.hotreload.sample"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "dev.hotreload.sample"
+        minSdk = 30
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.1"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    packaging {
+        jniLibs {
+            // Extract .so files to nativeLibraryDir so Debug.attachJvmtiAgent can load by path.
+            useLegacyPackaging = true
+            // The sample has no native code; exclude transitive .so files
+            // (e.g. androidx.graphics.path) so the APK ships with zero .so entries.
+            excludes += "**/*.so"
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        // Emit androidx.compose.runtime.internal.FunctionKeyMeta annotations mapping
+        // composable functions to their recomposition group keys (Experiment A).
+        freeCompilerArgs.addAll(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true",
+            // Deterministic lambda/SAM classes (no invokedynamic) so a patch dex built with
+            // `d8 --no-desugaring` matches the shapes already installed on device.
+            "-Xlambdas=class",
+            "-Xsam-conversions=class",
+        )
+    }
+}
+
+dependencies {
+    val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
+    implementation(composeBom)
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.activity:activity-compose:1.13.0")
+}
