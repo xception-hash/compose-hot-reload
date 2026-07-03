@@ -26,6 +26,20 @@ class PatchReceiver : BroadcastReceiver() {
             return
         }
 
+        // Experiment D: inject a dex with brand-new classes into the app classloader
+        // BEFORE redefining the class that references them.
+        intent.getStringExtra("inject")?.let { name ->
+            val src = File(context.getExternalFilesDir(null), name)
+            // The in-memory extension fails ART's writable-dex check (memfd), so copy the
+            // dex into app-private storage, drop write permission, and use the file variant.
+            val dst = File(context.codeCacheDir, name)
+            src.copyTo(dst, overwrite = true)
+            dst.setWritable(false)
+            val err = HotSwap.nativeInjectDexFile(context.classLoader, dst.absolutePath)
+            Log.i(tag, "injectDexFile($dst, ${dst.length()}B) -> $err")
+            if (err != 0) return
+        }
+
         val fileName = intent.getStringExtra("file")
         val className = intent.getStringExtra("cls")
         val key = intent.getIntExtra("key", 0)

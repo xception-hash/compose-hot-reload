@@ -1,3 +1,0 @@
-# ninja log v5
-0	51	1783091202986608308	CMakeFiles/hotreload_agent.dir/hotreload_agent.cpp.o	8928f7b571a8825b
-51	91	1783091203025041865	/Users/jay/projects/compose-hot-reload/spike/toy-app/app/build/intermediates/cxx/Debug/1d3f5d43/obj/arm64-v8a/libhotreload_agent.so	629f97ad87c2ea2b

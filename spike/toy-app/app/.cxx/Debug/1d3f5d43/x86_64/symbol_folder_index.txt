@@ -1,1 +1,0 @@
-/Users/jay/projects/compose-hot-reload/spike/toy-app/app/build/intermediates/cxx/Debug/1d3f5d43/obj/x86_64

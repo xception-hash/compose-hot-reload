@@ -1,7 +1,0 @@
-[
-{
-  "directory": "/Users/jay/projects/compose-hot-reload/spike/toy-app/app/.cxx/Debug/1d3f5d43/x86_64",
-  "command": "/Users/jay/Library/Android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ --target=x86_64-none-linux-android30 --sysroot=/Users/jay/Library/Android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Dhotreload_agent_EXPORTS -I/Users/jay/projects/compose-hot-reload/spike/toy-app/app/src/main/cpp/include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -fno-limit-debug-info  -fPIC -o CMakeFiles/hotreload_agent.dir/hotreload_agent.cpp.o -c /Users/jay/projects/compose-hot-reload/spike/toy-app/app/src/main/cpp/hotreload_agent.cpp",
-  "file": "/Users/jay/projects/compose-hot-reload/spike/toy-app/app/src/main/cpp/hotreload_agent.cpp"
-}
-]

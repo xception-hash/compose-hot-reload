@@ -16,6 +16,28 @@ static jvmtiEnv* g_jvmti = nullptr;
 using StructuralRedefineFn = jvmtiError (*)(jvmtiEnv*, jint, const jvmtiClassDefinition*);
 static StructuralRedefineFn g_structural = nullptr;
 
+// ART extension: inject dex bytes into an existing classloader (new-class/lambda path).
+using AddToLoaderInMemoryFn = jvmtiError (*)(jvmtiEnv*, jobject, const unsigned char*, jint);
+static AddToLoaderInMemoryFn g_addToLoader = nullptr;
+
+// ART extension: add a dex FILE path to an existing classloader (fallback for the
+// in-memory variant, whose memfd trips ART's writable-dex check on API 36).
+using AddToLoaderFileFn = jvmtiError (*)(jvmtiEnv*, jobject, const char*);
+static AddToLoaderFileFn g_addToLoaderFile = nullptr;
+
+// ART extension: human-readable reason for the last failed jvmti call.
+using GetLastErrorFn = jvmtiError (*)(jvmtiEnv*, char**);
+static GetLastErrorFn g_lastError = nullptr;
+
+static void logLastError(const char* what) {
+    if (g_lastError == nullptr) return;
+    char* msg = nullptr;
+    if (g_lastError(g_jvmti, &msg) == JVMTI_ERROR_NONE && msg != nullptr) {
+        LOGE("%s last error: %s", what, msg);
+        g_jvmti->Deallocate(reinterpret_cast<unsigned char*>(msg));
+    }
+}
+
 static void discoverExtensions() {
     jint count = 0;
     jvmtiExtensionFunctionInfo* exts = nullptr;
@@ -29,6 +51,17 @@ static void discoverExtensions() {
         if (strstr(exts[i].id, "structurally_redefine") != nullptr) {
             g_structural = reinterpret_cast<StructuralRedefineFn>(exts[i].func);
             LOGI("  -> using as structural redefine");
+        }
+        if (strstr(exts[i].id, "add_to_dex_class_loader_in_memory") != nullptr) {
+            g_addToLoader = reinterpret_cast<AddToLoaderInMemoryFn>(exts[i].func);
+            LOGI("  -> using as in-memory classloader injection");
+        }
+        if (strcmp(exts[i].id, "com.android.art.classloader.add_to_dex_class_loader") == 0) {
+            g_addToLoaderFile = reinterpret_cast<AddToLoaderFileFn>(exts[i].func);
+            LOGI("  -> using as file-based classloader injection");
+        }
+        if (strstr(exts[i].id, "get_last_error_message") != nullptr) {
+            g_lastError = reinterpret_cast<GetLastErrorFn>(exts[i].func);
         }
     }
 }
@@ -46,6 +79,7 @@ static jint redefine(JNIEnv* env, jclass target, jbyteArray dexBytes, bool struc
                                 : g_jvmti->RedefineClasses(1, &def);
     env->ReleaseByteArrayElements(dexBytes, buf, JNI_ABORT);
     LOGI("%s -> %d (%d dex bytes)", structural ? "structural redefine" : "RedefineClasses", err, len);
+    if (err != JVMTI_ERROR_NONE) logLastError("redefine");
     return static_cast<jint>(err);
 }
 
@@ -62,6 +96,30 @@ Java_dev_hotreload_toy_HotSwap_nativeRedefineStructural(JNIEnv* env, jobject, jc
 extern "C" JNIEXPORT jboolean JNICALL
 Java_dev_hotreload_toy_HotSwap_nativeHasStructural(JNIEnv*, jobject) {
     return g_structural != nullptr ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_dev_hotreload_toy_HotSwap_nativeInjectDex(JNIEnv* env, jobject, jobject loader, jbyteArray dexBytes) {
+    if (g_addToLoader == nullptr) return -102;
+    jsize len = env->GetArrayLength(dexBytes);
+    jbyte* buf = env->GetByteArrayElements(dexBytes, nullptr);
+    jvmtiError err = g_addToLoader(g_jvmti, loader,
+                                   reinterpret_cast<unsigned char*>(buf), static_cast<jint>(len));
+    env->ReleaseByteArrayElements(dexBytes, buf, JNI_ABORT);
+    LOGI("add_to_dex_class_loader_in_memory -> %d (%d dex bytes)", err, len);
+    if (err != JVMTI_ERROR_NONE) logLastError("injectDex");
+    return static_cast<jint>(err);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_dev_hotreload_toy_HotSwap_nativeInjectDexFile(JNIEnv* env, jobject, jobject loader, jstring path) {
+    if (g_addToLoaderFile == nullptr) return -103;
+    const char* cpath = env->GetStringUTFChars(path, nullptr);
+    jvmtiError err = g_addToLoaderFile(g_jvmti, loader, cpath);
+    LOGI("add_to_dex_class_loader(%s) -> %d", cpath, err);
+    if (err != JVMTI_ERROR_NONE) logLastError("injectDexFile");
+    env->ReleaseStringUTFChars(path, cpath);
+    return static_cast<jint>(err);
 }
 
 extern "C" JNIEXPORT jint JNICALL

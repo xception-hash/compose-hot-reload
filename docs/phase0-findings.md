@@ -107,8 +107,50 @@ adb push dex to `/sdcard/Android/data/<pkg>/files/` + exported debug `BroadcastR
 (`am broadcast -n dev.hotreload.toy/.PatchReceiver -a dev.hotreload.toy.PATCH --es file patch.dex
 --es cls <fqcn> --ei key <key> [--ez structural true] [--ez reset true]`).
 
-## Experiment C — structural redefinition: (pending)
+## Experiment C — structural redefinition: ✅ WORKS
 
-## Experiment D — changed lambda / new-class path: (pending)
+Added a brand-new `@Composable fun Badge()` to `MainActivityKt` (new static method) + a call to it
+from `Greeting`. `com.android.art.class.structurally_redefine_classes` (same argument shape as
+`RedefineClasses`) → 0. Targeted `invalidateGroupsWithKey(Greeting)` recomposed and the **slot table
+inserted the new group naturally** — new composable rendered, same PID, `remember` state intact.
+Non-structural `RedefineClasses` on the same patch fails with **error 63**
+(`Total number of declared methods changed from 7 to 8` via `get_last_error_message`) — classifier
+must route added-member patches to the structural call.
 
-## Experiment E — HotReloader reset tier: (pending)
+## Experiment D — new-class injection (lambda path): ✅ WORKS (file variant only)
+
+Whole new file `NewFeature.kt` (composable `NewBanner`) absent from the installed APK, made live:
+1. d8 its classes (incl. the `-Xlambdas=class` synthetic `NewFeatureKt$NewBanner$1`) into one dex.
+2. **`com.android.art.classloader.add_to_dex_class_loader_in_memory` FAILS on API 36**: err 103,
+   `SecurityException: Writable dex file '/proc/self/fd/N' is not allowed` — the extension's memfd
+   trips ART's writable-dex check. Do not rely on it.
+3. Working path: copy dex to `context.codeCacheDir`, `setWritable(false)`, then
+   **`com.android.art.classloader.add_to_dex_class_loader`** (loader, path) → 0. Classes join the
+   app classloader itself, so redefined code resolves them with no classloader tricks.
+4. Structurally redefine the calling class → new composable from the injected class renders;
+   same PID; `remember` state intact.
+
+## Experiment E — HotReloader reset tier: ⚠️ WORKS, but preserves NO composition state
+
+`saveStateAndDisposeForHotReload$runtime()` → token (ArrayList) → `loadStateAndComposeForHotReload$runtime(token)`
+rebuilds every composition without process death — including code arriving from redefines/injection.
+**Empirically (even with `setHotReloadEnabled$runtime(true)` called before first composition):
+both `remember` AND `rememberSaveable` reset to initial values.** The token holds composition
+content lambdas, not state: this tier = "recreate composition in place".
+
+Tier semantics for the engine (revised):
+| Tier | Mechanism | Survives |
+|---|---|---|
+| 1 | redefine + `invalidateGroupsWithKey` | everything (`remember`, all state) |
+| 2 | HotReloader save/dispose/load | ViewModels, singletons, activity — **no composition state** |
+| 3 | activity recreate | ViewModels + `rememberSaveable` (normal config-change semantics) |
+
+Note tier 3 preserves *more* composition state than tier 2; tier 2's value is speed (no lifecycle
+churn) when group structure changed too much for tier 1.
+
+## Phase 0 exit status: COMPLETE (2026-07-03)
+
+Every mechanism the architecture depends on is proven on device at the pinned versions. Remaining
+research handled in later phases: group-key renumbering detection (classifier work, Phase 1/2) and
+the interpreter tier (Phase 6). Source in `spike/toy-app` reflects the final state of all
+experiments; `spike/scripts/hotswap.sh` is the one-shot loop.
