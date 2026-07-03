@@ -7,11 +7,8 @@ FQCN="$1"           # e.g. dev.hotreload.toy.MainActivityKt
 KEY="$2"            # FunctionKeyMeta key of the edited composable
 STRUCTURAL="${3:-}" # pass --structural for added methods/fields (API 30+)
 
-export JAVA_HOME="${JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}"
-SDK="$HOME/Library/Android/sdk"
-ADB="$SDK/platform-tools/adb"
-D8="$SDK/build-tools/36.0.0/d8"
-PKG=dev.hotreload.toy
+source "$(dirname "$0")/../../scripts/env.sh"
+ADB=adb
 OUT=$(mktemp -d)
 
 # 1. Incremental Kotlin compile only (no packaging).
