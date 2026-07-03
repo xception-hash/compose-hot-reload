@@ -1,5 +1,5 @@
 # T01: Root Gradle skeleton for engine / cli / protocol modules
-Status: IN-REVIEW
+Status: DONE
 Assignee: agy
 
 ## Goal

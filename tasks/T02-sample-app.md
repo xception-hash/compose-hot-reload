@@ -1,5 +1,5 @@
 # T02: samples/single-module — clean target app for Phase 1
-Status: IN-REVIEW
+Status: DONE
 Assignee: agy
 
 ## Goal
