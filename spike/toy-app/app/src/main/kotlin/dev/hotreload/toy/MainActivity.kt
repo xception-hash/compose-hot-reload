@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,12 +41,14 @@ fun MainScreen() {
     }
 }
 
-// State-preservation witness: its value must survive every hot swap.
+// State-preservation witnesses: `remember` must survive redefine+invalidate (tier 1);
+// only `rememberSaveable` survives the HotReloader reset (tier 2).
 @Composable
 fun Counter() {
     var count by remember { mutableIntStateOf(0) }
-    Button(onClick = { count++ }) {
-        Text("Count: $count")
+    var saved by rememberSaveable { mutableIntStateOf(0) }
+    Button(onClick = { count++; saved++ }) {
+        Text("Count: $count / Saved: $saved")
     }
 }
 
@@ -53,4 +56,13 @@ fun Counter() {
 @Composable
 fun Greeting() {
     Text("Hello from ORIGINAL code")
+    Badge()
+    NewBanner()
+}
+
+// Experiment C: this function does not exist in the installed APK — it arrives
+// via structural class redefinition (new static method on MainActivityKt).
+@Composable
+fun Badge() {
+    Text("NEW composable added structurally!")
 }

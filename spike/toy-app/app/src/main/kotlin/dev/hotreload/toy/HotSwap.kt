@@ -24,4 +24,6 @@ object HotSwap {
     external fun nativeRedefine(target: Class<*>, dexBytes: ByteArray): Int
     external fun nativeRedefineStructural(target: Class<*>, dexBytes: ByteArray): Int
     external fun nativeHasStructural(): Boolean
+    external fun nativeInjectDex(loader: ClassLoader, dexBytes: ByteArray): Int
+    external fun nativeInjectDexFile(loader: ClassLoader, path: String): Int
 }

@@ -22,6 +22,19 @@ object ComposeBridge {
         }
     }
 
+    /** Must run before any composition exists so compositions register hot-reload state. */
+    fun enableHotReloadMode() {
+        try {
+            val m = recomposerCompanion.javaClass.declaredMethods
+                .first { it.name.startsWith("setHotReloadEnabled") }
+                .apply { isAccessible = true }
+            m.invoke(recomposerCompanion, true)
+            Log.i(TAG, "setHotReloadEnabled(true) OK")
+        } catch (t: Throwable) {
+            Log.e(TAG, "setHotReloadEnabled failed", t)
+        }
+    }
+
     fun invalidateGroupsWithKey(key: Int): Boolean {
         return try {
             val m = recomposerCompanion.javaClass.declaredMethods
