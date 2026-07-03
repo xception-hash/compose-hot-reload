@@ -36,10 +36,16 @@ Three executors:
 Mechanics:
 1. Claude writes a spec in `tasks/T<NN>-<name>.md` (template in `tasks/README.md`). Every spec
    includes an **Acceptance** section with exact commands that must pass.
-2. Jay feeds the spec file to Antigravity in this repo (fresh branch or clean tree).
+2. Dispatch: Claude runs `scripts/delegate.sh tasks/T<NN>-*.md` in the background (headless
+   sandboxed agy — verified working via `agy --print`). If the sandbox blocks the task
+   (network-heavy Gradle work), Jay runs it interactively: `agy -i "implement tasks/T<NN>... exactly"`.
 3. Claude reviews cheaply: `git diff --stat` + spot-check load-bearing files + run the
    acceptance commands. Fix-ups by agy (with review notes), not by Claude, unless small.
-4. A task is done only when acceptance passes — that's the quality gate.
+4. A task is done only when acceptance passes — that's the quality gate. Claude commits.
+
+Session hooks (`.claude/settings.json`, scripts in `.claude/hooks/`): SessionStart injects the
+protocol + pending tasks/dirty-tree state; SessionEnd auto-commits WIP (`wip:` prefix) so no
+work is lost to a dead session.
 
 Do NOT delegate: anything touching `hotreload_agent.cpp` semantics, ComposeBridge reflection,
 classifier rules, or protocol message design. Delegating those costs more in review than it saves.
