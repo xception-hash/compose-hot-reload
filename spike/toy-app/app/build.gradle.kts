@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "dev.hotreload.toy"
     compileSdk = 36
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "dev.hotreload.toy"
@@ -18,6 +19,19 @@ android {
     buildFeatures {
         compose = true
     }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
+    packaging {
+        jniLibs {
+            // Extract .so files to nativeLibraryDir so Debug.attachJvmtiAgent can load by path.
+            useLegacyPackaging = true
+        }
+    }
 }
 
 kotlin {
@@ -27,6 +41,10 @@ kotlin {
         freeCompilerArgs.addAll(
             "-P",
             "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true",
+            // Deterministic lambda/SAM classes (no invokedynamic) so a patch dex built with
+            // `d8 --no-desugaring` matches the shapes already installed on device.
+            "-Xlambdas=class",
+            "-Xsam-conversions=class",
         )
     }
 }

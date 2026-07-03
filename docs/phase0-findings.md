@@ -59,7 +59,53 @@ javap -v .../built_in_kotlinc/debug/compileDebugKotlin/classes/dev/hotreload/toy
   `com.android.tools.r8.annotations.LambdaMethod` runtime annotations pointing back at the holder
   (`ComposableSingletons$MainActivityKt`). Relevant to the Experiment D lambda path.
 
-## Experiment B — JVMTI body swap + invalidateGroupsWithKey: (in progress)
+## Experiment B — JVMTI body swap + invalidateGroupsWithKey: ✅ WORKS
+
+Full loop proven on emulator (API 36, arm64): edit composable body → recompile → dex → redefine →
+targeted invalidate → **UI updated, same PID, `remember` counter preserved**. Script: `spike/scripts/hotswap.sh`.
+
+### Agent (spike/toy-app/app/src/main/cpp/hotreload_agent.cpp)
+- `jvmti.h` vendored from AOSP `platform/art/openjdkjvmti/include/jvmti.h` (NDK doesn't ship one).
+- `Agent_OnAttach`: `GetEnv(JVMTI_VERSION_1_2)` then `AddCapabilities(can_redefine_classes, can_retransform_classes)` → both granted (err 0) on a debuggable app, attach-time.
+- **ART RedefineClasses takes single-class DEX bytes** (not JVM .class format). `d8 --no-desugaring --min-api 30 <one .class>` output works as-is → returned `JVMTI_ERROR_NONE`.
+
+### Agent attach (app side)
+- `Debug.attachJvmtiAgent(lib, options, classLoader)` **rejects any '=' in the lib string**
+  (`IllegalArgumentException` from Preconditions) — and `nativeLibraryDir` paths contain base64 `==`.
+  Fix: pass the **bare filename** `libhotreload_agent.so` + the app classloader; the loader's native
+  library namespace resolves it. Requires `packaging { jniLibs { useLegacyPackaging = true } }`.
+- Then `System.loadLibrary("hotreload_agent")` to bind the JNI natives.
+
+### JVMTI extensions present on API 36 emulator (discovered via GetExtensionFunctions)
+- `com.android.art.class.structurally_redefine_classes` (2 params — same shape as RedefineClasses) ✅ found
+- `com.android.art.class.is_structurally_modifiable_class` — pre-flight check, use in classifier
+- `com.android.art.classloader.add_to_dex_class_loader_in_memory` — **injects dex into an existing
+  classloader**; this is the clean mechanism for the new-class/lambda path (better than
+  InMemoryDexClassLoader parent games)
+- `com.android.art.misc.get_last_error_message` / `clear_last_error_message` — diagnostics for failed redefines
+
+### Compose runtime reflection surface (Compose BOM 2026.06.01, runtime aar; internal → `$runtime` name mangling)
+On `androidx.compose.runtime.Recomposer$Companion` (instance via static `Companion` field):
+- `void invalidateGroupsWithKey$runtime(int)` ← tier-1 targeted invalidation, **works**
+- `Object saveStateAndDisposeForHotReload$runtime()` / `void loadStateAndComposeForHotReload$runtime(Object)` ← tier-2 reset
+- `void setHotReloadEnabled$runtime(boolean)`
+- `List getCurrentErrors$runtime()` / `List getRecomposerErrors$runtime()` / `clearErrors$runtime()` ← error-recovery hooks for auto-escalation
+- `StateFlow getRunningRecomposers()`
+
+### Determinism flags
+Compile the app (and every patch) with `-Xlambdas=class -Xsam-conversions=class` so kotlinc emits
+lambda/SAM classes instead of invokedynamic; then a patch built with `d8 --no-desugaring` references
+the same synthetic shapes as the installed APK. (Without this, D8 desugars indy lambdas into
+`$$ExternalSyntheticLambda*` classes whose names won't match across builds.)
+
+### Group-key stability
+Body-only edit left all FunctionKeyMeta keys unchanged (only endOffset shifted) — key survives body
+edits, as the classifier design assumes.
+
+### Spike transport (not for the product)
+adb push dex to `/sdcard/Android/data/<pkg>/files/` + exported debug `BroadcastReceiver`
+(`am broadcast -n dev.hotreload.toy/.PatchReceiver -a dev.hotreload.toy.PATCH --es file patch.dex
+--es cls <fqcn> --ei key <key> [--ez structural true] [--ez reset true]`).
 
 ## Experiment C — structural redefinition: (pending)
 

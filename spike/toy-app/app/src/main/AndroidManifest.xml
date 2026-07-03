@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <application android:label="HotReload Toy">
+    <application
+        android:name=".App"
+        android:label="HotReload Toy">
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -10,6 +12,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Spike-only: driven via `adb shell am broadcast` -->
+        <receiver
+            android:name=".PatchReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.hotreload.toy.PATCH" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
