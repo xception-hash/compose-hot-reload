@@ -79,11 +79,14 @@ class SourceWatcher(roots: List<java.nio.file.Path>, private val onBatch: (Set<j
 ### 6. `Adb.kt`
 ```kotlin
 class Adb(private val adb: java.nio.file.Path) {
-    /** `adb forward tcp:0 tcp:<devicePort>` — returns the allocated local port. */
-    fun forward(devicePort: Int): Int
+    /** `adb forward tcp:0 localabstract:<socketName>` — returns the allocated local port. */
+    fun forward(socketName: String): Int
     fun removeForward(localPort: Int)
 }
 ```
+(The device end is an abstract-namespace Unix socket, not TCP — see
+`Protocol.deviceSocketName`. UPDATED 2026-07-04 mid-task: if you already implemented
+`forward(devicePort: Int)` with `tcp:<port>`, switch to this signature.)
 External process; parse the allocated port from stdout. Non-zero exit → IllegalStateException
 with stderr (message must include a hint to check `adb devices`).
 
