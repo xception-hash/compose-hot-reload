@@ -1,6 +1,9 @@
 package dev.hotreload.client
 
 import android.content.Context
+import android.content.res.Resources
+import android.content.res.loader.ResourcesLoader
+import android.content.res.loader.ResourcesProvider
 import android.net.LocalServerSocket
 import android.net.LocalSocket
 import android.os.Build
@@ -126,6 +129,39 @@ class PatchServer(private val context: Context) {
         is Request.Reset -> onMainThread(request.requestId) {
             ComposeBridge.hotReloadReset()
         }
+
+        is Request.LoadResources -> onMainThread(request.requestId) {
+            loadResources(request.overlayDir)
+        }
+    }
+
+    /**
+     * Attach the overlay in [overlayDir] (relative to codeCacheDir, holding
+     * `resources.arsc` + `res/`) via a fresh [ResourcesLoader] on both the current
+     * activity's and the application's [Resources] (the two the app renders from — T14),
+     * then recompose the whole tree with state preserved (T16). A new loader per edit is
+     * the T14-proven path (last-added wins in the loader stack); v1 does not GC old
+     * loaders (a persistent-loader + setProviders is the noted follow-up optimization).
+     * Runs on the main thread (loader attach + invalidation touch composition state).
+     */
+    private fun loadResources(overlayDir: String): Boolean {
+        // Same containment rule as InjectDex (single relative segment), plus an explicit
+        // traversal reject — safeName permits '.', so ".." alone would otherwise pass.
+        require(safeName.matches(overlayDir) && ".." !in overlayDir) { "bad overlay dir: $overlayDir" }
+        val dir = File(context.codeCacheDir, overlayDir)
+        require(dir.isDirectory) { "overlay dir missing: ${dir.absolutePath}" }
+        require(File(dir, "resources.arsc").isFile) { "overlay missing resources.arsc in ${dir.absolutePath}" }
+
+        val provider = ResourcesProvider.loadFromDirectory(dir.absolutePath, null)
+        val loader = ResourcesLoader().apply { addProvider(provider) }
+
+        val targets = LinkedHashSet<Resources>()
+        ActivityTracker.current?.resources?.let { targets.add(it) }
+        targets.add(context.applicationContext.resources)
+        for (res in targets) res.addLoaders(loader)
+        Log.i(tag, "overlay $overlayDir attached to ${targets.size} Resources")
+
+        return ComposeBridge.invalidateAllCompositions()
     }
 
     /** Runs [block] on the main thread and waits, so the response reflects the outcome. */

@@ -19,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,8 +41,14 @@ fun MainScreen() {
     ) {
         Counter()
         Greeting()
+        ResourceLabel()
         ItemList()
     }
+}
+
+@Composable
+fun ResourceLabel() {
+    Text(stringResource(R.string.hot_label))
 }
 
 @Composable

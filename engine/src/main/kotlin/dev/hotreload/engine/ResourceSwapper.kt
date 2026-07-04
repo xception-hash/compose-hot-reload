@@ -1,0 +1,153 @@
+package dev.hotreload.engine
+
+import org.w3c.dom.Element
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.zip.ZipFile
+import javax.xml.parsers.DocumentBuilderFactory
+import kotlin.io.path.extension
+import kotlin.io.path.isDirectory
+import kotlin.io.path.isRegularFile
+import kotlin.io.path.name
+
+/**
+ * Resource hot-swap for value edits (string/color/dimen/...): rebuild the app's resource
+ * table with `assembleDebug`, extract `resources.arsc` + `res/` from the APK, push it into
+ * the app's code_cache, and have the runtime-client overlay it via `ResourcesLoader` +
+ * whole-tree `invalidateAll` (state preserved — T16 docs/resource-invalidation-experiment.md).
+ *
+ * Value-only guard: overlays only work while resource IDs are stable, which aapt2 keeps
+ * across pure value edits but renumbers when the resource *set* changes. So an added /
+ * removed / renamed resource is detected and reported as "reinstall required", not overlaid.
+ */
+class ResourceSwapper(
+    private val config: WatchSession.Config,
+    private val gradle: GradleCompiler,
+    private val adb: Adb,
+    private val device: DeviceClient,
+) {
+    private val assembleTask = ":${config.module}:assembleDebug"
+    private val apkDir = config.projectDir.resolve("${config.module}/build/outputs/apk/debug")
+    private val seq = AtomicInteger(0)
+
+    /** The (type,name) set of every value resource at last-known-good; guards ID stability. */
+    private var resourceIds: Set<String> = scanResourceIds()
+
+    /**
+     * Overlay the current value resources onto the device. Returns true iff an overlay was
+     * pushed and the whole-tree invalidation triggered (caller then verifies recomposition);
+     * false if the swap was skipped (guard tripped, or build/extract failed — session continues).
+     */
+    fun swap(t0: Long): Boolean {
+        val currentIds = scanResourceIds()
+        if (currentIds != resourceIds) {
+            val added = currentIds - resourceIds
+            val removed = resourceIds - currentIds
+            println(
+                buildString {
+                    append("resource set changed")
+                    if (added.isNotEmpty()) append(" (added ${added.joinToString()})")
+                    if (removed.isNotEmpty()) append(" (removed ${removed.joinToString()})")
+                    append(" — value-only hot reload can't remap resource IDs")
+                },
+            )
+            println("run a full install (e.g. ./gradlew :${config.module}:installDebug), relaunch, then restart watch")
+            // Keep the old baseline: the message persists until they reinstall (or revert).
+            return false
+        }
+
+        val build = gradle.compile(assembleTask)
+        if (!build.success) {
+            println(build.output.lineSequence().filter { "error:" in it || "e: " in it }.joinToString("\n").ifEmpty { build.output })
+            println("resource build failed — fix and save again")
+            return false
+        }
+
+        val apk = findApk()
+        if (apk == null) {
+            println("no debug APK under $apkDir — cannot overlay resources")
+            return false
+        }
+
+        val overlayName = "hotreload-overlay-${seq.incrementAndGet()}"
+        val staging = extractOverlay(apk, overlayName)
+        try {
+            adb.push(staging, "/data/local/tmp/")
+            adb.runAs(config.applicationId, "mkdir", "-p", "code_cache")
+            adb.runAs(config.applicationId, "cp", "-r", "/data/local/tmp/$overlayName", "code_cache/$overlayName")
+            adb.shell("rm", "-rf", "/data/local/tmp/$overlayName")
+            device.loadResources(overlayName)
+        } finally {
+            staging.toFile().deleteRecursively()
+        }
+        println("resource-swapped: $overlayName in ${(System.nanoTime() - t0) / 1_000_000}ms")
+        return true
+    }
+
+    /** Newest `*.apk` in the debug output dir (assembleDebug produces exactly one for the sample). */
+    private fun findApk(): Path? {
+        if (!apkDir.isDirectory()) return null
+        return Files.list(apkDir).use { stream ->
+            stream.filter { it.isRegularFile() && it.extension == "apk" }
+                .max(Comparator.comparingLong { Files.getLastModifiedTime(it).toMillis() })
+                .orElse(null)
+        }
+    }
+
+    /** Copy just `resources.arsc` + `res/` from [apk] into a fresh temp dir named [overlayName]. */
+    private fun extractOverlay(apk: Path, overlayName: String): Path {
+        val root = Files.createTempDirectory("hotreload-").resolve(overlayName)
+        Files.createDirectories(root)
+        ZipFile(apk.toFile()).use { zip ->
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                if (entry.isDirectory) continue
+                if (entry.name != "resources.arsc" && !entry.name.startsWith("res/")) continue
+                val out = root.resolve(entry.name).normalize()
+                check(out.startsWith(root)) { "zip entry escapes overlay dir: ${entry.name}" }
+                Files.createDirectories(out.parent)
+                zip.getInputStream(entry).use { input -> Files.copy(input, out) }
+            }
+        }
+        return root
+    }
+
+    /**
+     * The set of `type/name` value resources declared under `res/values*`. Two resources
+     * with the same type+name in different config qualifiers (values/, values-night/) are
+     * one resource ID, so they collapse to one entry — exactly what governs ID stability.
+     */
+    private fun scanResourceIds(): Set<String> {
+        val resDir = config.resDir
+        if (!resDir.isDirectory()) return emptySet()
+        val ids = sortedSetOf<String>()
+        Files.walk(resDir).use { stream ->
+            stream.filter { it.isRegularFile() && it.extension == "xml" && it.parent.name.startsWith("values") }
+                .forEach { file -> collectIds(file, ids) }
+        }
+        return ids
+    }
+
+    private fun collectIds(file: Path, into: MutableSet<String>) {
+        val doc = try {
+            DocumentBuilderFactory.newInstance()
+                .apply { isNamespaceAware = false }
+                .newDocumentBuilder()
+                .parse(file.toFile())
+        } catch (t: Throwable) {
+            // A mid-save half-written file can be unparseable; ignore this scan pass for it.
+            System.err.println("could not parse ${file.fileName}: ${t.message}")
+            return
+        }
+        val children = doc.documentElement?.childNodes ?: return
+        for (i in 0 until children.length) {
+            val node = children.item(i) as? Element ?: continue
+            val name = node.getAttribute("name").ifEmpty { continue }
+            // <item name= type=> declares an arbitrary type; every other tag IS the type.
+            val type = if (node.tagName == "item") node.getAttribute("type").ifEmpty { "item" } else node.tagName
+            into.add("$type/$name")
+        }
+    }
+}

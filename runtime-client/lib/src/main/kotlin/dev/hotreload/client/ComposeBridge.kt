@@ -61,6 +61,64 @@ object ComposeBridge {
         }
     }
 
+    /**
+     * Keyless whole-tree recomposition used for pure resource edits (which have no
+     * edited-function key): recompose EVERY known composition while preserving both
+     * `remember` and `rememberSaveable`. This is the only state-preserving whole-tree
+     * refresh (T16 docs/resource-invalidation-experiment.md) — `invalidateGroupsWithKey`
+     * would reset the keyed subtree's `remember`, and the tier-2 reset loses all state.
+     *
+     * Route (confirmed live at Compose BOM 2026.06.01): the static field
+     * `Recomposer._runningRecomposers` (a MutableStateFlow) → its value (Set of
+     * RecomposerInfoImpl) → each element's synthetic `this$0` (the owning Recomposer) →
+     * the Recomposer's `_knownCompositions` (List<ControlledComposition>) →
+     * `invalidateAll()` on each. Field names carry the underscore prefix and the
+     * composition list lives on the Recomposer INSTANCE, not the Companion. Must run on
+     * the main thread.
+     */
+    fun invalidateAllCompositions(): Boolean {
+        return try {
+            val recomposer = Class.forName("androidx.compose.runtime.Recomposer")
+            val running = declaredField(recomposer, "_runningRecomposers")
+                ?: run { Log.e(TAG, "_runningRecomposers not found"); return false }
+            val stateFlow = running.get(null) ?: run { Log.e(TAG, "_runningRecomposers is null"); return false }
+            val value = stateFlow.javaClass.methods
+                .firstOrNull { it.name == "getValue" && it.parameterCount == 0 }
+                ?.apply { isAccessible = true }?.invoke(stateFlow)
+            val infos = value as? Set<*> ?: run { Log.e(TAG, "runningRecomposers value not a Set"); return false }
+
+            // One composition can be reached via multiple recomposers; invalidate once.
+            val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+            var count = 0
+            for (info in infos) {
+                if (info == null) continue
+                val outer = declaredField(info.javaClass, "this\$0")?.get(info)
+                    ?: run { Log.e(TAG, "RecomposerInfoImpl.this\$0 not found"); return false }
+                val known = declaredField(outer.javaClass, "_knownCompositions")
+                    ?: run { Log.e(TAG, "_knownCompositions not found"); return false }
+                val compositions = known.get(outer) as? List<*> ?: continue
+                for (c in compositions) {
+                    if (c == null || !seen.add(c)) continue
+                    val m = c.javaClass.methods
+                        .firstOrNull { it.name == "invalidateAll" && it.parameterCount == 0 }
+                        ?.apply { isAccessible = true }
+                        ?: run { Log.e(TAG, "invalidateAll not found on ${c.javaClass.name}"); return false }
+                    m.invoke(c)
+                    count++
+                }
+            }
+            Log.i(TAG, "invalidateAll on $count compositions OK")
+            true
+        } catch (t: Throwable) {
+            Log.e(TAG, "invalidateAllCompositions failed", t)
+            false
+        }
+    }
+
+    /** Declared field on [cls] whose name starts with [prefix] (tolerates name mangling). */
+    private fun declaredField(cls: Class<*>, prefix: String) =
+        cls.declaredFields.firstOrNull { it.name.startsWith(prefix) }?.apply { isAccessible = true }
+
     /** One error the Recomposer captured during recomposition (hot-reload mode). */
     class CapturedError(val message: String, val recoverable: Boolean)
 

@@ -13,6 +13,7 @@ class HotReloadInitializer : Initializer<Unit> {
     override fun create(context: Context) {
         Log.i("HotReload", "initializing (debuggable builds only)")
         ComposeBridge.enableHotReloadMode()
+        ActivityTracker.install(context)
         HotSwap.attachAgent(context)
         PatchServer(context).start()
     }

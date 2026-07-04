@@ -11,8 +11,9 @@ import kotlin.concurrent.withLock
 import kotlin.io.path.extension
 
 /**
- * Watches Kotlin source roots for changes and delivers debounced batches
- * of changed file paths.
+ * Watches source + resource roots for changes and delivers debounced batches of changed
+ * file paths. Kotlin sources (`.kt`) drive class hot-swap; `res/values` XML (`.xml`)
+ * drives resource hot-swap (T17). The consumer routes each path by extension/location.
  */
 class SourceWatcher(
     roots: List<Path>,
@@ -30,7 +31,7 @@ class SourceWatcher(
         .paths(roots)
         .listener { event ->
             val path = event.path()
-            if (path.extension == "kt") {
+            if (path.extension == "kt" || path.extension == "xml") {
                 lock.withLock {
                     pending.add(path)
                     debounceTask?.cancel(false)

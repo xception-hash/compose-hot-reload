@@ -1,5 +1,16 @@
 # T17: Resource edits v1 — string/color value edits, end-to-end via `hotreload watch`
-Status: BLOCKED on T16 (needs its invalidation recommendation). Everything else is specced.
+Status: DONE (Opus + emulator API 36, 2026-07-04). All 5 acceptance checks pass live:
+protocol handshake shows v3; a string value edit surfaces in ~1.9s with counter state
+preserved (remember + rememberSaveable); the add-resource guard prints "reinstall required"
+and leaves the app untouched with the watch still running; `e2e/run.sh` 8/8 (93s) with no
+leaked watcher; tree clean. Impl notes: value edit → new tier-1 `invalidateAll` op
+(ComposeBridge walks `_runningRecomposers`→`_knownCompositions`→`ControlledComposition.invalidateAll`,
+per T16); overlay = `assembleDebug` → extract `resources.arsc`+`res/` → push → `run-as cp` into
+`code_cache` → `LoadResources` opcode (0x07, protocol v3). Fresh `ResourcesLoader` per edit
+(T14-proven, last-added wins; persistent+setProviders is a noted follow-up). Loader attaches to
+the resumed activity's Resources (new `ActivityTracker`) + application Resources. Value-only guard
+diffs the `(type,name)` set parsed from `res/values*`. e2e gotcha fixed: the strings.xml backup
+must live OUTSIDE res/ (the resource merger rejects any non-`.xml` file under res/values).
 Assignee: Opus session (protocol message is DESIGNED below — implementation + wiring only)
 
 ## Goal

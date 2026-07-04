@@ -26,7 +26,7 @@ package dev.hotreload.protocol
  * so they must use only the Java/Kotlin stdlib.
  */
 object Protocol {
-    const val VERSION: Int = 2
+    const val VERSION: Int = 3
 
     /** Abstract-namespace socket the runtime-client PatchServer binds, per app. */
     fun deviceSocketName(applicationId: String): String = "hotreload-$applicationId"
@@ -43,6 +43,7 @@ object Opcode {
     const val INVALIDATE: Int = 0x04
     const val RESET: Int = 0x05
     const val GET_ERRORS: Int = 0x06
+    const val LOAD_RESOURCES: Int = 0x07
 
     // Responses (client -> engine)
     const val CAPABILITIES: Int = 0x81
@@ -97,6 +98,18 @@ sealed class Request(val requestId: Int) {
      * Response: [ComposeErrors].
      */
     class GetErrors(requestId: Int, val clear: Boolean) : Request(requestId)
+
+    /**
+     * Overlay a rebuilt resource table onto the running app via `ResourcesLoader`
+     * (no reinstall). [overlayDir] is a directory RELATIVE to the app's codeCacheDir
+     * (same file-based convention as [InjectDex]) holding `resources.arsc` + `res/`.
+     * The client attaches a provider for it and then recomposes every composition with
+     * state preserved (`ControlledComposition.invalidateAll`, T16), so value resources
+     * (string/color) surface without losing `remember`/`rememberSaveable`. Value-only:
+     * the engine guarantees IDs are unchanged, so only edited values appear.
+     * Response: [Ack]/[Failure].
+     */
+    class LoadResources(requestId: Int, val overlayDir: String) : Request(requestId)
 }
 
 sealed class Response(val requestId: Int) {

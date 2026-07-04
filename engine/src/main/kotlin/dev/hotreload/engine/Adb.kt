@@ -36,6 +36,33 @@ class Adb(private val adb: Path) {
             ?: throw IllegalStateException("adb forward returned unexpected output: $stdout — check `adb devices`")
     }
 
+    /** `adb push <local> <remote>` — recursive for directories. Throws on non-zero exit. */
+    fun push(local: Path, remote: String) {
+        run("push", local.toString(), remote)
+    }
+
+    /** `adb shell <args...>` — returns stdout. Throws on non-zero exit. */
+    fun shell(vararg args: String): String = run("shell", *args)
+
+    /**
+     * `adb shell run-as <pkg> <args...>` — run a command as the (debuggable) app's uid,
+     * e.g. to copy an overlay from /data/local/tmp into the app-private code_cache.
+     */
+    fun runAs(pkg: String, vararg args: String): String = run("shell", "run-as", pkg, *args)
+
+    private fun run(vararg args: String): String {
+        val process = ProcessBuilder(listOf(adb.toString()) + args)
+            .redirectErrorStream(false)
+            .start()
+        val stdout = process.inputStream.bufferedReader().readText()
+        val stderr = process.errorStream.bufferedReader().readText().trim()
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw IllegalStateException("adb ${args.joinToString(" ")} failed (exit $exitCode): $stderr")
+        }
+        return stdout
+    }
+
     /**
      * Removes a previously established forward.
      */
