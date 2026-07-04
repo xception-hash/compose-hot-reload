@@ -199,5 +199,45 @@ assert_ui 'text="EDITED BODY 2"'
 assert_pid
 echo "PASS: error-recovery"
 
+# Case 6: multi-file-batch — two source files edited within the 150ms debounce
+# window must coalesce into ONE compile/apply batch (SourceWatcher batching).
+# Greeting() shows "EDITED BODY 2" (restored in case 5); Widgets.NewFileWidget
+# shows "NEW CLASS INJECT OK" (case 4). Both edits are body-only string swaps.
+echo "Running case: multi-file-batch"
+hotswap_count=$(grep -c "hot-swapped:" "$WATCH_LOG" || true)
+perl -pi -e 's/EDITED BODY 2/BATCH FILE A/' "$MAIN_ACTIVITY"
+perl -pi -e 's/NEW CLASS INJECT OK/BATCH FILE B/' "$WIDGETS"
+wait_for_hotswap "$hotswap_count"
+assert_ui 'text="BATCH FILE A"'
+assert_ui 'text="BATCH FILE B"'
+assert_pid
+# Both writes landed under 150ms: they MUST coalesce into a single hot-swap.
+new_count=$(grep -c "hot-swapped:" "$WATCH_LOG" || true)
+if (( new_count != hotswap_count + 1 )); then
+    echo "EXPECTED one batched hot-swap (+1), got +$((new_count - hotswap_count)). Batching FAILED."
+    tail -n 20 "$WATCH_LOG"
+    exit 1
+fi
+echo "PASS: multi-file-batch"
+
+# Case 7: rapid-saves — two saves to the SAME file ~1s apart (second lands while
+# the first batch is still compiling). Session must stay healthy and settle on the
+# SECOND edit's text (no dropped save), then still accept a subsequent normal edit.
+echo "Running case: rapid-saves"
+hotswap_count=$(grep -c "hot-swapped:" "$WATCH_LOG" || true)
+perl -pi -e 's/BATCH FILE A/RAPID ONE/' "$MAIN_ACTIVITY"
+sleep 1
+perl -pi -e 's/RAPID ONE/RAPID TWO/' "$MAIN_ACTIVITY"
+wait_for_hotswap "$hotswap_count"
+assert_ui 'text="RAPID TWO"'
+assert_pid
+# Session not wedged: a plain follow-up edit still applies.
+hotswap_count=$(grep -c "hot-swapped:" "$WATCH_LOG" || true)
+perl -pi -e 's/RAPID TWO/RAPID THREE/' "$MAIN_ACTIVITY"
+wait_for_hotswap "$hotswap_count"
+assert_ui 'text="RAPID THREE"'
+assert_pid
+echo "PASS: rapid-saves"
+
 END_TIME=$(date +%s)
 echo "All cases PASS. Total time: $((END_TIME - START_TIME))s"
