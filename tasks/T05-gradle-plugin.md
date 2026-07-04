@@ -1,5 +1,5 @@
 # T05: Gradle plugin — zero-config app setup
-Status: TODO
+Status: DONE
 Assignee: agy
 
 ## Goal

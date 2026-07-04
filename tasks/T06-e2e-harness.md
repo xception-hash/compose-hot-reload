@@ -1,5 +1,5 @@
 # T06: e2e harness automating the change-matrix gate tests
-Status: TODO
+Status: DONE
 Assignee: agy
 
 ## Goal
