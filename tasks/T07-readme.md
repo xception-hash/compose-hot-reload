@@ -1,5 +1,5 @@
 # T07: README quickstart
-Status: TODO
+Status: DONE
 Assignee: agy
 
 ## Goal
