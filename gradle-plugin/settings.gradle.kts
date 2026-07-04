@@ -1,5 +1,4 @@
 pluginManagement {
-    includeBuild("../../gradle-plugin")
     repositories {
         google()
         mavenCentral()
@@ -14,6 +13,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "single-module"
-includeBuild("../../runtime-client")
-include(":app")
+rootProject.name = "gradle-plugin"
