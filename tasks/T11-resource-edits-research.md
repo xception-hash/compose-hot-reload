@@ -1,5 +1,5 @@
 # T11: Resource-edits research notes (AOSP deployer reading, no code)
-Status: TODO
+Status: IN-REVIEW
 Assignee: agy (Opus-class; network access for cs.android.com / googlesource needed — Jay runs interactively if sandboxed)
 
 ## Goal
