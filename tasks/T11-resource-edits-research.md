@@ -1,5 +1,5 @@
 # T11: Resource-edits research notes (AOSP deployer reading, no code)
-Status: IN-REVIEW
+Status: DONE (reviewed 2026-07-04: AOSP names check out; API-30 floor matches our min API exactly)
 Assignee: agy (Opus-class; network access for cs.android.com / googlesource needed — the maintainer runs interactively if sandboxed)
 
 ## Goal

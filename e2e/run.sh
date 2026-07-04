@@ -36,7 +36,9 @@ kill_watch() {
     if [ -n "${WATCH_PID:-}" ]; then
         kill -9 "$WATCH_PID" 2>/dev/null || true
     fi
-    pkill -f "dev.hotreload.cli.MainKt" 2>/dev/null || true
+    # -9: SIGTERM leaves the JVM alive ~2s past script exit, which flakes an
+    # immediate "pgrep empty" acceptance/CI check.
+    pkill -9 -f "dev.hotreload.cli.MainKt" 2>/dev/null || true
 }
 
 cleanup() {
