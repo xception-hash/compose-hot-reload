@@ -6,3 +6,4 @@ local.properties
 .idea/
 .kotlin/
 .cxx/
+third_party/tools-base/
