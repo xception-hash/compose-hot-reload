@@ -1,0 +1,94 @@
+name: e2e
+
+# Runs the on-device hot-reload gate (e2e/run.sh, 5 cases) on an Ubuntu KVM
+# runner with an API 36 x86_64 AVD, matching the pinned local emulator. The host
+# JDK is Temurin 21 (CI has no JBR); this is fine because all JVMTI/dex work runs
+# on-device (ART), the host JVM only orchestrates the watch loop.
+
+on:
+  # Skip the ~13-min emulator run for docs-only changes. paths-ignore fails safe:
+  # a commit that touches ANY non-doc path still runs. The workflow file itself is
+  # not ignored, so changes to it are always validated.
+  push:
+    branches: [main]
+    paths-ignore: &doc-paths
+      - '**/*.md'
+      - 'docs/**'
+      - 'tasks/**'
+      - 'LICENSE'
+  pull_request:
+    branches: [main]
+    paths-ignore: *doc-paths
+
+# Cancel superseded runs on the same ref (emulator jobs are slow).
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # Hardware acceleration for the x86_64 emulator.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/checkout@v4
+
+      # Temurin 21 — CI has no JBR; JBR-specific behavior is not required (see header).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # SDK components the harness needs:
+      #  - build-tools;36.0.0 : the CLI resolves d8 at $ANDROID_HOME/build-tools/36.0.0/d8
+      #  - ndk;28.2.13676358  : runtime-client builds the native agent .so (x86_64 in abiFilters)
+      #  - cmake;3.22.1        : AGP-bundled default for the CMake build (min required 3.22)
+      - uses: android-actions/setup-android@v3
+      - name: Install pinned SDK components
+        run: |
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358" \
+            "cmake;3.22.1"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Boots the emulator, then runs the gate. emulator-up.sh sees the connected
+      # device and short-circuits its own boot. Tee combined output to e2e-run.log
+      # (run.sh deletes its mktemp watch log in its trap; on timeouts it tails that
+      # log to stdout, so the tee captures it).
+      - name: Run e2e gate
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          force-avd-creation: true
+          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none
+          disable-animations: true
+          # Don't pipe into tee: a pipeline's exit code is tee's (0), which would
+          # mask an e2e failure and keep the job green. Redirect, capture the code,
+          # echo the log to the console, then exit with the real code.
+          script: bash e2e/run.sh > e2e-run.log 2>&1; code=$?; cat e2e-run.log; exit $code
+
+      - name: Upload e2e log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-run-log
+          path: e2e-run.log
+          if-no-files-found: warn
+
+      # Mirror run.sh's leaked-watcher kill: the CLI JVM is spawned by the Gradle
+      # daemon, not our shell, so killing the wrapper alone leaks it.
+      - name: Kill leaked CLI watchers
+        if: always()
+        run: pkill -f 'dev.hotreload.cli.MainKt' || true
