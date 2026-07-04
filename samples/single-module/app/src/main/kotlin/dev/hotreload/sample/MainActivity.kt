@@ -45,7 +45,7 @@ fun MainScreen() {
 }
 
 @Composable
-fun Counter() {
+fun CounterBroken() {
     var count by remember { mutableIntStateOf(0) }
     var saved by rememberSaveable { mutableIntStateOf(0) }
     Button(onClick = { count++; saved++ }) {
