@@ -1,5 +1,5 @@
 # T13: Local sparse checkout of AOSP tools/base deploy/ (reference source)
-Status: TODO
+Status: DONE (tools-base @ 14c65dad, fetched 2026-07-04; acceptance 1-3 pass)
 Assignee: Jay (network-heavy; one interactive run) or agy -i
 
 ## Goal
