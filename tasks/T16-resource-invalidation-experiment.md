@@ -1,5 +1,15 @@
 # T16: On-device experiment — drawable/color overlays + full-composition invalidation
-Status: TODO
+Status: DONE (Opus + emulator API 36, 2026-07-04) → docs/resource-invalidation-experiment.md.
+ANSWERS: (1) string+color surface on tier-1 recomposition; drawables surface on NEITHER
+invalidateAll NOR invalidateGroupsWithKey — only activity recreate (asset cache is
+Context/root-scoped: LocalImageVectorCache, not a composition-subtree cache). (2) The
+zero-app-edit, state-preserving mechanism = ControlledComposition.invalidateAll() on every
+composition, reached via Recomposer._runningRecomposers → RecomposerInfoImpl.this$0 →
+Recomposer._knownCompositions → invalidateAll() (keyless, preserves remember AND
+rememberSaveable). §0: AOSP deployer has NO state-preserving whole-tree resource path — it
+recreates the activity (restart_activity.cc); its 3 Compose modes are all keyed/state-losing.
+RECOMMENDATION: value edits (string/color) → tier-1 invalidateAll (zero state loss);
+drawable/asset edits → tier-3 recreate for v1. All sample edits reverted; git clean.
 Assignee: Opus session + device (T14 proved this task shape works; failures are FINDINGS)
 
 ## Goal
