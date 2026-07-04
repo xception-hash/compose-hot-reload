@@ -1,6 +1,17 @@
 # T09: GitHub Actions CI for the e2e harness
-Status: TODO
+Status: BLOCKED (config done + verified; blocked on GitHub account billing lock)
 Assignee: Opus (interactive — needs iteration against real CI runs)
+
+## Progress (2026-07-04)
+- `.github/workflows/e2e.yml` written; `scripts/env.sh` ANDROID_HOME guarded (only code change).
+- Remote created: `xception-hash/compose-hot-reload` (private). Branch `ci/t09-e2e`, PR #1.
+- Workflow PARSES, REGISTERS, and DISPATCHES correctly — run 28700543687 got to "job not
+  started". The `on.push.branches:[main]` filter works (only pull_request runs fire on the branch).
+- BLOCKER: every run fails with "your account is locked due to a billing issue" — account-wide,
+  independent of repo visibility (confirmed: a public flip did not help; reverted to private).
+  the maintainer must clear the billing lock at github.com/settings/billing, then re-run PR #1.
+- NOT yet done: acceptance #1 (green run) and #2 (deliberate-break red run) — both need Actions
+  unblocked. Expect a few red iteration runs on SDK/emulator gaps once it can actually start.
 
 ## Goal
 `.github/workflows/e2e.yml` running `e2e/run.sh` on push/PR to main, so engine/plugin
