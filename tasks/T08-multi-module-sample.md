@@ -1,5 +1,5 @@
 # T08: Multi-module sample app
-Status: TODO
+Status: DONE (Opus, 2026-07-04) — all 3 acceptance checks pass on emulator
 Assignee: agy or Opus
 
 ## Goal
