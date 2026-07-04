@@ -4,6 +4,7 @@ import dev.hotreload.protocol.ClassDex
 import dev.hotreload.protocol.Protocol
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
+import kotlin.io.path.extension
 
 /**
  * The `hotreload watch` happy path: watch sources → incremental compile → diff the
@@ -20,6 +21,8 @@ class WatchSession(private val config: Config) {
         val sourceRoots: List<Path>,
         /** AGP 9 built-in-Kotlin class output dir for the debug variant. */
         val classesDir: Path,
+        /** Module resource root; `res/values*` value edits are hot-swapped (T17). */
+        val resDir: Path,
         val d8: Path,
         val adb: Path,
     ) {
@@ -35,6 +38,7 @@ class WatchSession(private val config: Config) {
                 classesDir = projectDir.resolve(
                     "$module/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
                 ),
+                resDir = projectDir.resolve("$module/src/main/res"),
                 d8 = d8,
                 adb = adb,
             )
@@ -69,13 +73,17 @@ class WatchSession(private val config: Config) {
                 var snapshot = ClassSnapshot.scan(config.classesDir)
                 check(snapshot.isNotEmpty()) { "no classes found under ${config.classesDir}" }
 
+                val resources = ResourceSwapper(config, gradle, adb, device)
+
                 // Registering a nonexistent root makes DirectoryWatcher fail (asynchronously).
-                val roots = config.sourceRoots.filter { java.nio.file.Files.isDirectory(it) }
-                check(roots.isNotEmpty()) { "no source roots exist among ${config.sourceRoots.joinToString()}" }
+                val sourceRoots = config.sourceRoots.filter { java.nio.file.Files.isDirectory(it) }
+                check(sourceRoots.isNotEmpty()) { "no source roots exist among ${config.sourceRoots.joinToString()}" }
+                // res/values value edits are hot-swapped too, but only if the dir exists.
+                val roots = sourceRoots + listOfNotNull(config.resDir.takeIf { java.nio.file.Files.isDirectory(it) })
                 println("watching ${roots.joinToString()} (${snapshot.size} classes)")
 
                 SourceWatcher(roots) { changedSources ->
-                    snapshot = onSave(changedSources, gradle, dexer, device, snapshot)
+                    snapshot = onSave(changedSources, gradle, dexer, device, resources, snapshot)
                 }.use { watcher ->
                     watcher.start()
                     CountDownLatch(1).await() // run until Ctrl-C
@@ -84,36 +92,74 @@ class WatchSession(private val config: Config) {
         }
     }
 
+    /** Outcome of a class-swap attempt: the new baseline + whether the device recomposed. */
+    private class ClassSwapResult(val snapshot: Map<String, SnapshotEntry>, val invalidated: Boolean)
+
     private fun onSave(
         changedSources: Set<Path>,
         gradle: GradleCompiler,
         dexer: DexCompiler,
         device: DeviceClient,
+        resources: ResourceSwapper,
         snapshot: Map<String, SnapshotEntry>,
     ): Map<String, SnapshotEntry> {
         val t0 = System.nanoTime()
+        val ktChanges = changedSources.filter { it.extension == "kt" }
+        val resChanges = changedSources.filter { it.extension == "xml" && isResValues(it) }
         println("\nchanged: ${changedSources.joinToString { it.fileName.toString() }}")
+        val ignored = changedSources - ktChanges.toSet() - resChanges.toSet()
+        if (ignored.isNotEmpty()) {
+            println("ignored (v1 hot-reloads .kt and res/values/*.xml only): ${ignored.joinToString { it.fileName.toString() }}")
+        }
 
+        var newSnapshot = snapshot
+        var invalidated = false
+
+        // Code first, then resources (spec): a mixed batch redefines classes before the
+        // resource overlay so both are in place when the tree recomposes.
+        if (ktChanges.isNotEmpty()) {
+            val result = swapClasses(gradle, dexer, device, snapshot, t0)
+                ?: return snapshot // compile failed OR rebuild required: keep the old baseline
+            newSnapshot = result.snapshot
+            invalidated = invalidated || result.invalidated
+        }
+
+        if (resChanges.isNotEmpty() && resources.swap(t0)) {
+            invalidated = true
+        }
+
+        if (invalidated) verifyRecomposition(device)
+        return newSnapshot
+    }
+
+    /** Returns null when the batch cannot be applied (compile failed / needs reinstall). */
+    private fun swapClasses(
+        gradle: GradleCompiler,
+        dexer: DexCompiler,
+        device: DeviceClient,
+        snapshot: Map<String, SnapshotEntry>,
+        t0: Long,
+    ): ClassSwapResult? {
         val compile = gradle.compile(compileTask)
         if (!compile.success) {
             println(compile.output.lineSequence().filter { "error:" in it || "e: " in it }.joinToString("\n").ifEmpty { compile.output })
             println("compile failed — fix and save again")
-            return snapshot
+            return null
         }
 
         val newSnapshot = ClassSnapshot.scan(config.classesDir)
         val changed = newSnapshot.filter { (name, entry) -> snapshot[name]?.contentHash != entry.contentHash }
         if (changed.isEmpty()) {
             println("no bytecode changes (${elapsedMs(t0)}ms)")
-            return newSnapshot
+            return ClassSwapResult(newSnapshot, invalidated = false)
         }
 
         val verdicts = changed.map { (name, entry) -> entry.facts to Classifier.classify(snapshot[name]?.facts, entry.facts) }
-        when (val plan = Classifier.plan(verdicts)) {
+        return when (val plan = Classifier.plan(verdicts)) {
             is Classifier.PatchPlan.Rebuild -> {
                 plan.reasons.forEach { println("cannot hot-swap: $it") }
                 println("run a full install (e.g. ./gradlew :${config.module}:installDebug), relaunch, then restart watch")
-                return snapshot // keep the old baseline: these changes were NOT applied
+                null // keep the old baseline: these changes were NOT applied
             }
             is Classifier.PatchPlan.HotSwap -> {
                 for (fqcn in plan.inject) {
@@ -137,10 +183,15 @@ class WatchSession(private val config: Config) {
                     add("${plan.invalidateKeys.size} groups invalidated")
                 }
                 println("hot-swapped: ${what.joinToString()} in ${elapsedMs(t0)}ms")
-                if (plan.invalidateKeys.isNotEmpty()) verifyRecomposition(device)
+                ClassSwapResult(newSnapshot, invalidated = plan.invalidateKeys.isNotEmpty())
             }
         }
-        return newSnapshot
+    }
+
+    /** A watched `.xml` under a `res/values*` directory of the module. */
+    private fun isResValues(path: Path): Boolean {
+        val parent = path.parent ?: return false
+        return path.startsWith(config.resDir) && parent.fileName.toString().startsWith("values")
     }
 
     /**

@@ -66,6 +66,13 @@ class WireTest {
     }
 
     @Test
+    fun loadResources() {
+        val got = roundTripRequest(Request.LoadResources(13, "hotreload-overlay-4")) as Request.LoadResources
+        assertEquals(13, got.requestId)
+        assertEquals("hotreload-overlay-4", got.overlayDir)
+    }
+
+    @Test
     fun capabilities() {
         val got = roundTripResponse(
             Response.Capabilities(1, Protocol.VERSION, 36, true, true, false, true),

@@ -52,6 +52,12 @@ Edit a composable in the sample project, save the file, and watch the UI update 
 | call site into injected class | 6 redefined body-only (correctly NOT structural) | ~2.4s |
 | broken edit (`error()` in a body) | detected + reported with source location; UI keeps last-good frame | ~1.2s |
 | fix-and-save after broken edit | full UI recovers in place, no reinstall | ~1.2s |
+| resource **value** edit (`res/values/*.xml` string/color) | `ResourcesLoader` overlay + whole-tree `invalidateAll`; new value on screen, all state preserved | ~2s |
+
+Resource edits are **values-only** in v1: changing the *value* of an existing string/color
+hot-reloads. Adding, removing, or renaming a resource is detected and reported as
+"reinstall required" (aapt2 renumbers IDs, which an overlay can't remap). Drawable/asset
+edits still need a reinstall (Compose caches the decoded asset per-`Context`).
 
 ### State-reset semantics
 The state-preservation semantics match Android Studio's Live Edit: `invalidateGroupsWithKey` discards `remember` AND `rememberSaveable` state in the **edited function's subtree** because the runtime must re-run initializers that may capture new code. Editing a leaf preserves everything else; editing a parent resets its children's counters to 0.

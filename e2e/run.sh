@@ -24,9 +24,13 @@ echo "Initial PID: $INITIAL_PID"
 
 MAIN_ACTIVITY="$REPO_ROOT/samples/single-module/app/src/main/kotlin/dev/hotreload/sample/MainActivity.kt"
 WIDGETS="$REPO_ROOT/samples/single-module/app/src/main/kotlin/dev/hotreload/sample/Widgets.kt"
+STRINGS="$REPO_ROOT/samples/single-module/app/src/main/res/values/strings.xml"
 MAIN_ACTIVITY_BACKUP="${MAIN_ACTIVITY}.bak"
+# NOT under res/: the resource merger rejects any non-.xml file in res/values.
+STRINGS_BACKUP=$(mktemp)
 
 cp "$MAIN_ACTIVITY" "$MAIN_ACTIVITY_BACKUP"
+cp "$STRINGS" "$STRINGS_BACKUP"
 WATCH_LOG=$(mktemp)
 
 kill_watch() {
@@ -45,6 +49,7 @@ cleanup() {
     echo "--- Cleaning up ---"
     kill_watch
     mv "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY" 2>/dev/null || true
+    mv "$STRINGS_BACKUP" "$STRINGS" 2>/dev/null || true
     rm -f "$WIDGETS"
     rm -f "$WATCH_LOG"
 }
@@ -82,6 +87,24 @@ wait_for_hotswap() {
         fi
         if (( $(date +%s) - start > timeout )); then
             echo "TIMEOUT waiting for hot-swapped:"
+            tail -n 20 "$WATCH_LOG"
+            exit 1
+        fi
+        sleep 1
+    done
+}
+
+wait_for_resource_swap() {
+    local initial_count="$1"
+    local timeout=90   # includes an assembleDebug
+    local start=$(date +%s)
+    while true; do
+        local current_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
+        if (( current_count > initial_count )); then
+            break
+        fi
+        if (( $(date +%s) - start > timeout )); then
+            echo "TIMEOUT waiting for resource-swapped:"
             tail -n 20 "$WATCH_LOG"
             exit 1
         fi
@@ -240,6 +263,24 @@ wait_for_hotswap "$hotswap_count"
 assert_ui 'text="RAPID THREE"'
 assert_pid
 echo "PASS: rapid-saves"
+
+# Case 8: resource-edit — editing a string VALUE in res/values/strings.xml overlays it
+# onto the running app via ResourcesLoader + whole-tree invalidateAll (T17). The new text
+# must appear WITHOUT reinstall and WITHOUT losing counter state (invalidateAll preserves
+# remember AND rememberSaveable).
+echo "Running case: resource-edit"
+# Seed + capture the exact counter line so we can assert it is unchanged after the swap.
+"$REPO_ROOT/scripts/taps.sh" 1 >/dev/null
+COUNT_LINE=$(adb exec-out uiautomator dump /dev/tty 2>/dev/null \
+    | LC_ALL=C grep -oE 'text="Count: [0-9]+ / Saved: [0-9]+"' | head -1)
+[ -z "$COUNT_LINE" ] && { echo "could not read counter line"; exit 1; }
+res_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
+perl -pi -e 's/RESOURCE ORIGINAL/RESOURCE EDITED/' "$STRINGS"
+wait_for_resource_swap "$res_count"
+assert_ui 'text="RESOURCE EDITED"'
+assert_ui "$COUNT_LINE"   # state preserved: same remember + rememberSaveable
+assert_pid
+echo "PASS: resource-edit"
 
 END_TIME=$(date +%s)
 echo "All cases PASS. Total time: $((END_TIME - START_TIME))s"

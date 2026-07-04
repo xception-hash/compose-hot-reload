@@ -44,6 +44,11 @@ class DeviceClient(host: String = "127.0.0.1", port: Int) : Closeable {
         expectAck(exchange { Request.Reset(it) })
     }
 
+    /** Attach a resource overlay (dir relative to codeCacheDir) + whole-tree invalidate. */
+    fun loadResources(overlayDir: String) {
+        expectAck(exchange { Request.LoadResources(it, overlayDir) })
+    }
+
     /** Errors Compose captured (and silently recovered from) during recomposition. */
     fun composeErrors(clear: Boolean): List<ComposeErrorInfo> {
         val response = exchange { Request.GetErrors(it, clear) }

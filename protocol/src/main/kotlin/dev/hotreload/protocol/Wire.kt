@@ -46,6 +46,10 @@ object Wire {
                     header(d, Opcode.GET_ERRORS, request.requestId)
                     d.writeBoolean(request.clear)
                 }
+                is Request.LoadResources -> {
+                    header(d, Opcode.LOAD_RESOURCES, request.requestId)
+                    d.writeUTF(request.overlayDir)
+                }
             }
         }
     }
@@ -97,6 +101,7 @@ object Wire {
             Opcode.INVALIDATE -> Request.Invalidate(id, IntArray(readCount(d)) { d.readInt() })
             Opcode.RESET -> Request.Reset(id)
             Opcode.GET_ERRORS -> Request.GetErrors(id, d.readBoolean())
+            Opcode.LOAD_RESOURCES -> Request.LoadResources(id, d.readUTF())
             else -> throw IOException("unknown request opcode 0x${opcode.toString(16)}")
         }
     }
