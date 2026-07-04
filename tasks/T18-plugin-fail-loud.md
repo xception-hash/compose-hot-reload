@@ -1,6 +1,28 @@
 # T18: dev.hotreload plugin — fail loud when compiler flags can't be applied
-Status: TODO
-Assignee: agy (tiny, mechanical)
+Status: DONE (Opus, 2026-07-04)
+Assignee: agy (tiny, mechanical) → done by Opus in-session
+
+## Result
+`HotReloadPlugin.addFreeCompilerArgs` now returns `Boolean` (false = `kotlin` extension
+absent). A captured `var flagsApplied` is set true whenever the flags actually land in any
+of the three `withPlugin` hooks. The existing `afterEvaluate` block, after the
+unsupported-plugin check, throws a `GradleException` when a supported plugin IS applied but
+`flagsApplied` stayed false. Working samples are byte-identical (kotlin ext always present
+under AGP built-in Kotlin, so flagsApplied=true → no new throw).
+
+### Acceptance results
+1. `samples/multi-module :app:assembleDebug` → BUILD SUCCESSFUL (exit 0);
+   `samples/single-module :app:assembleDebug` → BUILD SUCCESSFUL (exit 0).
+2. Negative test: scratch `com.android.library` + `dev.hotreload` with
+   `android.builtInKotlin=false` (so no `kotlin` extension ever appears). Build fails at
+   configuration with:
+   > The dev.hotreload plugin on project ':' could not apply its Kotlin compiler flags: the `kotlin` extension was not found. This usually means dev.hotreload was applied before the Android/Kotlin plugin, or the module uses an unsupported Kotlin setup (e.g. AGP without built-in Kotlin). Apply dev.hotreload after the Android/Kotlin plugin.
+   Control run (same scratch, `android.builtInKotlin=true`) → BUILD SUCCESSFUL, isolating
+   the failure to the missing `kotlin` extension.
+3. `git status` clean except `gradle-plugin/.../HotReloadPlugin.kt` + this spec.
+
+---
+## Original spec (below)
 
 ## Goal
 Review finding from T15 verification: `HotReloadPlugin.addFreeCompilerArgs` uses
