@@ -9,7 +9,7 @@ export JAVAP="$JAVA_HOME/bin/javap"
 export EMULATOR="$ANDROID_HOME/emulator/emulator"
 
 export AVD=Medium_Phone_API_36.0
-export PKG=dev.hotreload.toy
+export PKG=${PKG:-dev.hotreload.toy}
 export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export TOY="$REPO_ROOT/spike/toy-app"
 export TOY_CLASSES="$TOY/app/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"

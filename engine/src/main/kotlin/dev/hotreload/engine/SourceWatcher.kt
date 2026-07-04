@@ -44,7 +44,14 @@ class SourceWatcher(
      * Starts watching in a non-blocking daemon thread.
      */
     fun start() {
-        watcher.watchAsync()
+        watcher.watchAsync().whenComplete { _, error ->
+            // The future is otherwise unobserved — a registration/IO failure here would
+            // silently stop all file events while the session looks healthy.
+            if (error != null) {
+                System.err.println("source watcher died: $error")
+                error.printStackTrace()
+            }
+        }
     }
 
     private fun flush() {
