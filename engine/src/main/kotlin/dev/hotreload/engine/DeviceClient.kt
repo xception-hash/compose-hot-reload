@@ -1,6 +1,7 @@
 package dev.hotreload.engine
 
 import dev.hotreload.protocol.ClassDex
+import dev.hotreload.protocol.ComposeErrorInfo
 import dev.hotreload.protocol.Request
 import dev.hotreload.protocol.Response
 import dev.hotreload.protocol.Wire
@@ -41,6 +42,13 @@ class DeviceClient(host: String = "127.0.0.1", port: Int) : Closeable {
 
     fun reset() {
         expectAck(exchange { Request.Reset(it) })
+    }
+
+    /** Errors Compose captured (and silently recovered from) during recomposition. */
+    fun composeErrors(clear: Boolean): List<ComposeErrorInfo> {
+        val response = exchange { Request.GetErrors(it, clear) }
+        expectAck(response)
+        return (response as Response.ComposeErrors).errors
     }
 
     private fun exchange(build: (requestId: Int) -> Request): Response {

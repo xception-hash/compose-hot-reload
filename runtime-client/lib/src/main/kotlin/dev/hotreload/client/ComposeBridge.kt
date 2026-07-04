@@ -61,6 +61,37 @@ object ComposeBridge {
         }
     }
 
+    /** One error the Recomposer captured during recomposition (hot-reload mode). */
+    class CapturedError(val message: String, val recoverable: Boolean)
+
+    /**
+     * Errors Compose captured while recomposing (it restores the last-good frame and
+     * keeps running, so a broken swap is invisible without this). Null = reflection
+     * surface missing; empty = healthy. [clear] resets the captured list afterwards.
+     */
+    fun currentErrors(clear: Boolean): List<CapturedError>? {
+        return try {
+            val get = method("getCurrentErrors") ?: return null
+            val raw = get.invoke(recomposerCompanion) as? List<*> ?: return null
+            val errors = raw.filterNotNull().map { info ->
+                fun call(name: String) = info.javaClass.methods
+                    .firstOrNull { it.name == name }?.apply { isAccessible = true }?.invoke(info)
+                val cause = call("getCause") as? Throwable
+                val where = cause?.stackTrace?.firstOrNull()?.let { " at $it" } ?: ""
+                CapturedError(
+                    (cause?.toString() ?: info.toString()) + where,
+                    call("getRecoverable") as? Boolean ?: false,
+                )
+            }
+            if (clear) method("clearErrors")?.invoke(recomposerCompanion)
+            Log.i(TAG, "currentErrors -> ${errors.size} (clear=$clear)")
+            errors
+        } catch (t: Throwable) {
+            Log.e(TAG, "currentErrors failed", t)
+            null
+        }
+    }
+
     /**
      * Tier-2: recreate every composition in place (save/dispose/load). No process
      * death, but composition state (remember AND rememberSaveable) resets.

@@ -26,7 +26,7 @@ package dev.hotreload.protocol
  * so they must use only the Java/Kotlin stdlib.
  */
 object Protocol {
-    const val VERSION: Int = 1
+    const val VERSION: Int = 2
 
     /** Abstract-namespace socket the runtime-client PatchServer binds, per app. */
     fun deviceSocketName(applicationId: String): String = "hotreload-$applicationId"
@@ -42,15 +42,20 @@ object Opcode {
     const val INJECT_DEX: Int = 0x03
     const val INVALIDATE: Int = 0x04
     const val RESET: Int = 0x05
+    const val GET_ERRORS: Int = 0x06
 
     // Responses (client -> engine)
     const val CAPABILITIES: Int = 0x81
     const val ACK: Int = 0x82
     const val FAILURE: Int = 0x83
+    const val COMPOSE_ERRORS: Int = 0x84
 }
 
 /** One class's replacement bytecode: single-class dex bytes (d8 --no-desugaring output). */
 class ClassDex(val className: String, val dexBytes: ByteArray)
+
+/** One recomposition error Compose captured (and silently recovered from) on device. */
+class ComposeErrorInfo(val message: String, val recoverable: Boolean)
 
 sealed class Request(val requestId: Int) {
     /** Handshake + capability probe. Response: [Capabilities]. */
@@ -84,6 +89,14 @@ sealed class Request(val requestId: Int) {
      * Response: [Ack]/[Failure].
      */
     class Reset(requestId: Int) : Request(requestId)
+
+    /**
+     * Fetch errors the Recomposer captured during recomposition (it restores the
+     * last-good frame and keeps running, so a broken swap is otherwise invisible).
+     * [clear] also clears the captured list so the next query starts clean.
+     * Response: [ComposeErrors].
+     */
+    class GetErrors(requestId: Int, val clear: Boolean) : Request(requestId)
 }
 
 sealed class Response(val requestId: Int) {
@@ -101,4 +114,7 @@ sealed class Response(val requestId: Int) {
 
     /** [code] is the JVMTI error when applicable, or -1 for client-side failures. */
     class Failure(requestId: Int, val code: Int, val message: String) : Response(requestId)
+
+    /** Captured recomposition errors; empty list = composition is healthy. */
+    class ComposeErrors(requestId: Int, val errors: List<ComposeErrorInfo>) : Response(requestId)
 }

@@ -61,7 +61,14 @@ class SourceWatcher(
             pending.clear()
         }
         if (batch.isNotEmpty()) {
-            onBatch(batch)
+            try {
+                onBatch(batch)
+            } catch (t: Throwable) {
+                // The scheduler captures exceptions in an unobserved ScheduledFuture —
+                // without this the save is dropped and the session looks healthy.
+                System.err.println("save processing failed (session continues):")
+                t.printStackTrace()
+            }
         }
     }
 
