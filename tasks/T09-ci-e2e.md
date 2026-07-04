@@ -1,17 +1,26 @@
 # T09: GitHub Actions CI for the e2e harness
-Status: BLOCKED (config done + verified; blocked on GitHub account billing lock)
+Status: DONE (2026-07-04) — both acceptance checks pass on real CI runs
 Assignee: Opus (interactive — needs iteration against real CI runs)
 
-## Progress (2026-07-04)
-- `.github/workflows/e2e.yml` written; `scripts/env.sh` ANDROID_HOME guarded (only code change).
-- Remote created: `xception-hash/compose-hot-reload` (private). Branch `ci/t09-e2e`, PR #1.
-- Workflow PARSES, REGISTERS, and DISPATCHES correctly — run 28700543687 got to "job not
-  started". The `on.push.branches:[main]` filter works (only pull_request runs fire on the branch).
-- BLOCKER: every run fails with "your account is locked due to a billing issue" — account-wide,
-  independent of repo visibility (confirmed: a public flip did not help; reverted to private).
-  the maintainer must clear the billing lock at github.com/settings/billing, then re-run PR #1.
-- NOT yet done: acceptance #1 (green run) and #2 (deliberate-break red run) — both need Actions
-  unblocked. Expect a few red iteration runs on SDK/emulator gaps once it can actually start.
+## Result (2026-07-04)
+- `.github/workflows/e2e.yml` + one-line `scripts/env.sh` ANDROID_HOME guard (only code change).
+  Repo `xception-hash/compose-hot-reload` (private), branch `ci/t09-e2e`, PR #1.
+- Acceptance #1 (green run): PASS — run 28700543687 (12m40s), all 5 e2e cases on the CI emulator.
+  https://github.com/xception-hash/compose-hot-reload/actions/runs/28700543687
+- Acceptance #2 (deliberate break → red + log artifact): PASS — renamed Counter→CounterBroken,
+  run 28701799424 went red at the e2e gate with `e2e-run-log` (661 B) attached; then reverted.
+  https://github.com/xception-hash/compose-hot-reload/actions/runs/28701799424
+- Fixed a self-inflicted bug found while wiring: `run.sh 2>&1 | tee log` masks the exit code
+  (pipeline returns tee's 0); changed to redirect + capture + `exit $code` (commit ce94b90).
+- First-try clean once Actions was unblocked: KVM, pinned SDK (build-tools;36.0.0, ndk;28.2.13676358,
+  cmake;3.22.1), NDK native build, installDebug, watch loop, all cases.
+
+### Gotchas hit (for future CI work)
+- New private repos need Actions billing set up; symptom is an account-wide lock
+  ("job was not started because your account is locked due to a billing issue") that even a
+  public flip does NOT bypass. the maintainer cleared it in github.com/settings/billing.
+- Runner is ~13 min/run (emulator boot + NDK). Well within the 2000 free Linux-min/month.
+- Harmless annotation: Node 20 deprecation for the marketplace actions (forced to Node 24).
 
 ## Goal
 `.github/workflows/e2e.yml` running `e2e/run.sh` on push/PR to main, so engine/plugin
