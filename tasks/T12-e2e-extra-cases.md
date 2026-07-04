@@ -1,5 +1,7 @@
 # T12: Extra e2e cases — multi-file save + rapid successive saves
-Status: IN-REVIEW
+Status: DONE (reviewed 2026-07-04: 7/7 twice verified by Claude; no engine findings — debounce
+batching and rapid-save handling both correct. One harness fix: cleanup pkill now -9, since
+SIGTERM left the CLI JVM alive ~2s past exit, flaking an immediate pgrep check)
 Assignee: agy
 
 ## Goal
