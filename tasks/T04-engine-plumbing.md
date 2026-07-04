@@ -1,5 +1,7 @@
 # T04: engine plumbing (extractor, snapshot, compilers, watcher, adb)
-Status: TODO
+Status: DONE (2026-07-04) — reviewed by Claude; Adb.forward(socketName: String) deviation was
+the spec's own mid-task update (localabstract transport), correctly self-reconciled by agy.
+Acceptance green incl. integration compile of WatchSession/CLI against these components.
 Assignee: agy
 
 ## Goal

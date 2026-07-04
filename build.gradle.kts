@@ -8,6 +8,7 @@ subprojects {
     repositories {
         google()
         mavenCentral()
+        maven("https://repo.gradle.org/gradle/libs-releases")
     }
 
     configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
