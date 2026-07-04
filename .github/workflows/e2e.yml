@@ -65,7 +65,10 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none
           disable-animations: true
-          script: bash e2e/run.sh 2>&1 | tee e2e-run.log
+          # Don't pipe into tee: a pipeline's exit code is tee's (0), which would
+          # mask an e2e failure and keep the job green. Redirect, capture the code,
+          # echo the log to the console, then exit with the real code.
+          script: bash e2e/run.sh > e2e-run.log 2>&1; code=$?; cat e2e-run.log; exit $code
 
       - name: Upload e2e log
         if: failure()
