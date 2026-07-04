@@ -68,9 +68,13 @@ class WatchSession(private val config: Config) {
 
                 var snapshot = ClassSnapshot.scan(config.classesDir)
                 check(snapshot.isNotEmpty()) { "no classes found under ${config.classesDir}" }
-                println("watching ${config.sourceRoots.joinToString()} (${snapshot.size} classes)")
 
-                SourceWatcher(config.sourceRoots) { changedSources ->
+                // Registering a nonexistent root makes DirectoryWatcher fail (asynchronously).
+                val roots = config.sourceRoots.filter { java.nio.file.Files.isDirectory(it) }
+                check(roots.isNotEmpty()) { "no source roots exist among ${config.sourceRoots.joinToString()}" }
+                println("watching ${roots.joinToString()} (${snapshot.size} classes)")
+
+                SourceWatcher(roots) { changedSources ->
                     snapshot = onSave(changedSources, gradle, dexer, device, snapshot)
                 }.use { watcher ->
                     watcher.start()
