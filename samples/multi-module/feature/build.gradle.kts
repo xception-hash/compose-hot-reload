@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("dev.hotreload")
 }
 
 android {
@@ -13,17 +14,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-}
-
-// TODO: absorbed by dev.hotreload plugin once multi-module lands
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.addAll(
-            "-Xlambdas=class",
-            "-Xsam-conversions=class",
-            "-Xstring-concat=inline",
-        )
     }
 }
 

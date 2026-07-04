@@ -1,5 +1,6 @@
 # T15: dev.hotreload plugin — support com.android.library and kotlin-jvm modules
-Status: TODO
+Status: DONE (Opus, 2026-07-04). All 6 acceptance checks pass: multi-module + single-module build,
+        javap flag-proof clean in app/feature/core, hand-wiring deleted, e2e 7/7, no leaked watcher.
 Assignee: agy (mechanical Gradle work; ground truth is all in docs/multi-module-ground-truth.md)
 
 ## Goal
