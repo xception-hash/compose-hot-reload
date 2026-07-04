@@ -23,9 +23,7 @@ android {
         jniLibs {
             // Extract .so files to nativeLibraryDir so Debug.attachJvmtiAgent can load by path.
             useLegacyPackaging = true
-            // The sample has no native code; exclude transitive .so files
-            // (e.g. androidx.graphics.path) so the APK ships with zero .so entries.
-            excludes += "**/*.so"
+
         }
     }
 }
@@ -51,4 +49,5 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.13.0")
+    debugImplementation("dev.hotreload:runtime-client:0.1")
 }
