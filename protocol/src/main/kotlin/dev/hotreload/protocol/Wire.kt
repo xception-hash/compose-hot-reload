@@ -42,6 +42,10 @@ object Wire {
                     for (k in request.keys) d.writeInt(k)
                 }
                 is Request.Reset -> header(d, Opcode.RESET, request.requestId)
+                is Request.GetErrors -> {
+                    header(d, Opcode.GET_ERRORS, request.requestId)
+                    d.writeBoolean(request.clear)
+                }
             }
         }
     }
@@ -64,6 +68,14 @@ object Wire {
                     d.writeInt(response.code)
                     d.writeUTF(response.message)
                 }
+                is Response.ComposeErrors -> {
+                    header(d, Opcode.COMPOSE_ERRORS, response.requestId)
+                    d.writeInt(response.errors.size)
+                    for (e in response.errors) {
+                        d.writeUTF(e.message)
+                        d.writeBoolean(e.recoverable)
+                    }
+                }
             }
         }
     }
@@ -84,6 +96,7 @@ object Wire {
             Opcode.INJECT_DEX -> Request.InjectDex(id, d.readUTF(), readBytes(d))
             Opcode.INVALIDATE -> Request.Invalidate(id, IntArray(readCount(d)) { d.readInt() })
             Opcode.RESET -> Request.Reset(id)
+            Opcode.GET_ERRORS -> Request.GetErrors(id, d.readBoolean())
             else -> throw IOException("unknown request opcode 0x${opcode.toString(16)}")
         }
     }
@@ -99,6 +112,9 @@ object Wire {
             )
             Opcode.ACK -> Response.Ack(id)
             Opcode.FAILURE -> Response.Failure(id, d.readInt(), d.readUTF())
+            Opcode.COMPOSE_ERRORS -> Response.ComposeErrors(
+                id, List(readCount(d)) { ComposeErrorInfo(d.readUTF(), d.readBoolean()) },
+            )
             else -> throw IOException("unknown response opcode 0x${opcode.toString(16)}")
         }
     }

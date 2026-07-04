@@ -39,6 +39,10 @@ kotlin {
             // `d8 --no-desugaring` matches the shapes already installed on device.
             "-Xlambdas=class",
             "-Xsam-conversions=class",
+            // String templates must not compile to invokedynamic StringConcatFactory:
+            // patch dex is built with `d8 --no-desugaring`, and ART blocks that hidden
+            // API at link time (NoSuchMethodError inside recomposition).
+            "-Xstring-concat=inline",
         )
     }
 }

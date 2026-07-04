@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import dev.hotreload.protocol.ComposeErrorInfo
 import dev.hotreload.protocol.Protocol
 import dev.hotreload.protocol.Request
 import dev.hotreload.protocol.Response
@@ -110,6 +111,13 @@ class PatchServer(private val context: Context) {
                 Response.Failure(request.requestId, err, HotSwap.nativeGetLastError() ?: "jvmti error $err")
             }
         }
+
+        is Request.GetErrors -> Response.ComposeErrors(
+            request.requestId,
+            ComposeBridge.currentErrors(request.clear)
+                ?.map { ComposeErrorInfo(it.message, it.recoverable) }
+                ?: emptyList(),
+        )
 
         is Request.Invalidate -> onMainThread(request.requestId) {
             request.keys.all { ComposeBridge.invalidateGroupsWithKey(it) }

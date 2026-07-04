@@ -118,7 +118,9 @@ class WatchSession(private val config: Config) {
             is Classifier.PatchPlan.HotSwap -> {
                 for (fqcn in plan.inject) {
                     val entry = changed.getValue(fqcn.replace('.', '/'))
-                    device.injectDex("${fqcn.replace('.', '_')}.dex", dexer.dexOne(entry.file))
+                    // The device's PatchServer only accepts [A-Za-z0-9_.-] filenames; '$'
+                    // from nested/lambda classes must be sanitized (it's only a label).
+                    device.injectDex("${fqcn.replace('.', '_').replace('$', '_')}.dex", dexer.dexOne(entry.file))
                 }
                 if (plan.redefine.isNotEmpty()) {
                     val batch = plan.redefine.map { fqcn ->
@@ -135,10 +137,33 @@ class WatchSession(private val config: Config) {
                     add("${plan.invalidateKeys.size} groups invalidated")
                 }
                 println("hot-swapped: ${what.joinToString()} in ${elapsedMs(t0)}ms")
+                if (plan.invalidateKeys.isNotEmpty()) verifyRecomposition(device)
             }
         }
         return newSnapshot
     }
 
+    /**
+     * A broken swap is invisible without this: the Recomposer captures the exception,
+     * restores the last-good frame and keeps running (screen silently stays stale).
+     * Recomposition runs a frame after Invalidate, so settle first, then query.
+     * No automatic tier-2 reset: a deterministic error fails again on reset, which
+     * destroys the last-good frame (blank screen) and all remember state for nothing —
+     * fixing the source and saving again recovers in place (verified live).
+     */
+    private fun verifyRecomposition(device: DeviceClient) {
+        Thread.sleep(RECOMPOSE_SETTLE_MS)
+        val errors = device.composeErrors(clear = true)
+        if (errors.isEmpty()) return
+
+        errors.forEach { println("recomposition failed: ${it.message}") }
+        println("the device is still showing the previous UI — fix the edit and save again")
+    }
+
     private fun elapsedMs(t0: Long) = (System.nanoTime() - t0) / 1_000_000
+
+    private companion object {
+        /** Recomposition happens on a later frame than the Invalidate ack. */
+        const val RECOMPOSE_SETTLE_MS = 300L
+    }
 }
