@@ -30,6 +30,12 @@ class HotReloadPlugin : Plugin<Project> {
             "-Xstring-concat=inline",
         )
 
+        // Set to true the moment the class-shape flags actually reach the `kotlin`
+        // extension. If a supported plugin is applied but this stays false, the flags
+        // silently went nowhere (apply-order or an unsupported Kotlin setup) and we fail
+        // the build in afterEvaluate rather than let watch-time redefine mysteriously break.
+        var flagsApplied = false
+
         // Application module: device runtime + packaging + flags (incl. FunctionKeyMeta).
         project.pluginManager.withPlugin("com.android.application") {
             project.dependencies.add(
@@ -40,21 +46,22 @@ class HotReloadPlugin : Plugin<Project> {
             val android = project.extensions.getByType(ApplicationExtension::class.java)
             android.packaging.jniLibs.useLegacyPackaging = true
 
-            addFreeCompilerArgs(
-                project,
-                listOf(
-                    "-P",
-                    "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true",
-                ) + classShapeFlags,
-            )
+            if (addFreeCompilerArgs(
+                    project,
+                    listOf(
+                        "-P",
+                        "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true",
+                    ) + classShapeFlags,
+                )
+            ) flagsApplied = true
         }
 
         // Library and pure-JVM modules: class-shape flags only, no device runtime.
         project.pluginManager.withPlugin("com.android.library") {
-            addFreeCompilerArgs(project, classShapeFlags)
+            if (addFreeCompilerArgs(project, classShapeFlags)) flagsApplied = true
         }
         project.pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
-            addFreeCompilerArgs(project, classShapeFlags)
+            if (addFreeCompilerArgs(project, classShapeFlags)) flagsApplied = true
         }
 
         // Fail fast on an unsupported module type.
@@ -71,6 +78,19 @@ class HotReloadPlugin : Plugin<Project> {
                         "to be applied; none was found."
                 )
             }
+            // A supported plugin is applied, but the class-shape flags never landed: the
+            // `kotlin` extension was absent when the plugin-applied hook ran. Without these
+            // flags patched classes fail to redefine at watch time with confusing errors, so
+            // stop the build now.
+            if (!flagsApplied) {
+                throw GradleException(
+                    "The dev.hotreload plugin on project '${project.path}' could not apply its " +
+                        "Kotlin compiler flags: the `kotlin` extension was not found. This usually " +
+                        "means dev.hotreload was applied before the Android/Kotlin plugin, or the " +
+                        "module uses an unsupported Kotlin setup (e.g. AGP without built-in Kotlin). " +
+                        "Apply dev.hotreload after the Android/Kotlin plugin."
+                )
+            }
         }
     }
 
@@ -79,18 +99,21 @@ class HotReloadPlugin : Plugin<Project> {
      * Accessed reflectively by name so the plugin needs no compile-time dependency on the
      * standalone KGP — the same `kotlin` extension is provided by AGP's built-in Kotlin
      * (application/library) and by `org.jetbrains.kotlin.jvm`.
+     *
+     * Returns true if the flags were applied; false if the `kotlin` extension was absent
+     * (so the caller can fail loud rather than ship a build missing the flags).
      */
-    private fun addFreeCompilerArgs(project: Project, args: List<String>) {
-        project.extensions.findByName("kotlin")?.let { kotlinExt ->
-            val compilerOptions = kotlinExt.javaClass
-                .getMethod("getCompilerOptions")
-                .invoke(kotlinExt)
-            val freeCompilerArgs = compilerOptions.javaClass
-                .getMethod("getFreeCompilerArgs")
-                .invoke(compilerOptions)
-            val addAll = freeCompilerArgs.javaClass
-                .getMethod("addAll", Iterable::class.java)
-            addAll.invoke(freeCompilerArgs, args)
-        }
+    private fun addFreeCompilerArgs(project: Project, args: List<String>): Boolean {
+        val kotlinExt = project.extensions.findByName("kotlin") ?: return false
+        val compilerOptions = kotlinExt.javaClass
+            .getMethod("getCompilerOptions")
+            .invoke(kotlinExt)
+        val freeCompilerArgs = compilerOptions.javaClass
+            .getMethod("getFreeCompilerArgs")
+            .invoke(compilerOptions)
+        val addAll = freeCompilerArgs.javaClass
+            .getMethod("addAll", Iterable::class.java)
+        addAll.invoke(freeCompilerArgs, args)
+        return true
     }
 }
