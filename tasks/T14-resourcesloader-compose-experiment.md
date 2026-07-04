@@ -1,5 +1,6 @@
 # T14: On-device experiment — does Compose UI pick up a ResourcesLoader overlay without recreate?
-Status: TODO
+Status: DONE — answer: tier-1 (recomposition) suffices for strings, no recreate needed.
+        Results + caveats in docs/resourcesloader-compose-experiment.md. All sample edits reverted.
 Assignee: agy + the maintainer on device (failures/surprises are FINDINGS — write them down, change nothing)
 
 ## Goal
