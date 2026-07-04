@@ -13,6 +13,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "single-module"
-includeBuild("../../runtime-client")
-include(":app")
+rootProject.name = "runtime-client"
+include(":runtime-client")
+project(":runtime-client").projectDir = file("lib")
