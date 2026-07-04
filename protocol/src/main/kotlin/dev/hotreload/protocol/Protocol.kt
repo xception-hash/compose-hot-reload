@@ -3,10 +3,13 @@ package dev.hotreload.protocol
 /**
  * Wire protocol between the host engine and the on-device runtime-client.
  *
- * Transport: TCP. The runtime-client listens on loopback [DEVICE_PORT]; the engine
- * reaches it via `adb forward tcp:<local> tcp:46464`. The engine is the only caller;
- * every request gets exactly one response, matched by [requestId]. Requests are
- * processed strictly in order by the client, so pipelining is safe.
+ * Transport: the runtime-client listens on an abstract-namespace Unix domain socket
+ * ([deviceSocketName] — no INTERNET permission needed, unlike any TCP bind, and no
+ * port collisions between apps); the engine reaches it via
+ * `adb forward tcp:<local> localabstract:<name>` and speaks plain TCP locally.
+ * The engine is the only caller; every request gets exactly one response, matched by
+ * [requestId]. Requests are processed strictly in order by the client, so pipelining
+ * is safe.
  *
  * Frame format (all integers big-endian, via DataOutput):
  *
@@ -25,8 +28,8 @@ package dev.hotreload.protocol
 object Protocol {
     const val VERSION: Int = 1
 
-    /** Device-side loopback port the runtime-client PatchServer binds. */
-    const val DEVICE_PORT: Int = 46464
+    /** Abstract-namespace socket the runtime-client PatchServer binds, per app. */
+    fun deviceSocketName(applicationId: String): String = "hotreload-$applicationId"
 
     /** Upper bound on a single frame; anything larger is a corrupt stream. */
     const val MAX_FRAME_BYTES: Int = 64 * 1024 * 1024

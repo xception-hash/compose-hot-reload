@@ -1,6 +1,8 @@
 package dev.hotreload.client
 
 import android.content.Context
+import android.net.LocalServerSocket
+import android.net.LocalSocket
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -10,16 +12,15 @@ import dev.hotreload.protocol.Request
 import dev.hotreload.protocol.Response
 import dev.hotreload.protocol.Wire
 import java.io.File
-import java.net.InetAddress
-import java.net.ServerSocket
-import java.net.Socket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * On-device protocol server. Listens on loopback [Protocol.DEVICE_PORT]; the engine
- * connects through `adb forward`. Connections are handled serially, requests strictly
- * in order; every request gets exactly one response on the same socket.
+ * On-device protocol server. Listens on an abstract-namespace Unix domain socket
+ * ([Protocol.deviceSocketName] — a TCP bind would need the INTERNET permission, which
+ * the host app must not be forced to declare); the engine connects through
+ * `adb forward tcp:<local> localabstract:<name>`. Connections are handled serially,
+ * requests strictly in order; every request gets exactly one response on the same socket.
  */
 class PatchServer(private val context: Context) {
     private val tag = "HotReloadServer"
@@ -31,24 +32,29 @@ class PatchServer(private val context: Context) {
     }
 
     private fun serve() {
+        val name = Protocol.deviceSocketName(context.packageName)
         val server = try {
-            // Loopback only: reachable via adb forward, never from the network.
-            ServerSocket(Protocol.DEVICE_PORT, 1, InetAddress.getByName("127.0.0.1"))
+            LocalServerSocket(name) // abstract namespace: no file, no permission
         } catch (t: Throwable) {
-            Log.e(tag, "cannot bind 127.0.0.1:${Protocol.DEVICE_PORT}", t)
+            Log.e(tag, "cannot bind localabstract:$name", t)
             return
         }
-        Log.i(tag, "listening on 127.0.0.1:${Protocol.DEVICE_PORT}")
+        Log.i(tag, "listening on localabstract:$name")
         while (true) {
             try {
-                server.accept().use { session(it) }
+                val socket = server.accept()
+                try {
+                    session(socket)
+                } finally {
+                    socket.close()
+                }
             } catch (t: Throwable) {
                 Log.e(tag, "session error", t)
             }
         }
     }
 
-    private fun session(socket: Socket) {
+    private fun session(socket: LocalSocket) {
         Log.i(tag, "engine connected")
         val input = socket.getInputStream().buffered()
         val output = socket.getOutputStream().buffered()
