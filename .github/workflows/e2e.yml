@@ -6,10 +6,19 @@ name: e2e
 # on-device (ART), the host JVM only orchestrates the watch loop.
 
 on:
+  # Skip the ~13-min emulator run for docs-only changes. paths-ignore fails safe:
+  # a commit that touches ANY non-doc path still runs. The workflow file itself is
+  # not ignored, so changes to it are always validated.
   push:
     branches: [main]
+    paths-ignore: &doc-paths
+      - '**/*.md'
+      - 'docs/**'
+      - 'tasks/**'
+      - 'LICENSE'
   pull_request:
     branches: [main]
+    paths-ignore: *doc-paths
 
 # Cancel superseded runs on the same ref (emulator jobs are slow).
 concurrency:
