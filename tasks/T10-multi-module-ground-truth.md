@@ -1,5 +1,5 @@
 # T10: Multi-module ground-truth doc (feeds the Fable design session)
-Status: TODO
+Status: IN-REVIEW
 Assignee: agy (Opus-class OK; needs to run Gradle builds — if sandbox blocks, Jay runs interactively)
 
 ## Goal
