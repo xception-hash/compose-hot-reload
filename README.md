@@ -4,7 +4,7 @@
 A Flutter-style hot reload for Jetpack Compose on real Android devices and emulators. Save a `.kt` file and see your UI update in ~1s with app state preserved—with **zero modifications to existing application code**. V1 is driven via a CLI daemon.
 
 ### How it works
-It leverages a custom JVMTI agent injected into debuggable apps to perform structural class redefinition (modifying methods/fields in place) alongside `InMemoryDexClassLoader` injection for new lambdas. When code changes, the engine pushes patched dex bytes over ADB and uses reflection into Compose internals (`invalidateGroupsWithKey`) to trigger targeted recomposition.
+It leverages a custom JVMTI agent attached to debuggable apps to perform class redefinition in place (including ART's structural redefinition for added methods/fields), and injects brand-new classes into the app's own classloader via ART's `add_to_dex_class_loader` JVMTI extension. When code changes, the engine compiles and dexes just the diff, pushes the patched dex bytes to the device, and uses reflection into Compose internals (`invalidateGroupsWithKey`) to trigger targeted recomposition.
 
 ## 2. Requirements
 - **Device**: API 30+ (Android 11+) emulator or physical device via adb
@@ -16,17 +16,24 @@ It leverages a custom JVMTI agent injected into debuggable apps to perform struc
   - Compose BOM 2026.06.01
 
 ## 3. Quickstart
-Apply the `dev.hotreload` plugin in your application's `build.gradle.kts`:
+Apply the `dev.hotreload` plugin in your application's `build.gradle.kts`, and make it resolvable in `settings.gradle.kts` (this is how `samples/single-module` is wired):
 
 ```kotlin
+// settings.gradle.kts
+pluginManagement {
+    includeBuild("../../gradle-plugin")
+}
+
+// app/build.gradle.kts
 plugins {
     id("dev.hotreload")
 }
 ```
 
-Make sure your emulator is up and the sample is installed and running:
+Make sure your emulator is up, then install and launch the sample:
 ```bash
 (cd samples/single-module && ./gradlew :app:installDebug)
+adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1
 ```
 
 Start the hot-reload watcher from the repository root:
