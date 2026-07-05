@@ -1,5 +1,9 @@
 # T20: Drawable hot-reload e2e case + README row
-Status: TODO
+Status: DONE (Opus, 2026-07-05) — e2e case 11 `drawable-edit` added, README table row + drawable
+limitation note updated. Suite 11/11 twice back-to-back (131s, 119s), pgrep clean, samples
+byte-identical. Deviation from spec: state assertion captures the live counter line and asserts
+it survives the swap (cases 8–9 pattern) instead of hardcoding `Count: 2` — prior cases leave the
+counter at an unknown value, so capture is the robust way to prove state preservation.
 Assignee: agy
 
 ## Goal

@@ -59,11 +59,14 @@ Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the w
 | broken edit (`error()` in a body) | detected + reported with source location; UI keeps last-good frame | ~1.2s |
 | fix-and-save after broken edit | full UI recovers in place, no reinstall | ~1.2s |
 | resource **value** edit (`res/values/*.xml` string/color) | `ResourcesLoader` overlay + whole-tree `invalidateAll`; new value on screen, all state preserved | ~2s |
+| vector **drawable** edit (`res/drawable*/*.xml`) | `ResourcesLoader` overlay + Compose asset-cache clear + whole-tree recompose; new drawable on screen, all state preserved | ~1–2s |
 
 Resource edits are **values-only** in v1: changing the *value* of an existing string/color
 hot-reloads. Adding, removing, or renaming a resource is detected and reported as
-"reinstall required" (aapt2 renumbers IDs, which an overlay can't remap). Drawable/asset
-edits still need a reinstall (Compose caches the decoded asset per-`Context`).
+"reinstall required" (aapt2 renumbers IDs, which an overlay can't remap). Vector (XML)
+drawable edits under `res/drawable*/` hot-reload too — the overlay is applied and Compose's
+per-`Context` asset caches (`ImageVectorCache`/`ResourceIdCache`) are cleared before the
+recompose. Bitmap drawables (`png`/`webp`) still need a reinstall.
 
 ### State-reset semantics
 The state-preservation semantics match Android Studio's Live Edit: `invalidateGroupsWithKey` discards `remember` AND `rememberSaveable` state in the **edited function's subtree** because the runtime must re-run initializers that may capture new code. Editing a leaf preserves everything else; editing a parent resets its children's counters to 0.

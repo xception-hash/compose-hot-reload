@@ -25,6 +25,7 @@ echo "Initial PID: $INITIAL_PID"
 MAIN_ACTIVITY="$REPO_ROOT/samples/single-module/app/src/main/kotlin/dev/hotreload/sample/MainActivity.kt"
 WIDGETS="$REPO_ROOT/samples/single-module/app/src/main/kotlin/dev/hotreload/sample/Widgets.kt"
 STRINGS="$REPO_ROOT/samples/single-module/app/src/main/res/values/strings.xml"
+DRAWABLE="$REPO_ROOT/samples/single-module/app/src/main/res/drawable/hot_icon.xml"
 MAIN_ACTIVITY_BACKUP="${MAIN_ACTIVITY}.bak"
 # NOT under res/: the resource merger rejects any non-.xml file in res/values.
 STRINGS_BACKUP=$(mktemp)
@@ -50,6 +51,8 @@ cleanup() {
     kill_watch
     mv "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY" 2>/dev/null || true
     mv "$STRINGS_BACKUP" "$STRINGS" 2>/dev/null || true
+    # hot_icon.xml is committed with the blue baseline; case 11 edits it in place.
+    git -C "$REPO_ROOT" checkout -- "$DRAWABLE" 2>/dev/null || true
     rm -f "$WIDGETS"
     rm -f "$WATCH_LOG"
 }
@@ -336,6 +339,44 @@ assert_ui 'text="BATCH FIXED"'
 assert_ui 'text="RESOURCE PENDING"'
 assert_pid
 echo "PASS: pending-resource-swap"
+
+# Case 11: drawable-edit — editing a vector drawable's fillColor in res/drawable/hot_icon.xml
+# overlays it via ResourcesLoader AND clears Compose's per-Context asset caches
+# (ImageVectorCache/ResourceIdCache) so the whole-tree recompose surfaces the new vector
+# WITHOUT reinstall and WITHOUT losing counter state (drawables were tier-1'd 2026-07-05,
+# see docs/resource-edits-v1.md §v2). Drawables aren't text, so we read the icon's centre
+# pixel off a screencap (scripts/icon-pixel.sh) instead of uiautomator text.
+echo "Running case: drawable-edit"
+assert_icon() {
+    local expected="$1"
+    local timeout=10   # recomposition lands a frame after the swap; mirror assert_ui's retry
+    local start=$(date +%s)
+    local got
+    while true; do
+        got=$("$REPO_ROOT/scripts/icon-pixel.sh" 2>/dev/null || echo "")
+        [ "$got" = "$expected" ] && break
+        if (( $(date +%s) - start > timeout )); then
+            echo "TIMEOUT waiting for icon pixel $expected (got '$got')"
+            tail -n 20 "$WATCH_LOG"
+            exit 1
+        fi
+        sleep 1
+    done
+}
+# Baseline: fillColor #FF2196F3 (ARGB) renders #2196F3 on screen.
+assert_icon '#2196F3'
+# Seed state so the drawable swap has remember + rememberSaveable to preserve.
+"$REPO_ROOT/scripts/taps.sh" 2 >/dev/null
+COUNT_LINE=$(adb exec-out uiautomator dump /dev/tty 2>/dev/null \
+    | LC_ALL=C grep -oE 'text="Count: [0-9]+ / Saved: [0-9]+"' | head -1)
+[ -z "$COUNT_LINE" ] && { echo "could not read counter line"; exit 1; }
+res_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
+perl -pi -e 's/#FF2196F3/#FFFF0000/' "$DRAWABLE"
+wait_for_resource_swap "$res_count"
+assert_icon '#FF0000'         # new vector on screen, no reinstall
+assert_ui "$COUNT_LINE"       # state preserved across the drawable swap
+assert_pid
+echo "PASS: drawable-edit"
 
 END_TIME=$(date +%s)
 echo "All cases PASS. Total time: $((END_TIME - START_TIME))s"
