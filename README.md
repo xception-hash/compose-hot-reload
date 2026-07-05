@@ -44,6 +44,12 @@ source scripts/env.sh   # JAVA_HOME etc.
 
 Edit a composable in the sample project, save the file, and watch the UI update on the device instantly.
 
+For multi-module projects, pass `--module` with a comma-separated list of Gradle module names (first entry = app module; nested paths use `/`):
+```bash
+./gradlew -q :cli:run --args="watch --project $PWD/samples/multi-module --app-id dev.hotreload.multisample --module app,feature,core"
+```
+Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the whole tree with state preserved.
+
 ## 4. What hot-reloads today
 | Case | Mechanics | Time |
 |---|---|---|
