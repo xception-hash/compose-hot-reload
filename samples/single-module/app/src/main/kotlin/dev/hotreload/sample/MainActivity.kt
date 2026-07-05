@@ -25,6 +25,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,6 +43,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen() {
+    val context = LocalContext.current
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -48,6 +54,14 @@ fun MainScreen() {
         ResourceLabel()
         HotIcon()
         HotPhoto()
+        Button(
+            onClick = {
+                context.startActivity(Intent(context, SecondActivity::class.java))
+            },
+            modifier = Modifier.semantics { contentDescription = "OPEN_SECOND" },
+        ) {
+            Text("Open second")
+        }
         ItemList()
     }
 }

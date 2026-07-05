@@ -189,16 +189,9 @@ Scope notes:
   the overlay is correct (next inflate reads it) but nothing forces a re-inflate; harmless.
 
 ## Open questions / follow-ups (not built)
-- **Loader / dir accumulation.** N value edits in one watch session = N `ResourcesLoader`s
-  stacked on the Resources + N `code_cache/hotreload-overlay-N` dirs. Correct (last wins)
-  but a slow leak. Fix = the AOSP persistent-loader + `setProviders` in-place pattern (also
-  enables GC). Out of scope for v1 by spec.
-- **Which `Resources` is strictly necessary** (activity vs application) — not isolated; we
-  attach both.
-- **Multi-activity / navigation.** We attach at `LoadResources` time to the *then-current*
-  activity + application. An activity launched *after* an edit may not carry the overlay
-  unless it inherits from `application.resources`. Untested — the sample is single-activity.
-  AOSP re-applies overlays on activity start as a safety net; we do not.
+- ~~Loader / dir accumulation~~ — **DONE in T21** (persistent `ResourcesLoader` + `setProviders` + overlay GC).
+- ~~Which `Resources` is strictly necessary (activity vs application) — 2d isolation experiment~~ — **DONE in T22**: Attaching to activity `Resources` is **strictly required** for live same-activity updates because Compose `LocalContext.current.resources` reads from the activity's `Resources` instance (attaching ONLY to application `Resources` fails live same-activity swaps). Attaching to application `Resources` handles non-Activity context lookups (`applicationContext.getString(...)`). Both are required and both shipped.
+- ~~Multi-activity / navigation (2c)~~ — **DONE in T22**: `ActivityTracker.onActivityResumed` re-attaches `sessionLoader` to newly-launched or newly-resumed activity `Resources` before the first frame renders. Tested by e2e case 13 (`multi-activity-resource`).
 - **Bitmap (png/webp) drawables (T23 observation)**: `SourceWatcher` and `WatchSession` deliver `.png`/`.webp` changes and `ResourceSwapper` pushes the overlay successfully (`resource-swapped:` logged), but `painterResource` bitmap drawables stay stale on screen (`#2196F3` instead of `#FF0000`). Changing the overlay directory name (`hotreload-overlay-<session>-N`) and invalidating all compositions is insufficient to update decoded bitmaps. Even a manual activity recreate (e.g. screen rotation / configuration change) does not surface the new bitmap because Android's `ResourcesImpl.mDrawableCache` and/or Compose's internal bitmap loader caches decoded `BitmapDrawable` constant states across overlay provider updates. Needs further investigation for cache clearing beyond `clearAssetCaches()`.
 - ~~Drawables / decoded assets still need a reinstall~~ — **DONE in v2** (see above).
 - ~~Multi-module resources~~ — **DONE** (multi-module design, commit 8246b9b): the guard

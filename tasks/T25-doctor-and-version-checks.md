@@ -1,5 +1,5 @@
 # T25: `hotreload doctor` + loud version checks (Phase 4 slice)
-Status: TODO
+Status: DONE
 Assignee: agy
 Priority: 4 of T21–T27
 

@@ -25,6 +25,21 @@ object ComposeBridge {
     val available: Boolean
         get() = recomposerCompanion != null
 
+    /** Compose runtime version read from androidx.compose.runtime.ComposeVersion.version via reflection (0 when absent). */
+    val composeVersion: Int
+        get() = try {
+            val cls = Class.forName("androidx.compose.runtime.ComposeVersion")
+            val field = try { cls.getDeclaredField("version").apply { isAccessible = true } } catch (_: Throwable) { null }
+            if (field != null) {
+                field.getInt(null)
+            } else {
+                val method = cls.declaredMethods.firstOrNull { it.name == "getVersion" || it.name == "version" }?.apply { isAccessible = true }
+                (method?.invoke(null) as? Int) ?: 0
+            }
+        } catch (_: Throwable) {
+            0
+        }
+
     private fun method(prefix: String) = recomposerCompanion?.let { companion ->
         companion.javaClass.declaredMethods
             .firstOrNull { it.name.startsWith(prefix) }
