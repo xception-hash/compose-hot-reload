@@ -1,0 +1,2 @@
+device: api=36 protocol=5 Compose runtime version: 1.11.4 redefine=true structural=true inject=true compose=true
+hotreload: protocol version mismatch (device 5 != engine 6) — reinstall the app (stale runtime-client)

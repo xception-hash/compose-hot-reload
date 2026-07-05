@@ -1,0 +1,42 @@
+<idea-plugin>
+    <id>dev.hotreload.intellij</id>
+    <name>Compose Hot Reload</name>
+    <vendor>Compose Hot Reload (OSS)</vendor>
+
+    <description><![CDATA[
+        Flutter-style hot reload for Jetpack Compose on Android, from inside the IDE.
+        <br/>
+        The plugin spawns the <code>hotreload</code> CLI (<code>hotreload watch</code>) and shows live
+        reload status in the status bar. It does not embed the engine — the CLI stays the single
+        source of truth. Configure it under <b>Settings › Tools › Compose Hot Reload</b>.
+    ]]></description>
+
+    <!-- Core platform only: loads in IntelliJ IDEA Community and Android Studio alike. -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceImplementation="dev.hotreload.idea.HotReloadSettings"/>
+        <projectService serviceImplementation="dev.hotreload.idea.HotReloadService"/>
+
+        <projectConfigurable
+            parentId="tools"
+            instance="dev.hotreload.idea.HotReloadConfigurable"
+            id="dev.hotreload.idea.HotReloadConfigurable"
+            displayName="Compose Hot Reload"/>
+
+        <statusBarWidgetFactory
+            id="HotReload.StatusWidget"
+            implementation="dev.hotreload.idea.HotReloadStatusWidgetFactory"/>
+
+        <notificationGroup id="Compose Hot Reload" displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <action id="dev.hotreload.idea.HotReloadToggleAction"
+                class="dev.hotreload.idea.HotReloadToggleAction"
+                text="Start Hot Reload"
+                description="Start or stop the Compose hot reload watch session">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

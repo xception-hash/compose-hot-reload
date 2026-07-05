@@ -1,0 +1,7 @@
+device: api=36 protocol=6 Compose runtime version: 1.11.4 redefine=true structural=true inject=true compose=true
+initial build... ok (5231ms)
+modules: :app: AGP (/repo/samples/single-module/app/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes)
+watching /repo/samples/single-module/app/src/main/kotlin, /repo/samples/single-module/app/src/main/res (412 classes)
+
+changed: Counter.kt
+hot-swapped: 1 redefined, 2 groups invalidated in 87ms

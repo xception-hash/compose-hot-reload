@@ -1,0 +1,5 @@
+watching /repo/samples/single-module/app/src/main/kotlin (412 classes)
+
+changed: Counter.kt
+cannot hot-swap: signature changed: fun greet(kotlin/String)kotlin/String
+run a full install (e.g. ./gradlew :app:installDebug), relaunch, then restart watch
