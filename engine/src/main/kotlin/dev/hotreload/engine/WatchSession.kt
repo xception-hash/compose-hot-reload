@@ -95,6 +95,13 @@ class WatchSession(private val config: Config) {
     /** Outcome of a class-swap attempt: the new baseline + whether the device recomposed. */
     private class ClassSwapResult(val snapshot: Map<String, SnapshotEntry>, val invalidated: Boolean)
 
+    /**
+     * A values edit whose batch couldn't complete (broken .kt in the same save → the shared
+     * compile fails) is NOT re-delivered by the watcher on the fix-and-save — the .xml sits
+     * unchanged on disk. So resource swaps stay pending until one succeeds.
+     */
+    private var pendingResourceSwap = false
+
     private fun onSave(
         changedSources: Set<Path>,
         gradle: GradleCompiler,
@@ -114,17 +121,22 @@ class WatchSession(private val config: Config) {
 
         var newSnapshot = snapshot
         var invalidated = false
+        if (resChanges.isNotEmpty()) pendingResourceSwap = true
 
         // Code first, then resources (spec): a mixed batch redefines classes before the
         // resource overlay so both are in place when the tree recomposes.
         if (ktChanges.isNotEmpty()) {
             val result = swapClasses(gradle, dexer, device, snapshot, t0)
-                ?: return snapshot // compile failed OR rebuild required: keep the old baseline
+                // Compile failed or rebuild required: keep the old baseline. The resource
+                // swap is skipped too (assembleDebug shares the failing compile) but stays
+                // pending, so the fix-and-save retries it.
+                ?: return snapshot
             newSnapshot = result.snapshot
             invalidated = invalidated || result.invalidated
         }
 
-        if (resChanges.isNotEmpty() && resources.swap(t0)) {
+        if (pendingResourceSwap && resources.swap(t0)) {
+            pendingResourceSwap = false
             invalidated = true
         }
 
