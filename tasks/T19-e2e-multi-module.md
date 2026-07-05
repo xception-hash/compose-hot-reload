@@ -1,5 +1,5 @@
 # T19: Multi-module e2e cases + README update
-Status: TODO
+Status: DONE
 Assignee: agy
 
 ## Goal
