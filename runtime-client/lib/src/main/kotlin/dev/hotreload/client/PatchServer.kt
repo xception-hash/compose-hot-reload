@@ -16,6 +16,7 @@ import dev.hotreload.protocol.Request
 import dev.hotreload.protocol.Response
 import dev.hotreload.protocol.Wire
 import java.io.File
+import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -30,6 +31,12 @@ class PatchServer(private val context: Context) {
     private val tag = "HotReloadServer"
     private val mainHandler = Handler(Looper.getMainLooper())
     private val safeName = Regex("[A-Za-z0-9._-]+")
+
+    private val persistentLoader = ResourcesLoader()
+    private var currentProvider: ResourcesProvider? = null
+    private var currentOverlayDir: File? = null
+    private val attachedResources = WeakHashMap<Resources, Boolean>()
+    private var isFirstLoad = true
 
     fun start() {
         Thread({ serve() }, "hotreload-server").apply { isDaemon = true }.start()
@@ -141,11 +148,10 @@ class PatchServer(private val context: Context) {
 
     /**
      * Attach the overlay in [overlayDir] (relative to codeCacheDir, holding
-     * `resources.arsc` + `res/`) via a fresh [ResourcesLoader] on both the current
+     * `resources.arsc` + `res/`) via a persistent [ResourcesLoader] on both the current
      * activity's and the application's [Resources] (the two the app renders from — T14),
-     * then recompose the whole tree with state preserved (T16). A new loader per edit is
-     * the T14-proven path (last-added wins in the loader stack); v1 does not GC old
-     * loaders (a persistent-loader + setProviders is the noted follow-up optimization).
+     * updating providers in place via [ResourcesLoader.setProviders] and cleaning up old
+     * overlay dirs (T21), then recompose the whole tree with state preserved (T16).
      * Runs on the main thread (loader attach + invalidation touch composition state).
      */
     private fun loadResources(overlayDir: String): Boolean {
@@ -156,14 +162,40 @@ class PatchServer(private val context: Context) {
         require(dir.isDirectory) { "overlay dir missing: ${dir.absolutePath}" }
         require(File(dir, "resources.arsc").isFile) { "overlay missing resources.arsc in ${dir.absolutePath}" }
 
-        val provider = ResourcesProvider.loadFromDirectory(dir.absolutePath, null)
-        val loader = ResourcesLoader().apply { addProvider(provider) }
+        if (isFirstLoad) {
+            isFirstLoad = false
+            context.codeCacheDir.listFiles()?.forEach { file ->
+                if (file.isDirectory && file.name.startsWith("hotreload-overlay-") && file.name != dir.name) {
+                    file.deleteRecursively()
+                }
+            }
+        }
+
+        val newProvider = ResourcesProvider.loadFromDirectory(dir.absolutePath, null)
+        val oldProvider = currentProvider
+        val oldDir = currentOverlayDir
+
+        persistentLoader.setProviders(listOf(newProvider))
+        currentProvider = newProvider
+        currentOverlayDir = dir
+
+        try {
+            oldProvider?.close()
+        } catch (t: Throwable) {
+            Log.w(tag, "failed to close old provider", t)
+        }
+        oldDir?.deleteRecursively()
 
         val targets = LinkedHashSet<Resources>()
         ActivityTracker.current?.resources?.let { targets.add(it) }
         targets.add(context.applicationContext.resources)
-        for (res in targets) res.addLoaders(loader)
-        Log.i(tag, "overlay $overlayDir attached to ${targets.size} Resources")
+        for (res in targets) {
+            if (!attachedResources.containsKey(res)) {
+                res.addLoaders(persistentLoader)
+                attachedResources[res] = true
+            }
+        }
+        Log.i(tag, "overlay $overlayDir attached via persistent loader to ${targets.size} Resources")
 
         // Between attach and invalidate, so the recomposition re-decodes drawables from
         // the fresh overlay instead of Compose's (weakly-held, GC-lottery) asset cache.
