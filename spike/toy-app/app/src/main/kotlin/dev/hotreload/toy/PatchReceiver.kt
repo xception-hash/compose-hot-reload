@@ -40,6 +40,18 @@ class PatchReceiver : BroadcastReceiver() {
             if (err != 0) return
         }
 
+        // Phase 6 interpreter spike: invoke a static no-arg `run()` on an injected class and
+        // log its result (spike/interpreter/run.sh asserts on this line).
+        intent.getStringExtra("run")?.let { fqcn ->
+            val result = try {
+                Class.forName(fqcn).getMethod("run").invoke(null).toString()
+            } catch (t: Throwable) {
+                "exception: ${Log.getStackTraceString(t)}"
+            }
+            Log.i(tag, "run($fqcn) -> $result")
+            return
+        }
+
         val fileName = intent.getStringExtra("file")
         val className = intent.getStringExtra("cls")
         val key = intent.getIntExtra("key", 0)
