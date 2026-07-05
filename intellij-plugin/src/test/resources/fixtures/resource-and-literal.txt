@@ -1,0 +1,12 @@
+live-literals fast path enabled
+watching /repo/samples/single-module/app/src/main/kotlin, /repo/samples/single-module/app/src/main/res (413 classes)
+
+changed: Counter.kt
+literal-pushed: Int$class-LiveLiterals$CounterKt$fun-Counter = 42 in 22ms
+hot-swapped: 1 redefined, 1 groups invalidated in 74ms
+
+changed: strings.xml
+resource-swapped: hotreload-overlay-a1b2c3-1 in 641ms
+
+changed: Widget.kt
+no bytecode changes (12ms)

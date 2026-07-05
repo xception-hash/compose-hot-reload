@@ -1,0 +1,6 @@
+watching /repo/samples/single-module/app/src/main/kotlin (412 classes)
+
+changed: Counter.kt
+e: file:///repo/samples/single-module/app/src/main/kotlin/dev/hotreload/sample/Counter.kt:14:9 unresolved reference: notAThing
+e: file:///repo/samples/single-module/app/src/main/kotlin/dev/hotreload/sample/Counter.kt:15:5 expecting an expression
+compile failed — fix and save again

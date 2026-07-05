@@ -1,0 +1,6 @@
+watching /repo/samples/single-module/app/src/main/kotlin (412 classes)
+
+changed: Counter.kt
+hot-swapped: 1 redefined, 2 groups invalidated in 90ms
+recomposition failed: java.lang.IllegalStateException: count must be non-negative
+the device is still showing the previous UI — fix the edit and save again
