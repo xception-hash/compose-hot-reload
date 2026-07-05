@@ -427,5 +427,71 @@ adb shell input keyevent KEYCODE_BACK
 assert_pid
 echo "PASS: multi-activity-resource"
 
+# Case 14: live-literals fast path (T24) — GUARDED. The default run installs the app
+# WITHOUT -Photreload.liveLiterals=true (no LiveLiterals$ classes), so this case SKIPs
+# unless HOTRELOAD_LITERALS=1, which rebuilds+reinstalls the app with the property and
+# drives a fresh `watch --literals` session. Asserts: a plain string literal edit lands on
+# screen via `literal-pushed:` in <500ms with PID + counter state preserved, and a
+# non-literal edit in the same session still hot-swaps normally.
+if [ "${HOTRELOAD_LITERALS:-}" = "1" ]; then
+    echo "Running case: live-literals"
+    kill_watch
+    sleep 2
+    rm -f "$WATCH_LOG"
+    # Reset MainActivity to the pristine baseline so 'literal: v1' is present and untouched
+    # by the earlier cases' edits, then rebuild + reinstall WITH live literals.
+    cp "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY"
+    adb shell am force-stop dev.hotreload.sample >/dev/null 2>&1 || true
+    (cd "$REPO_ROOT/samples/single-module" && ./gradlew -q :app:installDebug -Photreload.liveLiterals=true)
+    adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+    sleep 3
+    INITIAL_PID=$(adb shell pidof dev.hotreload.sample || echo DEAD)
+    [ "$INITIAL_PID" = "DEAD" ] && { echo "app failed to start (literals build)"; exit 1; }
+
+    WATCH_LOG=$(mktemp)
+    (cd "$REPO_ROOT" && ./gradlew -q :cli:run --args="watch --literals --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample") > "$WATCH_LOG" 2>&1 &
+    WATCH_PID=$!
+    START=$(date +%s)
+    while ! grep -q "live-literals fast path enabled" "$WATCH_LOG"; do
+        if (( $(date +%s) - START > 120 )); then
+            echo "TIMEOUT waiting for --literals watch to start"; cat "$WATCH_LOG"; exit 1
+        fi
+        sleep 1
+    done
+
+    # Bump the counter so we can prove the fast path preserves composition state.
+    "$REPO_ROOT/scripts/taps.sh" 3 >/dev/null
+    assert_ui 'text="Count: 3 / Saved: 3"'
+    assert_ui 'text="literal: v1"'
+
+    lit_count=$(grep -c "literal-pushed:" "$WATCH_LOG" || true)
+    perl -pi -e 's/literal: v1/literal: v2/' "$MAIN_ACTIVITY"
+    START=$(date +%s)
+    while (( $(grep -c "literal-pushed:" "$WATCH_LOG" || true) <= lit_count )); do
+        if (( $(date +%s) - START > 60 )); then
+            echo "TIMEOUT waiting for literal-pushed:"; tail -n 20 "$WATCH_LOG"; exit 1
+        fi
+        sleep 1
+    done
+    assert_ui 'text="literal: v2"'          # new literal on screen via the fast path
+    assert_ui 'text="Count: 3 / Saved: 3"'  # composition state preserved
+    assert_pid
+    LAT=$(grep "literal-pushed:" "$WATCH_LOG" | tail -1 | sed -E 's/.* in ([0-9]+)ms$/\1/')
+    if ! [[ "$LAT" =~ ^[0-9]+$ ]] || (( LAT >= 500 )); then
+        echo "literal fast path latency '${LAT}'ms not < 500ms"; tail -n 20 "$WATCH_LOG"; exit 1
+    fi
+    echo "literal fast path latency: ${LAT}ms"
+
+    # A non-literal edit in the same session must still hot-swap the normal way.
+    hotswap_count=$(grep -c "hot-swapped:" "$WATCH_LOG" || true)
+    perl -pi -e 's/Hello from the sample app/LITERALS SESSION BODY/' "$MAIN_ACTIVITY"
+    wait_for_hotswap "$hotswap_count"
+    assert_ui 'text="LITERALS SESSION BODY"'
+    assert_pid
+    echo "PASS: live-literals"
+else
+    echo "SKIP: live-literals (set HOTRELOAD_LITERALS=1 to rebuild with -Photreload.liveLiterals=true and run it)"
+fi
+
 END_TIME=$(date +%s)
 echo "All cases PASS. Total time: $((END_TIME - START_TIME))s"

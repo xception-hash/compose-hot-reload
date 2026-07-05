@@ -26,7 +26,7 @@ package dev.hotreload.protocol
  * so they must use only the Java/Kotlin stdlib.
  */
 object Protocol {
-    const val VERSION: Int = 5
+    const val VERSION: Int = 6
 
     /** Abstract-namespace socket the runtime-client PatchServer binds, per app. */
     fun deviceSocketName(applicationId: String): String = "hotreload-$applicationId"
@@ -45,6 +45,7 @@ object Opcode {
     const val GET_ERRORS: Int = 0x06
     const val LOAD_RESOURCES: Int = 0x07
     const val INVALIDATE_ALL: Int = 0x08
+    const val LITERAL_UPDATE: Int = 0x09
 
     // Responses (client -> engine)
     const val CAPABILITIES: Int = 0x81
@@ -55,6 +56,22 @@ object Opcode {
 
 /** One class's replacement bytecode: single-class dex bytes (d8 --no-desugaring output). */
 class ClassDex(val className: String, val dexBytes: ByteArray)
+
+/**
+ * Wire type tags for a live-literal value ([Request.LiteralUpdate]). The order matches
+ * the byte written on the wire; the engine derives the tag from the `LiveLiterals$*Kt`
+ * getter's return descriptor and the runtime-client boxes it back to the same JVM type
+ * before handing it to `LiveLiteralKt.updateLiveLiteralValue`.
+ */
+object LiteralType {
+    const val STRING: Int = 0
+    const val INT: Int = 1
+    const val LONG: Int = 2
+    const val FLOAT: Int = 3
+    const val DOUBLE: Int = 4
+    const val BOOLEAN: Int = 5
+    const val CHAR: Int = 6
+}
 
 /** One recomposition error Compose captured (and silently recovered from) on device. */
 class ComposeErrorInfo(val message: String, val recoverable: Boolean)
@@ -121,6 +138,29 @@ sealed class Request(val requestId: Int) {
      * Response: [Ack]/[Failure].
      */
     class InvalidateAll(requestId: Int) : Request(requestId)
+
+    /**
+     * Live-literals fast path (T24): update a single Compose live-literal in place. [key]
+     * is the `@LiveLiteralInfo(key=…)` string on the generated `LiveLiterals$*Kt` getter;
+     * [helperClass] is that generated class's FQCN (live-literals v2 gates each getter on a
+     * per-file `enabled` flag on it, which the client must flip); [type] is a [LiteralType]
+     * tag; [value] is the boxed constant of that JVM type; [invalidateKey] is the
+     * FunctionKeyMeta compose key of the ENCLOSING composable (0 if unknown). The client
+     * sets `enabled`, calls `LiveLiteralKt.updateLiveLiteralValue(key, value)` (the value
+     * lives in a Compose `MutableState`), then recomposes via
+     * `Recomposer.invalidateGroupsWithKey(invalidateKey)` — a liveLiterals build compiles
+     * the literal into a keyless helper, so a plain whole-tree invalidate does not wake the
+     * Recomposer; the enclosing composable's key is what pumps it. Requires the app compiled
+     * with `-Photreload.liveLiterals=true`. Response: [Ack]/[Failure].
+     */
+    class LiteralUpdate(
+        requestId: Int,
+        val key: String,
+        val helperClass: String,
+        val invalidateKey: Int,
+        val type: Int,
+        val value: Any,
+    ) : Request(requestId)
 }
 
 sealed class Response(val requestId: Int) {

@@ -49,6 +49,11 @@ class DeviceClient(host: String = "127.0.0.1", port: Int) : Closeable {
         expectAck(exchange { Request.InvalidateAll(it) })
     }
 
+    /** Live-literals fast path: update one constant in place (T24). */
+    fun literalUpdate(key: String, helperClass: String, invalidateKey: Int, type: Int, value: Any) {
+        expectAck(exchange { Request.LiteralUpdate(it, key, helperClass, invalidateKey, type, value) })
+    }
+
     /** Attach a resource overlay (dir relative to codeCacheDir) + whole-tree invalidate. */
     fun loadResources(overlayDir: String) {
         expectAck(exchange { Request.LoadResources(it, overlayDir) })

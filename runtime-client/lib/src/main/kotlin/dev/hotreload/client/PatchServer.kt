@@ -144,6 +144,10 @@ class PatchServer(private val context: Context) {
         is Request.InvalidateAll -> onMainThread(request.requestId) {
             ComposeBridge.invalidateAllCompositions()
         }
+
+        is Request.LiteralUpdate -> onMainThread(request.requestId) {
+            ComposeBridge.updateLiteral(request.key, request.helperClass, request.invalidateKey, request.value)
+        }
     }
 
     /**

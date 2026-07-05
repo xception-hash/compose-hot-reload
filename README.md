@@ -93,3 +93,13 @@ If hot reload fails to connect or experience issues on device, run `hotreload do
 ```bash
 ./gradlew -q :cli:run --args="doctor --project $PWD/samples/single-module --app-id dev.hotreload.sample"
 ```
+
+## 8. Live-literals fast path (experimental, opt-in)
+Editing only a constant inside a composable — a plain string, number, boolean, or char — can skip Gradle + d8 + class redefinition entirely and push the new value straight into Compose's live-literals mechanism, for a sub-100ms update. It is **off by default** because the Compose compiler's live-literals instrumentation adds overhead to debug builds.
+
+To use it, build the app with the property and watch with `--literals`:
+```bash
+./gradlew :app:installDebug -Photreload.liveLiterals=true
+./gradlew -q :cli:run --args="watch --literals --project $PWD/samples/single-module --app-id dev.hotreload.sample"
+```
+`watch --literals` fails fast if the installed app wasn't built with the property. Only single, contiguous literal edits take the fast path; anything else (template strings, `const val`, structural edits, multi-file saves) falls back to the normal compile-and-swap path automatically.

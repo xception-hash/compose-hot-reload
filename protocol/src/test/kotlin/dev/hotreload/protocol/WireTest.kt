@@ -73,6 +73,38 @@ class WireTest {
     }
 
     @Test
+    fun invalidateAll() {
+        val r = roundTripRequest(Request.InvalidateAll(21)) as Request.InvalidateAll
+        assertEquals(21, r.requestId)
+    }
+
+    @Test
+    fun literalUpdate() {
+        val str = roundTripRequest(
+            Request.LiteralUpdate(1, "String\$arg-0\$call-Text", "p.LiveLiterals\$FooKt", -123456, LiteralType.STRING, "hello \$world"),
+        ) as Request.LiteralUpdate
+        assertEquals("String\$arg-0\$call-Text", str.key)
+        assertEquals("p.LiveLiterals\$FooKt", str.helperClass)
+        assertEquals(-123456, str.invalidateKey)
+        assertEquals(LiteralType.STRING, str.type)
+        assertEquals("hello \$world", str.value)
+
+        val i = roundTripRequest(Request.LiteralUpdate(2, "k", "H", 7, LiteralType.INT, 42)) as Request.LiteralUpdate
+        assertEquals(7, i.invalidateKey)
+        assertEquals(42, i.value)
+        val l = roundTripRequest(Request.LiteralUpdate(3, "k", "H", 0, LiteralType.LONG, 9_000_000_000L)) as Request.LiteralUpdate
+        assertEquals(9_000_000_000L, l.value)
+        val f = roundTripRequest(Request.LiteralUpdate(4, "k", "H", 0, LiteralType.FLOAT, 1.5f)) as Request.LiteralUpdate
+        assertEquals(1.5f, f.value)
+        val d = roundTripRequest(Request.LiteralUpdate(5, "k", "H", 0, LiteralType.DOUBLE, 3.14)) as Request.LiteralUpdate
+        assertEquals(3.14, d.value)
+        val b = roundTripRequest(Request.LiteralUpdate(6, "k", "H", 0, LiteralType.BOOLEAN, true)) as Request.LiteralUpdate
+        assertEquals(true, b.value)
+        val c = roundTripRequest(Request.LiteralUpdate(7, "k", "H", 0, LiteralType.CHAR, 'x')) as Request.LiteralUpdate
+        assertEquals('x', c.value)
+    }
+
+    @Test
     fun capabilities() {
         val got = roundTripResponse(
             Response.Capabilities(1, Protocol.VERSION, 36, true, true, false, true, 10700),
