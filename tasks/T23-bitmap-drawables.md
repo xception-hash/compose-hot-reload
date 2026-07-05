@@ -1,5 +1,5 @@
 # T23: Bitmap (png/webp) drawable hot-reload
-Status: TODO
+Status: IN-REVIEW
 Assignee: agy (device needed — run interactively)
 Priority: 2 of T21–T27 (after T21)
 

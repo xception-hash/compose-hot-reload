@@ -109,11 +109,11 @@ class WatchSession(private val config: Config) {
     ): Map<String, SnapshotEntry> {
         val t0 = System.nanoTime()
         val ktChanges = changedSources.filter { it.extension == "kt" }
-        val resChanges = changedSources.filter { it.extension == "xml" && isResourceXml(it) }
+        val resChanges = changedSources.filter { isResourceFile(it) }
         println("\nchanged: ${changedSources.joinToString { it.fileName.toString() }}")
         val ignored = changedSources - ktChanges.toSet() - resChanges.toSet()
         if (ignored.isNotEmpty()) {
-            println("ignored (hot-reloads .kt and res/**/*.xml only): ${ignored.joinToString { it.fileName.toString() }}")
+            println("ignored (hot-reloads .kt and res/**/*.{xml,png,webp} only): ${ignored.joinToString { it.fileName.toString() }}")
         }
 
         var newSnapshot = snapshot
@@ -208,12 +208,14 @@ class WatchSession(private val config: Config) {
     }
 
     /**
-     * A watched `.xml` under any `res/` subdirectory of any AGP module. The overlay
-     * mechanism is uniform (whole-APK resource table + the (type,name) guard), so values
-     * AND file-based XML resources (drawable/color/anim/...) all route to the swapper;
+     * A watched resource file (`.xml`, `.png`, `.webp`) under any `res/` subdirectory of any AGP module.
+     * The overlay mechanism is uniform (whole-APK resource table + the (type,name) guard), so values
+     * AND file-based resources (drawable/color/anim/...) all route to the swapper;
      * what actually refreshes on screen is governed by the runtime's cache clearing.
      */
-    private fun isResourceXml(path: Path): Boolean {
+    private fun isResourceFile(path: Path): Boolean {
+        val ext = path.extension
+        if (ext != "xml" && ext != "png" && ext != "webp") return false
         val parent = path.parent ?: return false
         return resDirs.any { path.startsWith(it) } && parent.parent?.let { p ->
             resDirs.any { it == p }
