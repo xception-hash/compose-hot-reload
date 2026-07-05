@@ -282,5 +282,60 @@ assert_ui "$COUNT_LINE"   # state preserved: same remember + rememberSaveable
 assert_pid
 echo "PASS: resource-edit"
 
+# Case 9: watch-restart-resource-edit — a SECOND watch session against the SAME app
+# process (no reinstall, so code_cache still holds session 1's overlays) must apply a new
+# value edit. Regression for the overlay-name collision: per-session seq restarted at 1,
+# `cp -r` nested into the leftover dir, and the stale session-1 arsc got re-attached.
+echo "Running case: watch-restart-resource-edit"
+kill_watch
+: > "$WATCH_LOG"
+(cd "$REPO_ROOT" && ./gradlew -q :cli:run --args="watch --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample") > "$WATCH_LOG" 2>&1 &
+WATCH_PID=$!
+START=$(date +%s)
+while ! grep -q "watching " "$WATCH_LOG"; do
+    if (( $(date +%s) - START > TIMEOUT )); then
+        echo "TIMEOUT waiting for restarted watch loop."
+        cat "$WATCH_LOG"
+        exit 1
+    fi
+    sleep 1
+done
+res_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
+perl -pi -e 's/RESOURCE EDITED/RESOURCE RESTARTED/' "$STRINGS"
+wait_for_resource_swap "$res_count"
+assert_ui 'text="RESOURCE RESTARTED"'
+assert_ui "$COUNT_LINE"   # same app process, state still intact
+assert_pid
+echo "PASS: watch-restart-resource-edit"
+
+# Case 10: pending-resource-swap — one save batch with a BROKEN .kt and a valid values
+# edit. The shared compile fails, so the batch applies nothing; the watcher never
+# re-delivers the unchanged .xml, so the fix-and-save must retry the resource swap.
+echo "Running case: pending-resource-swap"
+res_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
+fail_count=$(grep -c "compile failed" "$WATCH_LOG" || true)
+perl -pi -e 's/Text\("RAPID THREE"\)/Text(E2E_UNDEFINED_SYMBOL)/' "$MAIN_ACTIVITY"
+perl -pi -e 's/RESOURCE RESTARTED/RESOURCE PENDING/' "$STRINGS"
+start_fail=$(date +%s)
+while (( $(grep -c "compile failed" "$WATCH_LOG" || true) <= fail_count )); do
+    if (( $(date +%s) - start_fail > 60 )); then
+        echo "TIMEOUT waiting for compile failed"
+        tail -n 20 "$WATCH_LOG"
+        exit 1
+    fi
+    sleep 1
+done
+if (( $(grep -c "resource-swapped:" "$WATCH_LOG" || true) != res_count )); then
+    echo "resource swap ran despite the batch's compile failure"
+    tail -n 20 "$WATCH_LOG"
+    exit 1
+fi
+perl -pi -e 's/Text\(E2E_UNDEFINED_SYMBOL\)/Text("BATCH FIXED")/' "$MAIN_ACTIVITY"
+wait_for_resource_swap "$res_count"   # the fix-and-save must flush the pending swap
+assert_ui 'text="BATCH FIXED"'
+assert_ui 'text="RESOURCE PENDING"'
+assert_pid
+echo "PASS: pending-resource-swap"
+
 END_TIME=$(date +%s)
 echo "All cases PASS. Total time: $((END_TIME - START_TIME))s"

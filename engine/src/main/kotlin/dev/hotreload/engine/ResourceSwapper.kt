@@ -31,6 +31,14 @@ class ResourceSwapper(
     private val apkDir = config.projectDir.resolve("${config.module}/build/outputs/apk/debug")
     private val seq = AtomicInteger(0)
 
+    /**
+     * Session-unique overlay-name component: `seq` restarts at 1 every watch session, but
+     * code_cache survives watch restarts (it's only cleared on reinstall), and `cp -r` into
+     * an existing `code_cache/hotreload-overlay-N` nests the copy — the STALE previous-session
+     * `resources.arsc` stays on top and the new edit silently never surfaces.
+     */
+    private val sessionTag = System.currentTimeMillis().toString(radix = 36)
+
     /** The (type,name) set of every value resource at last-known-good; guards ID stability. */
     private var resourceIds: Set<String> = scanResourceIds()
 
@@ -70,11 +78,13 @@ class ResourceSwapper(
             return false
         }
 
-        val overlayName = "hotreload-overlay-${seq.incrementAndGet()}"
+        val overlayName = "hotreload-overlay-$sessionTag-${seq.incrementAndGet()}"
         val staging = extractOverlay(apk, overlayName)
         try {
             adb.push(staging, "/data/local/tmp/")
             adb.runAs(config.applicationId, "mkdir", "-p", "code_cache")
+            // rm first: if the dest ever exists, cp -r would nest instead of overwrite.
+            adb.runAs(config.applicationId, "rm", "-rf", "code_cache/$overlayName")
             adb.runAs(config.applicationId, "cp", "-r", "/data/local/tmp/$overlayName", "code_cache/$overlayName")
             adb.shell("rm", "-rf", "/data/local/tmp/$overlayName")
             device.loadResources(overlayName)
@@ -115,17 +125,29 @@ class ResourceSwapper(
     }
 
     /**
-     * The set of `type/name` value resources declared under `res/values*`. Two resources
-     * with the same type+name in different config qualifiers (values/, values-night/) are
-     * one resource ID, so they collapse to one entry — exactly what governs ID stability.
+     * The set of `type/name` resources: values declared under `res/values*` PLUS file-based
+     * resources (drawable/raw/xml/font/... — one ID per file stem). Two resources with the
+     * same type+name in different config qualifiers (values-night/, drawable-hdpi/) are one
+     * resource ID, so they collapse to one entry — exactly what governs ID stability. File
+     * resources must be included: adding res/drawable/foo.xml renumbers IDs just like adding
+     * a string, even though only value edits are ever overlaid.
      */
     private fun scanResourceIds(): Set<String> {
         val resDir = config.resDir
         if (!resDir.isDirectory()) return emptySet()
         val ids = sortedSetOf<String>()
         Files.walk(resDir).use { stream ->
-            stream.filter { it.isRegularFile() && it.extension == "xml" && it.parent.name.startsWith("values") }
-                .forEach { file -> collectIds(file, ids) }
+            stream.filter { it.isRegularFile() && !it.name.startsWith(".") && it.parent != resDir }
+                .forEach { file ->
+                    val dir = file.parent.name
+                    if (dir.startsWith("values")) {
+                        if (file.extension == "xml") collectIds(file, ids)
+                    } else {
+                        // res/<type>[-qualifier]/<name>.<ext> → ID is (type, stem); the stem
+                        // stops at the first '.' so foo.9.png collapses to foo.
+                        ids.add("${dir.substringBefore('-')}/${file.name.substringBefore('.')}")
+                    }
+                }
         }
         return ids
     }

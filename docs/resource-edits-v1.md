@@ -1,5 +1,9 @@
 # Resource edits v1 — implementation findings (T17)
 
+> **v1.1 (2026-07-05):** post-ship review of the T17 diff found three bugs, all fixed and
+> e2e-covered (cases 9–10). Details in §v1.1 review fixes below; the rest of this doc is
+> updated in place where the fixes changed behavior.
+
 Shipped + live-validated 2026-07-04 on `samples/single-module`, API 36 arm64 emulator,
 **protocol v3**. This is the build-out of the research in `docs/resource-edits-notes.md`
 (T11), `docs/resourcesloader-compose-experiment.md` (T14), and
@@ -14,8 +18,9 @@ surfaced.
 | add / remove / rename a resource | value-only guard trips → prints "reinstall required", **app untouched**, watch keeps running | <0.1s (no build) |
 
 Same-PID throughout; `remember` **and** `rememberSaveable` preserved across a value swap
-(counter held at `Count: 3 / Saved: 3` while the string flipped). e2e case 8 added; full
-gate is **8/8 in 93s**, no leaked watcher.
+(counter held at `Count: 3 / Saved: 3` while the string flipped). e2e case 8 added; v1.1
+added cases 9 (watch-restart-resource-edit) and 10 (pending-resource-swap); full gate is
+**10/10 in 119s**, no leaked watcher.
 
 ## The invalidation half — T16's route confirmed at the engine level
 T16 proved `ControlledComposition.invalidateAll()` is the only keyless, state-preserving
@@ -61,16 +66,21 @@ runs through the real `PatchServer`, and it works **verbatim** as T16 documented
   IDs stable across pure value edits but renumbers when the resource *set* changes, which
   would desync the already-loaded dex's `R.*` constants. The guard parses every
   `res/values*/**.xml` with the JDK DOM parser, collects `type/name` (element tag, or the
-  `type` attr for `<item>`), and compares to the last-known-good set. Any add/remove/rename
-  → "reinstall required", skip the swap, **keep the old baseline** so the message persists
-  until the user reinstalls (or reverts). Config qualifiers collapse (`values/` and
-  `values-night/` with the same name = one ID), which is exactly what governs ID stability.
+  `type` attr for `<item>`), **plus every file-based resource as `type/stem`**
+  (`res/<type>[-qualifier]/<name>.<ext>` → `type/name`, since adding `res/drawable/foo.xml`
+  renumbers IDs exactly like adding a string — v1.1 fix, the original scan missed these),
+  and compares to the last-known-good set. Any add/remove/rename → "reinstall required",
+  skip the swap, **keep the old baseline** so the message persists until the user
+  reinstalls (or reverts). Config qualifiers collapse (`values/` and `values-night/` with
+  the same name = one ID, `drawable/` and `drawable-hdpi/` likewise), which is exactly
+  what governs ID stability.
 - **`run-as cp` from `/data/local/tmp`.** `ResourcesProvider.loadFromDirectory` reads from
   the app-private `code_cache`, which `adb push` can't write directly; push to
-  `/data/local/tmp` then `run-as <pkg> cp -r` into `code_cache/hotreload-overlay-N` (the
-  overlay dir name is the relative path sent in `LoadResources`, same file-based
-  convention as `InjectDex`). The host-side `/data/local/tmp` staging is cleaned after the
-  copy.
+  `/data/local/tmp` then `run-as <pkg> cp -r` into
+  `code_cache/hotreload-overlay-<sessionTag>-N` (the overlay dir name is the relative path
+  sent in `LoadResources`, same file-based convention as `InjectDex`). `sessionTag` is the
+  session start time in base36 and the dest is `rm -rf`ed before the copy — both v1.1
+  fixes, see below. The host-side `/data/local/tmp` staging is cleaned after the copy.
 
 ## Gotchas hit while building
 - **A backup file under `res/` breaks the build.** The e2e case first backed `strings.xml`
@@ -91,6 +101,33 @@ runs through the real `PatchServer`, and it works **verbatim** as T16 documented
 The cost is dominated by `assembleDebug` (mostly up-to-date, since kotlin is already
 compiled — it's the resource repackage + APK write); extract + push + `run-as cp` +
 `LoadResources` + `invalidateAll` are the small remainder. Comfortably under the 5s target.
+
+## v1.1 review fixes (2026-07-05)
+Three bugs found by a full-diff review after the DONE; none were reachable by e2e as it
+stood (it reinstalls per run and never mixes a broken `.kt` with a values edit).
+
+1. **Overlay-name collision across watch sessions** (worst — silent stale values).
+   `ResourceSwapper.seq` restarts at 1 every session, but `code_cache` survives watch
+   restarts (only a reinstall clears it). `run-as cp -r` into the leftover
+   `code_cache/hotreload-overlay-1` **nests** the copy (POSIX/toybox), leaving the stale
+   session-1 `resources.arsc` on top — the client re-attached last session's values and
+   the new edit never surfaced. Repro: restart watch without reinstalling (a supported
+   flow), edit a string. Fix: overlay names carry a session tag
+   (`hotreload-overlay-<startMillis-base36>-N`) **and** the dest is `rm -rf`ed before the
+   `cp`. e2e case 9 (watch-restart-resource-edit) regresses this.
+2. **Guard missed file-based resources.** The `(type,name)` scan read only `res/values*`
+   XML, so adding e.g. `res/drawable/foo.xml` shifted aapt2 IDs undetected and the *next*
+   value edit could overlay an arsc whose IDs no longer match the installed dex's `R.*`
+   constants. Fix: file-based resources are scanned as `type/stem` (qualifiers and
+   extensions collapse; `foo.9.png` → `foo`; dotfiles like `.DS_Store` ignored).
+3. **A mixed broken-`.kt` + values save dropped the resource edit.** The batch bailed on
+   compile failure and the watcher never re-delivers the unchanged `.xml`, so the value
+   edit was silently lost until re-saved. Fix: `WatchSession.pendingResourceSwap` — a seen
+   values edit stays pending until a swap succeeds; the fix-and-save flushes it (the swap
+   is still skipped *within* the failing batch, since `assembleDebug` shares the failing
+   compile). Side effect: after a guard trip, the "reinstall required" reminder now prints
+   on every subsequent save, not only on `.xml` re-saves — intended. e2e case 10
+   (pending-resource-swap) regresses this.
 
 ## Open questions / follow-ups (not built)
 - **Loader / dir accumulation.** N value edits in one watch session = N `ResourcesLoader`s
