@@ -36,6 +36,22 @@ class HotReloadPlugin : Plugin<Project> {
         // the build in afterEvaluate rather than let watch-time redefine mysteriously break.
         var flagsApplied = false
 
+        // Opt-in (T24): `-Photreload.liveLiterals=true` turns on the Compose compiler's
+        // live-literals v2 codegen so string/number/boolean constants inside composables
+        // become `LiveLiterals$*Kt` helpers we can update in place (sub-100ms path). Off by
+        // default because the instrumentation adds debug-build overhead. Verified option name
+        // (Kotlin 2.4 built-in Compose compiler): `liveLiteralsEnabled` = LIVE_LITERALS_V2.
+        val liveLiteralsOn = project.findProperty("hotreload.liveLiterals") == "true"
+        val liveLiteralsFlags =
+            if (liveLiteralsOn) {
+                listOf(
+                    "-P",
+                    "plugin:androidx.compose.compiler.plugins.kotlin:liveLiteralsEnabled=true",
+                )
+            } else {
+                emptyList()
+            }
+
         // Application module: device runtime + packaging + flags (incl. FunctionKeyMeta).
         project.pluginManager.withPlugin("com.android.application") {
             project.dependencies.add(
@@ -51,7 +67,7 @@ class HotReloadPlugin : Plugin<Project> {
                     listOf(
                         "-P",
                         "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true",
-                    ) + classShapeFlags,
+                    ) + classShapeFlags + liveLiteralsFlags,
                 )
             ) flagsApplied = true
         }

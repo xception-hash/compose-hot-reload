@@ -24,6 +24,12 @@ class WatchSession(private val config: Config) {
         val applicationId: String,
         val d8: Path,
         val adb: Path,
+        /**
+         * Live-literals fast path (T24, `--literals`): literal-only edits are pushed in
+         * place through Compose live literals before the normal compile+swap runs. Requires
+         * the app built with `-Photreload.liveLiterals=true` (verified at startup).
+         */
+        val literals: Boolean = false,
     ) {
         init {
             require(moduleNames.isNotEmpty()) { "at least one module (the app module) is required" }
@@ -37,6 +43,11 @@ class WatchSession(private val config: Config) {
     private lateinit var modules: List<ModuleSpec>
     private val classesDirs get() = modules.map { it.classesDir }
     private val resDirs get() = modules.mapNotNull { it.resDir }
+
+    /** Live-literals state (T24); populated only when [Config.literals]. */
+    private var sourceRoots: List<Path> = emptyList()
+    private var literalTable: LiteralTable = LiteralTable.empty()
+    private val baselineText = HashMap<Path, String>()
 
     /** Blocks until the process is killed. */
     fun run() {
@@ -59,7 +70,8 @@ class WatchSession(private val config: Config) {
                 "device is not hot-swappable — is the app a debuggable build with the runtime-client?"
             }
 
-            GradleCompiler(config.projectDir.toFile()).use { gradle ->
+            val gradleArgs = if (config.literals) listOf("-Photreload.liveLiterals=true") else emptyList()
+            GradleCompiler(config.projectDir.toFile(), gradleArgs).use { gradle ->
                 print("initial build... ")
                 val initial = gradle.compile(compileTask)
                 check(initial.success) { "initial compile failed:\n${initial.output}" }
@@ -77,8 +89,10 @@ class WatchSession(private val config: Config) {
                 val resources = ResourceSwapper(modules.first(), resDirs, config.applicationId, gradle, adb, device)
 
                 // Registering a nonexistent root makes DirectoryWatcher fail (asynchronously).
-                val sourceRoots = modules.flatMap { it.sourceRoots }.filter { Files.isDirectory(it) }
+                sourceRoots = modules.flatMap { it.sourceRoots }.filter { Files.isDirectory(it) }
                 check(sourceRoots.isNotEmpty()) { "no source roots exist among ${modules.flatMap { it.sourceRoots }.joinToString()}" }
+
+                if (config.literals) initLiterals()
                 // res/values value edits are hot-swapped too, but only if the dir exists.
                 val roots = sourceRoots + resDirs.filter { Files.isDirectory(it) }
                 println("watching ${roots.joinToString()} (${snapshot.size} classes)")
@@ -124,6 +138,13 @@ class WatchSession(private val config: Config) {
         var invalidated = false
         if (resChanges.isNotEmpty()) pendingResourceSwap = true
 
+        // Live-literals fast path (T24): a single .kt save that only changes one constant
+        // is pushed in place NOW — it wins the latency race. The normal compile+swap below
+        // still runs and re-applies it idempotently (keeping the baseline/table truthful).
+        if (config.literals && ktChanges.size == 1 && resChanges.isEmpty()) {
+            tryLiteralFastPath(ktChanges.single(), device, snapshot, t0)
+        }
+
         // Code first, then resources (spec): a mixed batch redefines classes before the
         // resource overlay so both are in place when the tree recomposes.
         if (ktChanges.isNotEmpty()) {
@@ -134,6 +155,7 @@ class WatchSession(private val config: Config) {
                 ?: return snapshot
             newSnapshot = result.snapshot
             invalidated = invalidated || result.invalidated
+            if (config.literals) refreshLiterals(ktChanges)
         }
 
         if (pendingResourceSwap && resources.swap(t0)) {
@@ -241,6 +263,84 @@ class WatchSession(private val config: Config) {
 
         errors.forEach { println("recomposition failed: ${it.message}") }
         println("the device is still showing the previous UI — fix the edit and save again")
+    }
+
+    // ---- live-literals fast path (T24) ----
+
+    /**
+     * After the initial build: extract the live-literal table from the compiled
+     * `LiveLiterals$*Kt` helpers and snapshot every watched `.kt` file's text (the
+     * baseline offsets are relative to). Fails loud if `--literals` was requested but the
+     * app wasn't built with `-Photreload.liveLiterals=true` (no helpers → nothing to push).
+     */
+    private fun initLiterals() {
+        literalTable = LiteralTable.scan(classesDirs)
+        check(!literalTable.isEmpty) {
+            "--literals requires the app compiled with -Photreload.liveLiterals=true, but no " +
+                "LiveLiterals\$*Kt classes were found in ${classesDirs.joinToString()}. Rebuild with " +
+                "the property (see README) or drop --literals."
+        }
+        for (root in sourceRoots) cacheBaseline(root)
+        println("live-literals fast path enabled")
+    }
+
+    /** Re-scan the table and advance the baseline text for the files just compiled. */
+    private fun refreshLiterals(changedKt: List<Path>) {
+        literalTable = LiteralTable.scan(classesDirs)
+        for (path in changedKt) runCatching { baselineText[path] = Files.readString(path) }
+    }
+
+    private fun cacheBaseline(root: Path) {
+        Files.walk(root).use { paths ->
+            paths.filter { it.extension == "kt" }.forEach { p -> runCatching { baselineText[p] = Files.readString(p) } }
+        }
+    }
+
+    /**
+     * If [ktFile]'s save is a clean single-literal edit, push the new value in place through
+     * Compose live literals (Compose recomposes from the state write itself) and log
+     * `literal-pushed:`. Any non-match — or send failure — silently defers to the normal
+     * compile+swap that follows.
+     */
+    private fun tryLiteralFastPath(
+        ktFile: Path,
+        device: DeviceClient,
+        snapshot: Map<String, SnapshotEntry>,
+        t0: Long,
+    ) {
+        val baseline = baselineText[ktFile] ?: return
+        val rel = sourceRelative(ktFile) ?: return
+        val entries = literalTable.entriesFor(rel)
+        if (entries.isEmpty()) return
+        val updated = runCatching { Files.readString(ktFile) }.getOrNull() ?: return
+        val push = LiteralFastPath.detect(baseline, updated, entries) ?: return
+        try {
+            device.literalUpdate(push.key, push.helperClass, enclosingKey(push, snapshot), push.type, push.value)
+            println("literal-pushed: ${push.key} = ${push.value} in ${elapsedMs(t0)}ms")
+        } catch (t: Throwable) {
+            println("literal fast path failed (${t.message}) — falling back to full swap")
+        }
+    }
+
+    /**
+     * The FunctionKeyMeta compose key of the composable that encloses a live literal — the
+     * runtime needs it to wake the Recomposer (a liveLiterals build compiles the literal
+     * into a keyless helper). The enclosing composable's name is the last `$fun-<name>`
+     * segment of the live-literal key; its key lives on the facade class (the helper
+     * `dev.pkg.LiveLiterals$FooKt` ⇒ facade `dev/pkg/FooKt`). 0 if it can't be resolved
+     * (the runtime then falls back to a best-effort whole-tree invalidate).
+     */
+    private fun enclosingKey(push: LiteralPush, snapshot: Map<String, SnapshotEntry>): Int {
+        val fnName = push.key.substringAfterLast("\$fun-", "").ifEmpty { return 0 }
+        val facadeInternal = push.helperClass.replace('.', '/').replace("LiveLiterals\$", "")
+        val members = snapshot[facadeInternal]?.facts?.members ?: return 0
+        return members.firstOrNull { it.id.substringBefore('(') == fnName }?.composeKey ?: 0
+    }
+
+    /** Source-root-relative path (matches [LiteralTable] keys), or null if outside all roots. */
+    private fun sourceRelative(path: Path): String? {
+        val root = sourceRoots.firstOrNull { path.startsWith(it) } ?: return null
+        return root.relativize(path).toString().replace('\\', '/')
     }
 
     private fun elapsedMs(t0: Long) = (System.nanoTime() - t0) / 1_000_000

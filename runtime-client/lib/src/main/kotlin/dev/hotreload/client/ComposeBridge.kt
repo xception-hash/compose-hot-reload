@@ -229,6 +229,117 @@ object ComposeBridge {
         return caches.size
     }
 
+    /**
+     * `androidx.compose.runtime.internal.LiveLiteralKt` — the live-literals runtime
+     * (T24). Present only when the app was compiled with the Compose compiler's
+     * live-literals codegen (`-Photreload.liveLiterals=true`); null otherwise.
+     */
+    private val liveLiteralKt: Class<*>? by lazy {
+        try {
+            Class.forName("androidx.compose.runtime.internal.LiveLiteralKt")
+        } catch (t: Throwable) {
+            Log.e(TAG, "LiveLiteralKt unavailable (app not built with liveLiterals?)", t)
+            null
+        }
+    }
+
+    /** Global live-literals flag: idempotent, enabled once per process. */
+    @Volatile
+    private var literalsEnabled = false
+
+    /** Helper classes whose per-file `enabled` flag we have already flipped. */
+    private val enabledHelpers = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    /**
+     * Live-literals fast path (T24): set [key] (owned by [helperClass]) to [value] in place.
+     *
+     * Live-literals **v2** gates each generated getter on TWO flags, both of which we must
+     * flip (mirrors AOSP `LiveLiteralSupport.enableGlobal` + `enableHelperClass`):
+     *  1. the global `LiveLiteralKt.isLiveLiteralsEnabled`, and
+     *  2. a per-file `enabled` boolean field on the `LiveLiterals$*Kt` [helperClass] itself
+     *     — WITHOUT this the getter returns its compile-time default and the update is
+     *     invisible (the bug that made v1 stick on screen).
+     *
+     * Then `LiveLiteralKt.updateLiveLiteralValue(key, value)` writes into the Compose
+     * `MutableState` backing the literal, and we recompose so the getter re-reads it.
+     *
+     * Recomposition is the subtle part. We enable lazily (to keep the flag's cost off
+     * non-`--literals` runs), so the composition that first drew the literal took the
+     * disabled branch and isn't subscribed to the state. A plain [invalidateAllCompositions]
+     * marks the scopes invalid but does NOT wake the Recomposer's frame loop when the app is
+     * idle — verified live: the value only appeared on the *next* unrelated edit. The
+     * Recomposer's own hot-reload entrypoint [invalidateGroupsWithKey] DOES wake it, so we
+     * invalidate the enclosing composable's key ([invalidateKey]); combined with the whole-
+     * tree invalidate (marks every scope, incl. the literal's) the pumped frame drains them
+     * all with `remember`/`rememberSaveable` preserved. Names are matched by prefix to
+     * tolerate `$runtime_release` mangling. Must run on the main thread.
+     */
+    fun updateLiteral(key: String, helperClass: String, invalidateKey: Int, value: Any): Boolean {
+        return try {
+            val cls = liveLiteralKt ?: return false
+            if (!literalsEnabled) {
+                val enabledField = cls.declaredFields
+                    .firstOrNull { it.name.startsWith("isLiveLiteralsEnabled") }
+                    ?.apply { isAccessible = true }
+                if (enabledField?.getBoolean(null) != true) {
+                    val enable = cls.declaredMethods
+                        .firstOrNull { it.name.startsWith("enableLiveLiterals") && it.parameterCount == 0 }
+                        ?.apply { isAccessible = true }
+                        ?: run { Log.e(TAG, "enableLiveLiterals not found"); return false }
+                    enable.invoke(null)
+                }
+                literalsEnabled = true
+            }
+            if (enabledHelpers.add(helperClass) && !enableHelper(helperClass)) return false
+
+            val update = cls.declaredMethods
+                .firstOrNull { it.name.startsWith("updateLiveLiteralValue") && it.parameterCount == 2 }
+                ?.apply { isAccessible = true }
+                ?: run { Log.e(TAG, "updateLiveLiteralValue not found"); return false }
+            update.invoke(null, key, value)
+            // Mark every scope invalid (incl. the literal's), then wake the Recomposer. The
+            // whole-tree invalidate alone won't pump a frame; invalidateGroupsWithKey on the
+            // enclosing composable does. If the engine couldn't resolve a key, fall back to a
+            // forced frame (best-effort — may lag until the next natural frame).
+            invalidateAllCompositions()
+            if (invalidateKey != 0) invalidateGroupsWithKey(invalidateKey) else pumpFrame()
+            Log.i(TAG, "updateLiteral($helperClass#$key = $value, invKey=$invalidateKey) OK")
+            true
+        } catch (t: Throwable) {
+            Log.e(TAG, "updateLiteral($key) failed", t)
+            false
+        }
+    }
+
+    /**
+     * Force a Choreographer frame so the Recomposer's frame clock ticks and it drains any
+     * pending recompositions (an `invalidateAll` with no other activity would otherwise sit
+     * until the next natural frame). Best-effort; must run on the main thread.
+     */
+    private fun pumpFrame() {
+        try {
+            android.view.Choreographer.getInstance().postFrameCallback { }
+            ActivityTracker.current?.window?.decorView?.invalidate()
+        } catch (t: Throwable) {
+            Log.w(TAG, "pumpFrame failed", t)
+        }
+    }
+
+    /** Flip the per-file `enabled` flag on a `LiveLiterals$*Kt` class (live-literals v2). */
+    private fun enableHelper(helperClass: String): Boolean {
+        return try {
+            val helper = Class.forName(helperClass, false, javaClass.classLoader)
+            val enabled = helper.declaredFields.firstOrNull { it.name == "enabled" }
+                ?.apply { isAccessible = true }
+                ?: run { Log.e(TAG, "no 'enabled' field on $helperClass"); return false }
+            enabled.setBoolean(null, true)
+            true
+        } catch (t: Throwable) {
+            Log.e(TAG, "enableHelper($helperClass) failed", t)
+            false
+        }
+    }
+
     /** One error the Recomposer captured during recomposition (hot-reload mode). */
     class CapturedError(val message: String, val recoverable: Boolean)
 

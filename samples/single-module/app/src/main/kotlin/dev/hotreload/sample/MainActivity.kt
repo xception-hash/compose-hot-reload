@@ -51,6 +51,7 @@ fun MainScreen() {
     ) {
         Counter()
         Greeting()
+        LiteralLabel()
         ResourceLabel()
         HotIcon()
         HotPhoto()
@@ -101,6 +102,14 @@ fun Counter() {
 @Composable
 fun Greeting() {
     Text("Hello from the sample app")
+}
+
+// Live-literals fast-path testbed (T24): the "literal: vN" string is a plain string
+// literal, so with -Photreload.liveLiterals=true it compiles to a LiveLiterals$ helper
+// the `--literals` watch path can update in place. e2e case 14 edits v1 -> v2.
+@Composable
+fun LiteralLabel() {
+    Text("literal: v1")
 }
 
 @Composable

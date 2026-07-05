@@ -51,6 +51,23 @@ object Wire {
                     d.writeUTF(request.overlayDir)
                 }
                 is Request.InvalidateAll -> header(d, Opcode.INVALIDATE_ALL, request.requestId)
+                is Request.LiteralUpdate -> {
+                    header(d, Opcode.LITERAL_UPDATE, request.requestId)
+                    d.writeUTF(request.key)
+                    d.writeUTF(request.helperClass)
+                    d.writeInt(request.invalidateKey)
+                    d.writeByte(request.type)
+                    when (request.type) {
+                        LiteralType.STRING -> d.writeUTF(request.value as String)
+                        LiteralType.INT -> d.writeInt(request.value as Int)
+                        LiteralType.LONG -> d.writeLong(request.value as Long)
+                        LiteralType.FLOAT -> d.writeFloat(request.value as Float)
+                        LiteralType.DOUBLE -> d.writeDouble(request.value as Double)
+                        LiteralType.BOOLEAN -> d.writeBoolean(request.value as Boolean)
+                        LiteralType.CHAR -> d.writeChar((request.value as Char).code)
+                        else -> throw IOException("unknown literal type ${request.type}")
+                    }
+                }
             }
         }
     }
@@ -105,6 +122,23 @@ object Wire {
             Opcode.GET_ERRORS -> Request.GetErrors(id, d.readBoolean())
             Opcode.LOAD_RESOURCES -> Request.LoadResources(id, d.readUTF())
             Opcode.INVALIDATE_ALL -> Request.InvalidateAll(id)
+            Opcode.LITERAL_UPDATE -> {
+                val key = d.readUTF()
+                val helperClass = d.readUTF()
+                val invalidateKey = d.readInt()
+                val type = d.readUnsignedByte()
+                val value: Any = when (type) {
+                    LiteralType.STRING -> d.readUTF()
+                    LiteralType.INT -> d.readInt()
+                    LiteralType.LONG -> d.readLong()
+                    LiteralType.FLOAT -> d.readFloat()
+                    LiteralType.DOUBLE -> d.readDouble()
+                    LiteralType.BOOLEAN -> d.readBoolean()
+                    LiteralType.CHAR -> d.readChar()
+                    else -> throw IOException("unknown literal type $type")
+                }
+                Request.LiteralUpdate(id, key, helperClass, invalidateKey, type, value)
+            }
             else -> throw IOException("unknown request opcode 0x${opcode.toString(16)}")
         }
     }

@@ -13,8 +13,12 @@ class CompileResult(val success: Boolean, val durationMs: Long, val output: Stri
 /**
  * Wrapper over the Gradle Tooling API that keeps a warm daemon connection
  * for fast incremental compiles.
+ *
+ * [extraArgs] are appended to every build (e.g. `-Photreload.liveLiterals=true` for the
+ * T24 fast path): the class output the watch compiles must match how the installed APK was
+ * built, or the generated `LiveLiterals$*Kt` helpers would be absent/mismatched.
  */
-class GradleCompiler(projectDir: File) : AutoCloseable {
+class GradleCompiler(projectDir: File, private val extraArgs: List<String> = emptyList()) : AutoCloseable {
 
     private val connection: ProjectConnection = GradleConnector.newConnector()
         .forProjectDirectory(projectDir)
@@ -31,6 +35,7 @@ class GradleCompiler(projectDir: File) : AutoCloseable {
         return try {
             connection.newBuild()
                 .forTasks(task)
+                .apply { if (extraArgs.isNotEmpty()) withArguments(extraArgs) }
                 .setStandardOutput(out)
                 .setStandardError(out)
                 .run()

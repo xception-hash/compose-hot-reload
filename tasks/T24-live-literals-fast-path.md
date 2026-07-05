@@ -1,7 +1,27 @@
 # T24: Live-literals fast path (Phase 3, flag-guarded)
-Status: TODO
+Status: DONE
 Assignee: agy (device needed for the tail; engine part is host-only)
 Priority: 5 of T21–T27
+
+## Outcome (done by Claude/Opus — not delegable: protocol + ComposeBridge reflection + classifier)
+Live-literal edits push in ~22ms and land on screen with state + PID preserved. Verified
+option name (Kotlin 2.4 built-in Compose compiler): live-literals v2 = `liveLiteralsEnabled`
+(NOT `liveLiteralsV2Enabled`). Two live-discovered gotchas beyond the spec:
+1. **Per-file `enabled` flag (v2).** The generated getter gates on a per-`LiveLiterals$*Kt`
+   `enabled` static field (AOSP `enableHelperClass`), NOT just the global
+   `LiveLiteralKt.isLiveLiteralsEnabled`. The runtime must flip BOTH → the engine sends the
+   helper FQCN in `LiteralUpdate`.
+2. **Recomposition pump.** A liveLiterals build compiles the literal into a keyless helper,
+   so `ControlledComposition.invalidateAll()` marks scopes but never wakes the idle
+   Recomposer (verified: value only appeared on the NEXT unrelated edit; a forced
+   Choreographer frame did nothing). `Recomposer.invalidateGroupsWithKey(enclosingKey)` — the
+   body-edit path — is what pumps. The engine resolves the enclosing composable's
+   FunctionKeyMeta key (last `$fun-<name>` of the live-literal key → facade-class member
+   composeKey) and sends it in `LiteralUpdate`.
+Also: the engine's Tooling-API compiles must carry `-Photreload.liveLiterals=true`
+(GradleCompiler.extraArgs) or they overwrite the classes dir with helper-less classes.
+Protocol bumped to v6 (opcode 0x09). e2e Case 14 green with `HOTRELOAD_LITERALS=1`
+(SKIP without); full `./e2e/run.sh` 14/14, pgrep clean.
 
 ## Goal
 Sub-100ms loop for literal-only edits (string/number/boolean constants inside composables):

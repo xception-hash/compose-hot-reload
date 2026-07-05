@@ -19,6 +19,8 @@ Options:
                       module (default: app). Nested paths use '/', e.g. app,libs/core
   --sdk <dir>         Android SDK root (default: ${'$'}ANDROID_HOME)
   --build-tools <v>   build-tools version for d8 (default: 36.0.0)
+  --literals          Enable the live-literals fast path (T24); requires the app built
+                      with -Photreload.liveLiterals=true
 """
 
 fun main(args: Array<String>) {
@@ -33,7 +35,10 @@ fun main(args: Array<String>) {
         exitProcess(1)
     }
 
-    val opts = parseOptions(args.drop(1))
+    // Valueless boolean flags: pull them out before the key/value option parser.
+    val rest = args.drop(1)
+    val literals = "--literals" in rest
+    val opts = parseOptions(rest.filter { it != "--literals" })
     val project = Path.of(opts.required("--project")).toAbsolutePath().normalize()
     val appId = opts.required("--app-id")
     val modules = (opts["--module"] ?: "app").split(',').map { it.trim() }.filter { it.isNotEmpty() }
@@ -56,7 +61,7 @@ fun main(args: Array<String>) {
     }
 
     try {
-        WatchSession(WatchSession.Config(project, modules, appId, d8, adb)).run()
+        WatchSession(WatchSession.Config(project, modules, appId, d8, adb, literals)).run()
     } catch (t: Throwable) {
         fail(t.message ?: t.toString())
     }
