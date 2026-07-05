@@ -3,9 +3,11 @@ package dev.hotreload.sample
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -19,7 +21,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +46,7 @@ fun MainScreen() {
         Counter()
         Greeting()
         ResourceLabel()
+        HotIcon()
         ItemList()
     }
 }
@@ -49,6 +54,15 @@ fun MainScreen() {
 @Composable
 fun ResourceLabel() {
     Text(stringResource(R.string.hot_label))
+}
+
+@Composable
+fun HotIcon() {
+    Image(
+        painter = painterResource(R.drawable.hot_icon),
+        contentDescription = "HOT_ICON",
+        modifier = Modifier.size(48.dp),
+    )
 }
 
 @Composable

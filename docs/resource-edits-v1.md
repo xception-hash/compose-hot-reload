@@ -3,6 +3,10 @@
 > **v1.1 (2026-07-05):** post-ship review of the T17 diff found three bugs, all fixed and
 > e2e-covered (cases 9–10). Details in §v1.1 review fixes below; the rest of this doc is
 > updated in place where the fixes changed behavior.
+>
+> **v2 (2026-07-05): drawables are now tier-1 too.** Vector-drawable XML edits hot-reload
+> with full state preservation — no reinstall, no recreate. See §v2 drawables below; it
+> also corrects T16's theory of *why* drawables looked unreloadable.
 
 Shipped + live-validated 2026-07-04 on `samples/single-module`, API 36 arm64 emulator,
 **protocol v3**. This is the build-out of the research in `docs/resource-edits-notes.md`
@@ -15,6 +19,7 @@ surfaced.
 | Case | Mechanics | Time |
 |---|---|---|
 | string/color **value** edit in `res/values/*.xml` | `assembleDebug` → extract `resources.arsc`+`res/` → push → `run-as cp` into `code_cache` → `LoadResources` → fresh `ResourcesLoader` + whole-tree `invalidateAll` | ~1.3–1.9s |
+| **vector drawable** edit in `res/drawable*/*.xml` (v2) | same overlay pipeline + `ComposeBridge.clearAssetCaches()` between loader attach and `invalidateAll` | ~1.1–2.1s |
 | add / remove / rename a resource | value-only guard trips → prints "reinstall required", **app untouched**, watch keeps running | <0.1s (no build) |
 
 Same-PID throughout; `remember` **and** `rememberSaveable` preserved across a value swap
@@ -129,6 +134,60 @@ stood (it reinstalls per run and never mixes a broken `.kt` with a values edit).
    on every subsequent save, not only on `.xml` re-saves — intended. e2e case 10
    (pending-resource-swap) regresses this.
 
+## v2 (2026-07-05): drawables → tier-1
+
+Live-validated on `samples/single-module` (new `HotIcon()` + `res/drawable/hot_icon.xml`
+full-viewport vector; on-screen truth read by `scripts/icon-pixel.sh` — screencap +
+centre-pixel of the `HOT_ICON` node): **3 consecutive fill-color edits each surfaced in
+~1.1–2.1s, same PID, `Count: 3 / Saved: 3` preserved** (`remember` + `rememberSaveable`).
+No protocol change (still v4) — the clear rides inside the existing `LoadResources`
+handler — but the runtime-client changed, so devices need one reinstall.
+
+What shipped:
+- **Engine**: `WatchSession.isResValues` → `isResourceXml` — any `.xml` directly under a
+  `res/<type>/` dir of any module routes to `ResourceSwapper` (values, drawable, color,
+  ...). The (type,name) guard already covered file-based resources since v1.1, so editing
+  an existing drawable passes and add/rename still trips "reinstall required".
+- **Runtime-client**: `ComposeBridge.clearAssetCaches()`, called by
+  `PatchServer.loadResources` between `addLoaders` and `invalidateAllCompositions` (same
+  main-thread block → ordering is race-free).
+
+**T16's "drawables never surface" theory was wrong in an interesting way.** With the shipped
+pipeline (no cache clear), a drawable edit surfaces *nondeterministically*: live we saw
+edit 1 fresh, edits 2–3 stale, twice in a row. Reason: at ui 1.11.4 `ImageVectorCache` is
+`HashMap<Key, WeakReference<ImageVectorEntry>>` — freshness depends on whether a GC has
+collected the weakly-held entry since the icon last rendered. T16 sampled the "no GC yet"
+side and concluded "only recreate works"; a GC lottery isn't shippable either way, so the
+deterministic fix stands: clear the cache, then `invalidateAll` (`Image` slot state like
+`VectorPainter` is `remember`-keyed on the ImageVector instance, so a fresh decode swaps
+the painter without touching sibling state).
+
+**How the caches are reached — the T16-era route is gone.** Two dead ends, then the fix:
+1. Compose's own clear path is `ComponentCallbacks2.onTrimMemory` (proven live:
+   `adb shell am send-trim-memory <pkg> RUNNING_CRITICAL` + next `invalidateAll` surfaced
+   the edit). But in-process, `Application.mComponentCallbacks` is hidden-API-filtered:
+   the field is *invisible to `getDeclaredFields`* (a debuggable app + attached JVMTI
+   agent does NOT lift enforcement — reflection sees only 3 fields on `Application`).
+   External `am send-trim-memory` from the engine would race the swap's own recompose.
+2. At ui **1.9** the cache was a `remember { ImageVectorCache() }` slot. At **1.11.4 it is
+   not in the slot table at all**: it lives on `androidx.compose.ui.platform.
+   ComposeViewContext` (fields `imageVectorCache` + `resourceIdCache`), reachable as
+   `composition.composable._block.$composeViewContext` (found by an on-device BFS dump).
+3. Shipped route, version-tolerant: bounded BFS (50k cap; ~5.9k visited live) over the
+   object graph from every `_knownCompositions` element, expanding only `androidx.*`
+   objects and arrays, `clear()`ing every `androidx.compose.ui.res.*Cache` encountered —
+   finds both caches at 1.11 (ComposeViewContext layout) and would find 1.9's slot-table
+   layout the same way. Results memoized via `WeakReference` so repeat edits skip the walk.
+   Loud `Log.e` when nothing is found (the "drawables may stay stale" canary).
+
+Scope notes:
+- **Bitmap drawables (png/webp) are NOT hot-reloaded**: `SourceWatcher` only delivers
+  `.kt`/`.xml`, and `painterResource`'s bitmap branch caches via `remember(path,id,theme)`
+  — which `invalidateAll` deliberately preserves. Vector XML is the dominant Compose case;
+  bitmaps stay on the reinstall path for now.
+- Non-drawable file-based XML (layout/anim/xml/) also routes through the swapper now —
+  the overlay is correct (next inflate reads it) but nothing forces a re-inflate; harmless.
+
 ## Open questions / follow-ups (not built)
 - **Loader / dir accumulation.** N value edits in one watch session = N `ResourcesLoader`s
   stacked on the Resources + N `code_cache/hotreload-overlay-N` dirs. Correct (last wins)
@@ -140,9 +199,10 @@ stood (it reinstalls per run and never mixes a broken `.kt` with a values edit).
   activity + application. An activity launched *after* an edit may not carry the overlay
   unless it inherits from `application.resources`. Untested — the sample is single-activity.
   AOSP re-applies overlays on activity start as a safety net; we do not.
-- **Drawables / decoded assets still need a reinstall** (T16: cached per-`Context` in
-  `LocalImageVectorCache`; no recomposition surfaces them, only a recreate). v1 hot-reloads
-  value resources only. A future path — clear the image/vector cache then `invalidateAll` —
-  could bring drawables to tier-1 without a recreate.
-- **Multi-module resources** — single-module only; the overlay is built from the app
-  module's `assembleDebug`. Folds into the pending multi-module diffing design.
+- **Bitmap (png/webp) drawables** — see §v2 scope notes: needs watcher support for binary
+  extensions plus a way to bust the `remember(path,id,theme)` slot without nuking state
+  (or accept a targeted `invalidateGroupsWithKey` on readers, which resets their subtree
+  `remember`). Not started.
+- ~~Drawables / decoded assets still need a reinstall~~ — **DONE in v2** (see above).
+- ~~Multi-module resources~~ — **DONE** (multi-module design, commit 8246b9b): the guard
+  unions `(type,name)` across all module res roots; e2e `run-multi.sh` case 4 covers it.

@@ -165,6 +165,10 @@ class PatchServer(private val context: Context) {
         for (res in targets) res.addLoaders(loader)
         Log.i(tag, "overlay $overlayDir attached to ${targets.size} Resources")
 
+        // Between attach and invalidate, so the recomposition re-decodes drawables from
+        // the fresh overlay instead of Compose's (weakly-held, GC-lottery) asset cache.
+        ComposeBridge.clearAssetCaches()
+
         return ComposeBridge.invalidateAllCompositions()
     }
 
