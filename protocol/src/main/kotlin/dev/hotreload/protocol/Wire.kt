@@ -66,6 +66,7 @@ object Wire {
                     d.writeBoolean(response.canStructural)
                     d.writeBoolean(response.canInjectFile)
                     d.writeBoolean(response.composeBridgeOk)
+                    d.writeInt(response.composeVersion)
                 }
                 is Response.Ack -> header(d, Opcode.ACK, response.requestId)
                 is Response.Failure -> {
@@ -116,6 +117,7 @@ object Wire {
             Opcode.CAPABILITIES -> Response.Capabilities(
                 id, d.readInt(), d.readInt(),
                 d.readBoolean(), d.readBoolean(), d.readBoolean(), d.readBoolean(),
+                if (d.available() >= 4) d.readInt() else 0,
             )
             Opcode.ACK -> Response.Ack(id)
             Opcode.FAILURE -> Response.Failure(id, d.readInt(), d.readUTF())

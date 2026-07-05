@@ -1,5 +1,5 @@
 # T22: Multi-activity overlay re-attach + activity-vs-application Resources isolation
-Status: TODO
+Status: DONE
 Assignee: agy (device needed — run interactively)
 Priority: 3 of T21–T27 (after T21 — reuses its persistent loader)
 Depends on: T21 (the session loader object is what gets re-attached)

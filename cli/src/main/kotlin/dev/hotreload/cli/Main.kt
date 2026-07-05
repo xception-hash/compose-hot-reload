@@ -1,5 +1,6 @@
 package dev.hotreload.cli
 
+import dev.hotreload.engine.Doctor
 import dev.hotreload.engine.WatchSession
 import java.nio.file.Files
 import java.nio.file.Path
@@ -7,7 +8,9 @@ import kotlin.system.exitProcess
 
 private const val USAGE = """hotreload — Flutter-style hot reload for Jetpack Compose on Android
 
-Usage: hotreload watch --project <dir> --app-id <applicationId> [options]
+Usage:
+  hotreload watch --project <dir> --app-id <applicationId> [options]
+  hotreload doctor --project <dir> --app-id <applicationId> [options]
 
 Options:
   --project <dir>     Gradle project of the app (required)
@@ -19,9 +22,15 @@ Options:
 """
 
 fun main(args: Array<String>) {
-    if (args.isEmpty() || args[0] != "watch") {
+    if (args.isEmpty() || args[0] == "--help" || args[0] == "help") {
         println(USAGE)
-        exitProcess(if (args.firstOrNull() == "--help") 0 else 1)
+        exitProcess(0)
+    }
+
+    val command = args[0]
+    if (command != "watch" && command != "doctor") {
+        println(USAGE)
+        exitProcess(1)
     }
 
     val opts = parseOptions(args.drop(1))
@@ -34,6 +43,11 @@ fun main(args: Array<String>) {
             ?: fail("--sdk not given and ANDROID_HOME not set"),
     )
     val buildTools = opts["--build-tools"] ?: "36.0.0"
+
+    if (command == "doctor") {
+        val ok = Doctor(project, appId, modules, sdk, buildTools).run()
+        exitProcess(if (ok) 0 else 1)
+    }
 
     val d8 = sdk.resolve("build-tools/$buildTools/d8")
     val adb = sdk.resolve("platform-tools/adb")

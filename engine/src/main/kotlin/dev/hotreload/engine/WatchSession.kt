@@ -46,8 +46,12 @@ class WatchSession(private val config: Config) {
 
         DeviceClient(port = localPort).use { device ->
             val caps = device.ping()
+            check(caps.protocolVersion == Protocol.VERSION) {
+                "protocol version mismatch (device ${caps.protocolVersion} != engine ${Protocol.VERSION}) — reinstall the app (stale runtime-client)"
+            }
             println(
                 "device: api=${caps.apiLevel} protocol=${caps.protocolVersion} " +
+                    "Compose runtime version: ${caps.composeVersion} " +
                     "redefine=${caps.canRedefine} structural=${caps.canStructural} " +
                     "inject=${caps.canInjectFile} compose=${caps.composeBridgeOk}",
             )
@@ -65,7 +69,7 @@ class WatchSession(private val config: Config) {
                 check(modules.first().layout == ModuleSpec.Layout.AGP) {
                     "app module '${modules.first().name}' is not an AGP module (no built-in-kotlinc output)"
                 }
-                modules.forEach { println("module ${it.gradlePath}: ${it.layout} (${it.classesDir})") }
+                println("modules: " + modules.joinToString { "${it.gradlePath}: ${it.layout} (${it.classesDir})" })
 
                 var snapshot = ClassSnapshot.scan(classesDirs)
                 check(snapshot.isNotEmpty()) { "no classes found under ${classesDirs.joinToString()}" }

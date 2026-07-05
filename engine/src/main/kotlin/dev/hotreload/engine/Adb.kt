@@ -36,6 +36,34 @@ class Adb(private val adb: Path) {
             ?: throw IllegalStateException("adb forward returned unexpected output: $stdout — check `adb devices`")
     }
 
+    /** List serial numbers of all online devices (`adb devices`). */
+    fun devices(): List<String> {
+        val process = ProcessBuilder(adb.toString(), "devices")
+            .redirectErrorStream(false)
+            .start()
+        val stdout = process.inputStream.bufferedReader().readText()
+        process.waitFor()
+        return stdout.lineSequence()
+            .drop(1)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .mapNotNull { line ->
+                val parts = line.split(Regex("\\s+"))
+                if (parts.size >= 2 && parts[1] == "device") parts[0] else null
+            }
+            .toList()
+    }
+
+    /** `adb shell <args...>` — returns (exitCode, output). Does not throw. */
+    fun safeShell(vararg args: String): Pair<Int, String> {
+        val process = ProcessBuilder(listOf(adb.toString(), "shell") + args)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        val exitCode = process.waitFor()
+        return exitCode to output
+    }
+
     /** `adb push <local> <remote>` — recursive for directories. Throws on non-zero exit. */
     fun push(local: Path, remote: String) {
         run("push", local.toString(), remote)

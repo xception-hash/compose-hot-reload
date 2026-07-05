@@ -87,3 +87,9 @@ If you make a broken edit (like throwing an exception in a composable body), the
 
 ## 6. Status
 **Experimental.** Hot reload currently only supports single-module applications. For future milestones, multi-module support, and IDE integration, see the [Project Plan](docs/PLAN.md) phases.
+
+## 7. Troubleshooting
+If hot reload fails to connect or experience issues on device, run `hotreload doctor` to verify your environment, SDK toolchain, device status, project configuration, and runtime handshake:
+```bash
+./gradlew -q :cli:run --args="doctor --project $PWD/samples/single-module --app-id dev.hotreload.sample"
+```

@@ -26,7 +26,7 @@ package dev.hotreload.protocol
  * so they must use only the Java/Kotlin stdlib.
  */
 object Protocol {
-    const val VERSION: Int = 4
+    const val VERSION: Int = 5
 
     /** Abstract-namespace socket the runtime-client PatchServer binds, per app. */
     fun deviceSocketName(applicationId: String): String = "hotreload-$applicationId"
@@ -132,6 +132,7 @@ sealed class Response(val requestId: Int) {
         val canStructural: Boolean,
         val canInjectFile: Boolean,
         val composeBridgeOk: Boolean,
+        val composeVersion: Int = 0,
     ) : Response(requestId)
 
     class Ack(requestId: Int) : Response(requestId)

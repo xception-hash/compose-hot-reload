@@ -3,9 +3,12 @@ package dev.hotreload.client
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.content.res.Resources
+import android.content.res.loader.ResourcesLoader
 import android.os.Bundle
 import android.util.Log
 import java.lang.ref.WeakReference
+import java.util.WeakHashMap
 
 /**
  * Tracks the currently-resumed Activity so a resource overlay can be attached to the
@@ -19,6 +22,11 @@ object ActivityTracker {
     @Volatile
     private var currentRef: WeakReference<Activity>? = null
 
+    val attachedResources = WeakHashMap<Resources, Boolean>()
+
+    @Volatile
+    var sessionLoader: ResourcesLoader? = null
+
     /** The resumed Activity, or null if none is foregrounded. */
     val current: Activity?
         get() = currentRef?.get()
@@ -31,6 +39,17 @@ object ActivityTracker {
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) {
                 currentRef = WeakReference(activity)
+                val loader = sessionLoader
+                if (loader != null) {
+                    val res = activity.resources
+                    synchronized(attachedResources) {
+                        if (!attachedResources.containsKey(res)) {
+                            res.addLoaders(loader)
+                            attachedResources[res] = true
+                            Log.i(TAG, "attached session loader to newly resumed activity resources")
+                        }
+                    }
+                }
             }
 
             override fun onActivityPaused(activity: Activity) {

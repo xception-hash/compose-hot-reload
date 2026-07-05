@@ -75,7 +75,7 @@ class WireTest {
     @Test
     fun capabilities() {
         val got = roundTripResponse(
-            Response.Capabilities(1, Protocol.VERSION, 36, true, true, false, true),
+            Response.Capabilities(1, Protocol.VERSION, 36, true, true, false, true, 10700),
         ) as Response.Capabilities
         assertEquals(Protocol.VERSION, got.protocolVersion)
         assertEquals(36, got.apiLevel)
@@ -83,6 +83,7 @@ class WireTest {
         assertTrue(got.canStructural)
         assertEquals(false, got.canInjectFile)
         assertTrue(got.composeBridgeOk)
+        assertEquals(10700, got.composeVersion)
     }
 
     @Test

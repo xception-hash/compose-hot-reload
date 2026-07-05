@@ -35,7 +35,6 @@ class PatchServer(private val context: Context) {
     private val persistentLoader = ResourcesLoader()
     private var currentProvider: ResourcesProvider? = null
     private var currentOverlayDir: File? = null
-    private val attachedResources = WeakHashMap<Resources, Boolean>()
     private var isFirstLoad = true
 
     fun start() {
@@ -91,6 +90,7 @@ class PatchServer(private val context: Context) {
             HotSwap.attached && HotSwap.nativeHasStructural(),
             HotSwap.attached && HotSwap.nativeHasInjectFile(),
             ComposeBridge.available,
+            ComposeBridge.composeVersion,
         )
 
         is Request.Redefine -> {
@@ -186,13 +186,16 @@ class PatchServer(private val context: Context) {
         }
         oldDir?.deleteRecursively()
 
+        ActivityTracker.sessionLoader = persistentLoader
         val targets = LinkedHashSet<Resources>()
         ActivityTracker.current?.resources?.let { targets.add(it) }
         targets.add(context.applicationContext.resources)
-        for (res in targets) {
-            if (!attachedResources.containsKey(res)) {
-                res.addLoaders(persistentLoader)
-                attachedResources[res] = true
+        synchronized(ActivityTracker.attachedResources) {
+            for (res in targets) {
+                if (!ActivityTracker.attachedResources.containsKey(res)) {
+                    res.addLoaders(persistentLoader)
+                    ActivityTracker.attachedResources[res] = true
+                }
             }
         }
         Log.i(tag, "overlay $overlayDir attached via persistent loader to ${targets.size} Resources")
