@@ -13,24 +13,33 @@ import kotlin.streams.toList
 class SnapshotEntry(val file: Path, val contentHash: Long, val facts: ClassFacts)
 
 /**
- * Scans a classes directory and produces a snapshot keyed by JVM internal name.
+ * Scans one or more classes directories (one per module) into a single snapshot
+ * keyed by JVM internal name. The diff/classify pipeline is module-agnostic —
+ * each entry carries its own file path, so dexing works from any module's output.
  */
 object ClassSnapshot {
 
-    fun scan(classesDir: Path): Map<String, SnapshotEntry> {
-        if (!Files.exists(classesDir)) return emptyMap()
+    fun scan(classesDir: Path): Map<String, SnapshotEntry> = scan(listOf(classesDir))
 
+    fun scan(classesDirs: List<Path>): Map<String, SnapshotEntry> {
         val result = mutableMapOf<String, SnapshotEntry>()
-        Files.walk(classesDir).use { stream ->
-            stream.toList()
-                .filter { Files.isRegularFile(it) && it.extension == "class" }
-                .filter { !it.toString().contains("META-INF") }
-                .forEach { file ->
-                    val bytes = file.readBytes()
-                    val facts = FactsExtractor.extract(bytes)
-                    val contentHash = hashBytes(bytes)
-                    result[facts.internalName] = SnapshotEntry(file, contentHash, facts)
-                }
+        for (classesDir in classesDirs) {
+            if (!Files.exists(classesDir)) continue
+            Files.walk(classesDir).use { stream ->
+                stream.toList()
+                    .filter { Files.isRegularFile(it) && it.extension == "class" }
+                    .filter { !it.toString().contains("META-INF") }
+                    .forEach { file ->
+                        val bytes = file.readBytes()
+                        val facts = FactsExtractor.extract(bytes)
+                        val contentHash = hashBytes(bytes)
+                        val previous = result.put(facts.internalName, SnapshotEntry(file, contentHash, facts))
+                        // Two modules compiling the same class would make the diff ambiguous.
+                        check(previous == null || previous.file == file) {
+                            "class ${facts.internalName} compiled by two modules: ${previous!!.file} and $file"
+                        }
+                    }
+            }
         }
         return result
     }

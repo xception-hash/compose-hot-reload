@@ -14,6 +14,9 @@ android {
 
     buildFeatures {
         compose = true
+        // Off by default for AGP 9 libraries; the multi-module resource-edit
+        // testbed needs this module to contribute res/values to the merged table.
+        androidResources = true
     }
 }
 
