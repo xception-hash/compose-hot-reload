@@ -1,5 +1,5 @@
 # T21: Persistent ResourcesLoader + setProviders + overlay GC
-Status: TODO
+Status: DONE
 Assignee: agy (device needed — run interactively)
 Priority: 1 of T21–T27 (do first)
 
