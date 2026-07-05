@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Multi-module resource-edit testbed: `hotreload watch` edits this value live. -->
+    <string name="feature_label">feature res v2 HOT</string>
+</resources>

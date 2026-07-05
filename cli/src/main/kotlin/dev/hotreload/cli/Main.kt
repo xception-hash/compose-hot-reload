@@ -12,7 +12,8 @@ Usage: hotreload watch --project <dir> --app-id <applicationId> [options]
 Options:
   --project <dir>     Gradle project of the app (required)
   --app-id <id>       applicationId of the debug build on the device (required)
-  --module <name>     Gradle module containing the app (default: app)
+  --module <names>    Comma-separated Gradle modules to watch; the FIRST is the app
+                      module (default: app). Nested paths use '/', e.g. app,libs/core
   --sdk <dir>         Android SDK root (default: ${'$'}ANDROID_HOME)
   --build-tools <v>   build-tools version for d8 (default: 36.0.0)
 """
@@ -26,7 +27,8 @@ fun main(args: Array<String>) {
     val opts = parseOptions(args.drop(1))
     val project = Path.of(opts.required("--project")).toAbsolutePath().normalize()
     val appId = opts.required("--app-id")
-    val module = opts["--module"] ?: "app"
+    val modules = (opts["--module"] ?: "app").split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    if (modules.isEmpty()) fail("--module needs at least one module name")
     val sdk = Path.of(
         opts["--sdk"] ?: System.getenv("ANDROID_HOME")
             ?: fail("--sdk not given and ANDROID_HOME not set"),
@@ -40,7 +42,7 @@ fun main(args: Array<String>) {
     }
 
     try {
-        WatchSession(WatchSession.Config.forProject(project, module, appId, d8, adb)).run()
+        WatchSession(WatchSession.Config(project, modules, appId, d8, adb)).run()
     } catch (t: Throwable) {
         fail(t.message ?: t.toString())
     }

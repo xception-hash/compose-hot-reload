@@ -133,6 +133,10 @@ class PatchServer(private val context: Context) {
         is Request.LoadResources -> onMainThread(request.requestId) {
             loadResources(request.overlayDir)
         }
+
+        is Request.InvalidateAll -> onMainThread(request.requestId) {
+            ComposeBridge.invalidateAllCompositions()
+        }
     }
 
     /**

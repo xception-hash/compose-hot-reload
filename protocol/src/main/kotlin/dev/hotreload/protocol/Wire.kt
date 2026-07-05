@@ -50,6 +50,7 @@ object Wire {
                     header(d, Opcode.LOAD_RESOURCES, request.requestId)
                     d.writeUTF(request.overlayDir)
                 }
+                is Request.InvalidateAll -> header(d, Opcode.INVALIDATE_ALL, request.requestId)
             }
         }
     }
@@ -102,6 +103,7 @@ object Wire {
             Opcode.RESET -> Request.Reset(id)
             Opcode.GET_ERRORS -> Request.GetErrors(id, d.readBoolean())
             Opcode.LOAD_RESOURCES -> Request.LoadResources(id, d.readUTF())
+            Opcode.INVALIDATE_ALL -> Request.InvalidateAll(id)
             else -> throw IOException("unknown request opcode 0x${opcode.toString(16)}")
         }
     }

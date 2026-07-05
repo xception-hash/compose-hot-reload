@@ -22,13 +22,17 @@ import kotlin.io.path.name
  * removed / renamed resource is detected and reported as "reinstall required", not overlaid.
  */
 class ResourceSwapper(
-    private val config: WatchSession.Config,
+    /** The application module — its APK carries the merged resource table. */
+    private val appModule: ModuleSpec,
+    /** Every watched AGP module's res root; library values merge into the app table. */
+    private val resDirs: List<Path>,
+    private val applicationId: String,
     private val gradle: GradleCompiler,
     private val adb: Adb,
     private val device: DeviceClient,
 ) {
-    private val assembleTask = ":${config.module}:assembleDebug"
-    private val apkDir = config.projectDir.resolve("${config.module}/build/outputs/apk/debug")
+    private val assembleTask = "${appModule.gradlePath}:assembleDebug"
+    private val apkDir = appModule.dir.resolve("build/outputs/apk/debug")
     private val seq = AtomicInteger(0)
 
     /**
@@ -60,7 +64,7 @@ class ResourceSwapper(
                     append(" — value-only hot reload can't remap resource IDs")
                 },
             )
-            println("run a full install (e.g. ./gradlew :${config.module}:installDebug), relaunch, then restart watch")
+            println("run a full install (e.g. ./gradlew ${appModule.gradlePath}:installDebug), relaunch, then restart watch")
             // Keep the old baseline: the message persists until they reinstall (or revert).
             return false
         }
@@ -82,10 +86,10 @@ class ResourceSwapper(
         val staging = extractOverlay(apk, overlayName)
         try {
             adb.push(staging, "/data/local/tmp/")
-            adb.runAs(config.applicationId, "mkdir", "-p", "code_cache")
+            adb.runAs(applicationId, "mkdir", "-p", "code_cache")
             // rm first: if the dest ever exists, cp -r would nest instead of overwrite.
-            adb.runAs(config.applicationId, "rm", "-rf", "code_cache/$overlayName")
-            adb.runAs(config.applicationId, "cp", "-r", "/data/local/tmp/$overlayName", "code_cache/$overlayName")
+            adb.runAs(applicationId, "rm", "-rf", "code_cache/$overlayName")
+            adb.runAs(applicationId, "cp", "-r", "/data/local/tmp/$overlayName", "code_cache/$overlayName")
             adb.shell("rm", "-rf", "/data/local/tmp/$overlayName")
             device.loadResources(overlayName)
         } finally {
@@ -131,23 +135,28 @@ class ResourceSwapper(
      * resource ID, so they collapse to one entry — exactly what governs ID stability. File
      * resources must be included: adding res/drawable/foo.xml renumbers IDs just like adding
      * a string, even though only value edits are ever overlaid.
+     *
+     * Multi-module: the UNION across all watched res roots, deduped — matching AGP's merge
+     * semantics (an app resource overriding a library resource of the same type/name is one
+     * merged entry), so this set tracks exactly what aapt2 numbers.
      */
     private fun scanResourceIds(): Set<String> {
-        val resDir = config.resDir
-        if (!resDir.isDirectory()) return emptySet()
         val ids = sortedSetOf<String>()
-        Files.walk(resDir).use { stream ->
-            stream.filter { it.isRegularFile() && !it.name.startsWith(".") && it.parent != resDir }
-                .forEach { file ->
-                    val dir = file.parent.name
-                    if (dir.startsWith("values")) {
-                        if (file.extension == "xml") collectIds(file, ids)
-                    } else {
-                        // res/<type>[-qualifier]/<name>.<ext> → ID is (type, stem); the stem
-                        // stops at the first '.' so foo.9.png collapses to foo.
-                        ids.add("${dir.substringBefore('-')}/${file.name.substringBefore('.')}")
+        for (resDir in resDirs) {
+            if (!resDir.isDirectory()) continue
+            Files.walk(resDir).use { stream ->
+                stream.filter { it.isRegularFile() && !it.name.startsWith(".") && it.parent != resDir }
+                    .forEach { file ->
+                        val dir = file.parent.name
+                        if (dir.startsWith("values")) {
+                            if (file.extension == "xml") collectIds(file, ids)
+                        } else {
+                            // res/<type>[-qualifier]/<name>.<ext> → ID is (type, stem); the stem
+                            // stops at the first '.' so foo.9.png collapses to foo.
+                            ids.add("${dir.substringBefore('-')}/${file.name.substringBefore('.')}")
+                        }
                     }
-                }
+            }
         }
         return ids
     }

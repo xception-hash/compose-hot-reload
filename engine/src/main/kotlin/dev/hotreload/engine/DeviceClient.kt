@@ -44,6 +44,11 @@ class DeviceClient(host: String = "127.0.0.1", port: Int) : Closeable {
         expectAck(exchange { Request.Reset(it) })
     }
 
+    /** Whole-tree state-preserving invalidation (for redefines with no compose keys). */
+    fun invalidateAll() {
+        expectAck(exchange { Request.InvalidateAll(it) })
+    }
+
     /** Attach a resource overlay (dir relative to codeCacheDir) + whole-tree invalidate. */
     fun loadResources(overlayDir: String) {
         expectAck(exchange { Request.LoadResources(it, overlayDir) })

@@ -2,6 +2,7 @@ package dev.hotreload.engine
 
 import dev.hotreload.protocol.ClassDex
 import dev.hotreload.protocol.Protocol
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 import kotlin.io.path.extension
@@ -9,43 +10,33 @@ import kotlin.io.path.extension
 /**
  * The `hotreload watch` happy path: watch sources → incremental compile → diff the
  * class output → classify → dex → push to the device → targeted invalidation.
- * Phase 1 scope: anything the [Classifier] can't hot-swap prints a rebuild notice.
+ * Multi-module (docs/multi-module-design.md): all modules are watched and snapshotted;
+ * every save compiles the app module's task and lets Gradle run exactly the upstream
+ * compiles it needs (ABI fan-out included), then the merged re-scan picks up whatever
+ * changed anywhere. Anything the [Classifier] can't hot-swap prints a rebuild notice.
  */
 class WatchSession(private val config: Config) {
 
     class Config(
         val projectDir: Path,
-        /** Gradle module holding the app, e.g. "app". */
-        val module: String,
+        /** Watched Gradle modules; the FIRST holds the app (applicationId, APK, resources). */
+        val moduleNames: List<String>,
         val applicationId: String,
-        val sourceRoots: List<Path>,
-        /** AGP 9 built-in-Kotlin class output dir for the debug variant. */
-        val classesDir: Path,
-        /** Module resource root; `res/values*` value edits are hot-swapped (T17). */
-        val resDir: Path,
         val d8: Path,
         val adb: Path,
     ) {
-        companion object {
-            fun forProject(projectDir: Path, module: String, applicationId: String, d8: Path, adb: Path) = Config(
-                projectDir = projectDir,
-                module = module,
-                applicationId = applicationId,
-                sourceRoots = listOf(
-                    projectDir.resolve("$module/src/main/kotlin"),
-                    projectDir.resolve("$module/src/main/java"),
-                ),
-                classesDir = projectDir.resolve(
-                    "$module/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
-                ),
-                resDir = projectDir.resolve("$module/src/main/res"),
-                d8 = d8,
-                adb = adb,
-            )
+        init {
+            require(moduleNames.isNotEmpty()) { "at least one module (the app module) is required" }
         }
     }
 
-    private val compileTask = ":${config.module}:compileDebugKotlin"
+    /** The app module is AGP by definition, so its compile task is known before probing. */
+    private val compileTask = ":${config.moduleNames.first().replace('/', ':')}:compileDebugKotlin"
+
+    /** Resolved after the initial build (layout probing needs compiled output). */
+    private lateinit var modules: List<ModuleSpec>
+    private val classesDirs get() = modules.map { it.classesDir }
+    private val resDirs get() = modules.mapNotNull { it.resDir }
 
     /** Blocks until the process is killed. */
     fun run() {
@@ -70,16 +61,22 @@ class WatchSession(private val config: Config) {
                 check(initial.success) { "initial compile failed:\n${initial.output}" }
                 println("ok (${initial.durationMs}ms)")
 
-                var snapshot = ClassSnapshot.scan(config.classesDir)
-                check(snapshot.isNotEmpty()) { "no classes found under ${config.classesDir}" }
+                modules = config.moduleNames.map { ModuleSpec.probe(config.projectDir, it) }
+                check(modules.first().layout == ModuleSpec.Layout.AGP) {
+                    "app module '${modules.first().name}' is not an AGP module (no built-in-kotlinc output)"
+                }
+                modules.forEach { println("module ${it.gradlePath}: ${it.layout} (${it.classesDir})") }
 
-                val resources = ResourceSwapper(config, gradle, adb, device)
+                var snapshot = ClassSnapshot.scan(classesDirs)
+                check(snapshot.isNotEmpty()) { "no classes found under ${classesDirs.joinToString()}" }
+
+                val resources = ResourceSwapper(modules.first(), resDirs, config.applicationId, gradle, adb, device)
 
                 // Registering a nonexistent root makes DirectoryWatcher fail (asynchronously).
-                val sourceRoots = config.sourceRoots.filter { java.nio.file.Files.isDirectory(it) }
-                check(sourceRoots.isNotEmpty()) { "no source roots exist among ${config.sourceRoots.joinToString()}" }
+                val sourceRoots = modules.flatMap { it.sourceRoots }.filter { Files.isDirectory(it) }
+                check(sourceRoots.isNotEmpty()) { "no source roots exist among ${modules.flatMap { it.sourceRoots }.joinToString()}" }
                 // res/values value edits are hot-swapped too, but only if the dir exists.
-                val roots = sourceRoots + listOfNotNull(config.resDir.takeIf { java.nio.file.Files.isDirectory(it) })
+                val roots = sourceRoots + resDirs.filter { Files.isDirectory(it) }
                 println("watching ${roots.joinToString()} (${snapshot.size} classes)")
 
                 SourceWatcher(roots) { changedSources ->
@@ -152,6 +149,9 @@ class WatchSession(private val config: Config) {
         snapshot: Map<String, SnapshotEntry>,
         t0: Long,
     ): ClassSwapResult? {
+        // Always the app module's task: Gradle's task graph runs exactly the upstream
+        // compiles the edit requires (a :core ABI change recompiles :feature too) and
+        // up-to-date-skips the rest — never re-implement that fan-out here (design D3).
         val compile = gradle.compile(compileTask)
         if (!compile.success) {
             println(compile.output.lineSequence().filter { "error:" in it || "e: " in it }.joinToString("\n").ifEmpty { compile.output })
@@ -159,7 +159,7 @@ class WatchSession(private val config: Config) {
             return null
         }
 
-        val newSnapshot = ClassSnapshot.scan(config.classesDir)
+        val newSnapshot = ClassSnapshot.scan(classesDirs)
         val changed = newSnapshot.filter { (name, entry) -> snapshot[name]?.contentHash != entry.contentHash }
         if (changed.isEmpty()) {
             println("no bytecode changes (${elapsedMs(t0)}ms)")
@@ -170,7 +170,7 @@ class WatchSession(private val config: Config) {
         return when (val plan = Classifier.plan(verdicts)) {
             is Classifier.PatchPlan.Rebuild -> {
                 plan.reasons.forEach { println("cannot hot-swap: $it") }
-                println("run a full install (e.g. ./gradlew :${config.module}:installDebug), relaunch, then restart watch")
+                println("run a full install (e.g. ./gradlew ${modules.first().gradlePath}:installDebug), relaunch, then restart watch")
                 null // keep the old baseline: these changes were NOT applied
             }
             is Classifier.PatchPlan.HotSwap -> {
@@ -186,24 +186,31 @@ class WatchSession(private val config: Config) {
                     }
                     device.redefine(batch, plan.structural)
                 }
-                if (plan.invalidateKeys.isNotEmpty()) {
+                // No compose keys among the changed bodies (e.g. a pure-Kotlin module's
+                // helper edit): the redefine landed but nothing would recompose, so the
+                // UI would stay stale until the next natural state change. Whole-tree
+                // invalidateAll is keyless and preserves remember/rememberSaveable (T16).
+                val wholeTree = plan.invalidateKeys.isEmpty()
+                if (wholeTree) {
+                    device.invalidateAll()
+                } else {
                     device.invalidate(plan.invalidateKeys.toIntArray())
                 }
                 val what = buildList {
                     if (plan.inject.isNotEmpty()) add("${plan.inject.size} injected")
                     if (plan.redefine.isNotEmpty()) add("${plan.redefine.size} redefined${if (plan.structural) " (structural)" else ""}")
-                    add("${plan.invalidateKeys.size} groups invalidated")
+                    add(if (wholeTree) "whole tree invalidated (no compose keys)" else "${plan.invalidateKeys.size} groups invalidated")
                 }
                 println("hot-swapped: ${what.joinToString()} in ${elapsedMs(t0)}ms")
-                ClassSwapResult(newSnapshot, invalidated = plan.invalidateKeys.isNotEmpty())
+                ClassSwapResult(newSnapshot, invalidated = true)
             }
         }
     }
 
-    /** A watched `.xml` under a `res/values*` directory of the module. */
+    /** A watched `.xml` under a `res/values*` directory of any AGP module. */
     private fun isResValues(path: Path): Boolean {
         val parent = path.parent ?: return false
-        return path.startsWith(config.resDir) && parent.fileName.toString().startsWith("values")
+        return resDirs.any { path.startsWith(it) } && parent.fileName.toString().startsWith("values")
     }
 
     /**

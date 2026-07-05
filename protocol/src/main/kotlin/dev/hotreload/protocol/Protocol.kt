@@ -26,7 +26,7 @@ package dev.hotreload.protocol
  * so they must use only the Java/Kotlin stdlib.
  */
 object Protocol {
-    const val VERSION: Int = 3
+    const val VERSION: Int = 4
 
     /** Abstract-namespace socket the runtime-client PatchServer binds, per app. */
     fun deviceSocketName(applicationId: String): String = "hotreload-$applicationId"
@@ -44,6 +44,7 @@ object Opcode {
     const val RESET: Int = 0x05
     const val GET_ERRORS: Int = 0x06
     const val LOAD_RESOURCES: Int = 0x07
+    const val INVALIDATE_ALL: Int = 0x08
 
     // Responses (client -> engine)
     const val CAPABILITIES: Int = 0x81
@@ -110,6 +111,16 @@ sealed class Request(val requestId: Int) {
      * Response: [Ack]/[Failure].
      */
     class LoadResources(requestId: Int, val overlayDir: String) : Request(requestId)
+
+    /**
+     * Tier-1 whole-tree invalidation: `ControlledComposition.invalidateAll()` on every
+     * known composition (the T16 mechanism [LoadResources] uses internally). Keyless and
+     * state-preserving (`remember`/`rememberSaveable` survive) — used when a redefined
+     * class has no Compose group keys to target (e.g. a pure-Kotlin module's body edit),
+     * so the change would otherwise not surface until the next natural recomposition.
+     * Response: [Ack]/[Failure].
+     */
+    class InvalidateAll(requestId: Int) : Request(requestId)
 }
 
 sealed class Response(val requestId: Int) {
