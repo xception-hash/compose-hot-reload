@@ -47,6 +47,7 @@ fun MainScreen() {
         Greeting()
         ResourceLabel()
         HotIcon()
+        HotPhoto()
         ItemList()
     }
 }
@@ -61,6 +62,15 @@ fun HotIcon() {
     Image(
         painter = painterResource(R.drawable.hot_icon),
         contentDescription = "HOT_ICON",
+        modifier = Modifier.size(48.dp),
+    )
+}
+
+@Composable
+fun HotPhoto() {
+    Image(
+        painter = painterResource(R.drawable.hot_photo),
+        contentDescription = "HOT_PHOTO",
         modifier = Modifier.size(48.dp),
     )
 }

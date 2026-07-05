@@ -26,6 +26,8 @@ MAIN_ACTIVITY="$REPO_ROOT/samples/single-module/app/src/main/kotlin/dev/hotreloa
 WIDGETS="$REPO_ROOT/samples/single-module/app/src/main/kotlin/dev/hotreload/sample/Widgets.kt"
 STRINGS="$REPO_ROOT/samples/single-module/app/src/main/res/values/strings.xml"
 DRAWABLE="$REPO_ROOT/samples/single-module/app/src/main/res/drawable/hot_icon.xml"
+HOT_PHOTO="$REPO_ROOT/samples/single-module/app/src/main/res/drawable/hot_photo.png"
+HOT_PHOTO_FIXTURE="$REPO_ROOT/e2e/fixtures/hot_photo_red.png"
 MAIN_ACTIVITY_BACKUP="${MAIN_ACTIVITY}.bak"
 # NOT under res/: the resource merger rejects any non-.xml file in res/values.
 STRINGS_BACKUP=$(mktemp)
@@ -51,8 +53,8 @@ cleanup() {
     kill_watch
     mv "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY" 2>/dev/null || true
     mv "$STRINGS_BACKUP" "$STRINGS" 2>/dev/null || true
-    # hot_icon.xml is committed with the blue baseline; case 11 edits it in place.
-    git -C "$REPO_ROOT" checkout -- "$DRAWABLE" 2>/dev/null || true
+    # hot_icon.xml and hot_photo.png are committed with blue baselines; cases 11/12 edit them.
+    git -C "$REPO_ROOT" checkout -- "$DRAWABLE" "$HOT_PHOTO" 2>/dev/null || true
     rm -f "$WIDGETS"
     rm -f "$WATCH_LOG"
 }
@@ -377,6 +379,37 @@ assert_icon '#FF0000'         # new vector on screen, no reinstall
 assert_ui "$COUNT_LINE"       # state preserved across the drawable swap
 assert_pid
 echo "PASS: drawable-edit"
+
+# Case 12: bitmap-edit — replacing hot_photo.png with hot_photo_red.png
+# overlays it via ResourcesLoader. Bitmap drawables use painterResource which caches
+# decoded bitmaps using remember(path, id, theme). Overlay path changes per swap, so
+# resolved asset path changes and invalidates the cache naturally (T23).
+echo "Running case: bitmap-edit"
+assert_photo() {
+    local expected="$1"
+    local timeout=10
+    local start=$(date +%s)
+    local got
+    while true; do
+        got=$("$REPO_ROOT/scripts/icon-pixel.sh" "HOT_PHOTO" 2>/dev/null || echo "")
+        [ "$got" = "$expected" ] && break
+        if (( $(date +%s) - start > timeout )); then
+            echo "TIMEOUT waiting for photo pixel $expected (got '$got')"
+            tail -n 20 "$WATCH_LOG"
+            exit 1
+        fi
+        sleep 1
+    done
+}
+# Baseline: hot_photo.png is #2196F3
+assert_photo '#2196F3'
+res_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
+cp "$HOT_PHOTO_FIXTURE" "$HOT_PHOTO"
+wait_for_resource_swap "$res_count"
+assert_photo '#FF0000'        # new bitmap on screen, no reinstall
+assert_ui "$COUNT_LINE"       # state preserved across the bitmap swap
+assert_pid
+echo "PASS: bitmap-edit"
 
 END_TIME=$(date +%s)
 echo "All cases PASS. Total time: $((END_TIME - START_TIME))s"

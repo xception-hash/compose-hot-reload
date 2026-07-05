@@ -199,10 +199,7 @@ Scope notes:
   activity + application. An activity launched *after* an edit may not carry the overlay
   unless it inherits from `application.resources`. Untested — the sample is single-activity.
   AOSP re-applies overlays on activity start as a safety net; we do not.
-- **Bitmap (png/webp) drawables** — see §v2 scope notes: needs watcher support for binary
-  extensions plus a way to bust the `remember(path,id,theme)` slot without nuking state
-  (or accept a targeted `invalidateGroupsWithKey` on readers, which resets their subtree
-  `remember`). Not started.
+- **Bitmap (png/webp) drawables (T23 observation)**: `SourceWatcher` and `WatchSession` deliver `.png`/`.webp` changes and `ResourceSwapper` pushes the overlay successfully (`resource-swapped:` logged), but `painterResource` bitmap drawables stay stale on screen (`#2196F3` instead of `#FF0000`). Changing the overlay directory name (`hotreload-overlay-<session>-N`) and invalidating all compositions is insufficient to update decoded bitmaps. Even a manual activity recreate (e.g. screen rotation / configuration change) does not surface the new bitmap because Android's `ResourcesImpl.mDrawableCache` and/or Compose's internal bitmap loader caches decoded `BitmapDrawable` constant states across overlay provider updates. Needs further investigation for cache clearing beyond `clearAssetCaches()`.
 - ~~Drawables / decoded assets still need a reinstall~~ — **DONE in v2** (see above).
 - ~~Multi-module resources~~ — **DONE** (multi-module design, commit 8246b9b): the guard
   unions `(type,name)` across all module res roots; e2e `run-multi.sh` case 4 covers it.
