@@ -5,9 +5,12 @@
 #
 # Derived from spike/interpreter/build.sh (which stays independent + green): same third_party
 # sources, same toolchain pins, same source-level jarjar of ASM and annotation stubs — but with
-# NO spike driver/target, plus the stub `Proxies` the interpreter's LiveEditContext ctor requires
-# (the real one is a Bazel codegen output absent from our sparse clone; we compile with
-# -Xlambdas=class so new lambdas are real injected classes and the proxy machinery stays dormant).
+# NO spike driver/target, plus the GENERATED `Proxies` lambda-proxy table (T28: produced by
+# scripts/gen-proxies.sh from AOSP LambdaGenerator; the stub era ended with T28 — proxies let
+# interpreted code construct restart lambdas whose constructors changed).
+#
+# T28 gotcha: injected dex is immutable per process — after replacing interp.dex, device apps
+# must be force-stopped + relaunched before the new dex is used.
 #
 # Provenance (tools-base pin + this command) is recorded next to the dex in interp.dex.PROVENANCE.
 set -euo pipefail
@@ -52,30 +55,24 @@ public @interface $A {}
 EOF
 done
 
-# 3. Stub the codegen'd Proxies lookup table (LiveEditContext's ctor throws if the class is absent).
+# 3. The generated Proxies lambda-proxy table (T28, scripts/gen-proxies.sh). It references
+#    kotlin-stdlib types (Lambda, Function0..N, coroutine bases) — stdlib goes on the compile
+#    classpath and d8 --classpath ONLY; device apps already ship it, it must NOT be dexed in.
+GEN_PROXIES="$REPO_ROOT/third_party/generated/liveedit/Proxies.java"
+[ -f "$GEN_PROXIES" ] || { echo "missing $GEN_PROXIES — run scripts/gen-proxies.sh first"; exit 1; }
+KOTLIN_STDLIB=$(find "$HOME/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/2.4.0" \
+  -name 'kotlin-stdlib-2.4.0.jar' 2>/dev/null | head -1)
+[ -n "$KOTLIN_STDLIB" ] || { echo "missing kotlin-stdlib 2.4.0 in ~/.gradle/caches"; exit 1; }
 mkdir -p "$BUILD/gen/com/android/tools/deploy/liveedit"
-cat > "$BUILD/gen/com/android/tools/deploy/liveedit/Proxies.java" <<'EOF'
-package com.android.tools.deploy.liveedit;
-
-import java.util.Set;
-
-// Stub for the codegen'd lambda-proxy lookup table (AOSP generates this with LambdaGenerator +
-// javapoet). LiveEditContext requires the class to exist in the app classloader; we compile app
-// code with -Xlambdas=class, so new lambdas are real injected classes and this stays a null lookup.
-public final class Proxies {
-    public static Class<?> getProxyInterface(Set<Class<?>> supertypes) {
-        return null;
-    }
-}
-EOF
+cp "$GEN_PROXIES" "$BUILD/gen/com/android/tools/deploy/liveedit/Proxies.java"
 
 # 4. Compile the interpreter + liveedit (+ backported) + ReflectionHelpers + stubs.
 find "$BUILD/java" "$BUILD/gen" -name '*.java' > "$BUILD/sources.txt"
-"$JAVAC" --release 8 -nowarn -cp "$ASM_JAR:$ANNO_JAR:$ANDROID_JAR" -d "$BUILD/classes" @"$BUILD/sources.txt"
+"$JAVAC" --release 8 -nowarn -cp "$ASM_JAR:$ANNO_JAR:$ANDROID_JAR:$KOTLIN_STDLIB" -d "$BUILD/classes" @"$BUILD/sources.txt"
 
 # 5. Dex everything (with desugaring — the AOSP sources are Java) into a single dex with all of ASM.
 (cd "$BUILD/classes" && "$JAR" cf "$BUILD/interp-classes.jar" .)
-"$D8" --min-api 30 --lib "$ANDROID_JAR" --output "$BUILD/dex" \
+"$D8" --min-api 30 --lib "$ANDROID_JAR" --classpath "$KOTLIN_STDLIB" --output "$BUILD/dex" \
   "$BUILD/interp-classes.jar" "$ASM_JAR" "$ANNO_JAR"
 
 [ -f "$BUILD/dex/classes2.dex" ] && { echo "unexpected multidex output"; exit 1; }
@@ -91,7 +88,9 @@ interp.dex — AOSP LiveEdit bytecode interpreter, dexed for on-device injection
 Source:  third_party/tools-base deploy/agent/runtime {interpreter,liveedit,liveedit/backported}
          + instrument/ReflectionHelpers, with source-level jarjar of ASM (com.android.deploy.asm
          -> org.jetbrains.org.objectweb.asm), stub com.android.annotations {NonNull,Nullable,
-         VisibleForTesting}, and stub liveedit.Proxies.
+         VisibleForTesting}, and the GENERATED liveedit.Proxies lambda-proxy table
+         (third_party/generated/liveedit, scripts/gen-proxies.sh — T28); kotlin-stdlib 2.4.0
+         on compile classpath + d8 --classpath only, NOT dexed in.
 Pin:     $PIN
 Toolchain: JBR javac --release 8; d8 (build-tools 36.0.0) --min-api 30, default desugaring, all of
            asm-all-9.0 folded in; single dex.
