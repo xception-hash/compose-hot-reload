@@ -233,13 +233,17 @@ class WatchSession(private val config: Config) {
             // interpreter (even body-only ones), keeping the same changed-only invalidate keys the
             // classifier already computed (so unchanged siblings keep their state).
             if (name in primedClasses) {
+                // Rebuild stays Rebuild; NewClass can't apply to a primed class; SupportClass
+                // stays support — a primed lambda whose ctor later changes must take the proxy
+                // path (re-priming a changed ctor would trip BytecodeValidator, and the proxy
+                // replaces its instances anyway).
                 val keys = when (verdict) {
                     is Classifier.Verdict.BodyOnly -> verdict.invalidateKeys
                     is Classifier.Verdict.Structural -> verdict.invalidateKeys
                     is Classifier.Verdict.Interpret -> verdict.groupIds
-                    else -> emptySet() // Rebuild stays Rebuild; NewClass can't apply to a primed class
+                    else -> null
                 }
-                if (verdict !is Classifier.Verdict.Rebuild) verdict = Classifier.Verdict.Interpret(keys)
+                if (keys != null) verdict = Classifier.Verdict.Interpret(keys)
             }
             entry.facts to verdict
         }
@@ -272,8 +276,8 @@ class WatchSession(private val config: Config) {
                     if (wholeTree) device.invalidateAll() else device.invalidate(plan.invalidateKeys.toIntArray())
                 }
 
-                if (plan.interpret.isNotEmpty()) {
-                    applyInterpret(plan.interpret, plan.groupIds, changed, snapshot, dexer, device, t0)
+                if (plan.interpret.isNotEmpty() || plan.support.isNotEmpty()) {
+                    applyInterpret(plan.interpret, plan.support, plan.groupIds, changed, snapshot, dexer, device, t0)
                 }
 
                 val what = buildList {
@@ -300,6 +304,7 @@ class WatchSession(private val config: Config) {
      */
     private fun applyInterpret(
         interpret: List<String>,
+        support: List<String>,
         groupIds: Set<Int>,
         changed: Map<String, SnapshotEntry>,
         baseline: Map<String, SnapshotEntry>,
@@ -321,11 +326,14 @@ class WatchSession(private val config: Config) {
             primedClasses += internal
             println("primed: $fqcn")
         }
-        val classes = interpret.map { fqcn ->
+        fun bytesOf(fqcns: List<String>) = fqcns.map { fqcn ->
             val internal = fqcn.replace('.', '/')
             ClassBytes(internal, changed.getValue(internal).bytes)
         }
-        device.liveEditClasses(classes, supportClasses = emptyList(), primedDexName = null, groupIds = groupIds.toList())
+        // Support classes (T28) are NOT primed — the interpreter registers them proxy-flagged
+        // and interpreted NEW replaces their instances with Proxies.* VM proxies.
+        device.liveEditClasses(bytesOf(interpret), bytesOf(support), primedDexName = null, groupIds = groupIds.toList())
+        if (support.isNotEmpty()) println("support: ${support.joinToString()}")
         println("interpreted: ${interpret.joinToString()} (${elapsedMs(t0)}ms)")
     }
 

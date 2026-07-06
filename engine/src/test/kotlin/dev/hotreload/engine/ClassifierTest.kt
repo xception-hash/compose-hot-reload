@@ -16,6 +16,15 @@ class ClassifierTest {
 
     private fun method(id: String, bodyHash: Long) = MemberFacts(id, 0x19, bodyHash, null)
 
+    /** A Kotlin lambda class (restart-lambda shape): extends kotlin.jvm.internal.Lambda. */
+    private fun lambda(vararg members: MemberFacts) = ClassFacts(
+        "dev/hotreload/sample/MainActivityKt\$Greeting\$1",
+        "kotlin/jvm/internal/Lambda",
+        setOf("kotlin/jvm/functions/Function2"),
+        0x30,
+        members.toSet(),
+    )
+
     private val counter = composable("Counter(Landroidx/compose/runtime/Composer;I)V", -96578675, 1L)
     private val greeting = composable("Greeting(Ljava/lang/String;Landroidx/compose/runtime/Composer;I)V", -2116809900, 2L)
 
@@ -58,12 +67,14 @@ class ClassifierTest {
     }
 
     @Test
-    fun `changed signature is remove-plus-add, forces rebuild (added method not interpretable)`() {
-        // A signature change adds a new-descriptor method; the interpreter can't back it for
-        // non-interpreted callers (a redefined cross-module caller, or a restart lambda).
+    fun `changed signature routes to interpret (T28 lifted the added-method rebuild)`() {
+        // remove-plus-add: safe since plan() interprets the whole batch (every edited caller
+        // interprets; ProxyClassEval resolves added statics for interpreted callers) and
+        // regenerated restart lambdas ride the proxy support path.
         val renamed = composable("Greeting(ILandroidx/compose/runtime/Composer;I)V", -2116809900, 2L)
         val v = Classifier.classify(cls(members = arrayOf(greeting)), cls(members = arrayOf(renamed)))
-        assertIs<Verdict.Rebuild>(v)
+        val interpret = assertIs<Verdict.Interpret>(v)
+        assertEquals(setOf(-2116809900.toInt()), interpret.groupIds) // the added descriptor's key
     }
 
     @Test
@@ -137,7 +148,10 @@ class ClassifierTest {
     }
 
     @Test
-    fun `plan separates interpret classes from redefines and unions their group keys`() {
+    fun `any interpret verdict pulls the whole batch through the interpreter (T28 batch rule)`() {
+        // Mixing hot-swap and interpret was T27's live NoSuchMethodError: a redefined caller
+        // invoking a method that exists only in the interpreter's stored bytecode. The BodyOnly
+        // class must now interpret too, its invalidate keys folded into groupIds.
         val plan = Classifier.plan(
             listOf(
                 cls(members = arrayOf(counter)) to Verdict.BodyOnly(setOf(-96578675)),
@@ -145,10 +159,70 @@ class ClassifierTest {
             ),
         )
         val hot = assertIs<Classifier.PatchPlan.HotSwap>(plan)
-        assertEquals(listOf("dev.hotreload.sample.MainActivityKt"), hot.redefine)
-        assertEquals(listOf("dev.hotreload.sample.OtherKt"), hot.interpret)
-        assertEquals(setOf(2, 3), hot.groupIds)
-        assertEquals(setOf(-96578675), hot.invalidateKeys)
+        assertEquals(emptyList(), hot.redefine)
+        assertEquals(listOf("dev.hotreload.sample.MainActivityKt", "dev.hotreload.sample.OtherKt"), hot.interpret)
+        assertEquals(setOf(-96578675, 2, 3), hot.groupIds)
+        assertEquals(emptySet(), hot.invalidateKeys)
+    }
+
+    @Test
+    fun `lambda ctor and capture change routes to support class (T28)`() {
+        // The shape Compose regenerates for a composable signature change: restart lambda gains
+        // a param — ctor descriptor changes, capture fields change.
+        val old = lambda(
+            method("<init>(Ljava/lang/String;I)V", 1L),
+            method("invoke(Landroidx/compose/runtime/Composer;I)V", 2L),
+            MemberFacts("\$name:Ljava/lang/String;", 0x12, null, null),
+        )
+        val new = lambda(
+            method("<init>(Ljava/lang/String;Ljava/lang/String;I)V", 1L),
+            method("invoke(Landroidx/compose/runtime/Composer;I)V", 3L),
+            MemberFacts("\$name:Ljava/lang/String;", 0x12, null, null),
+            MemberFacts("\$suffix:Ljava/lang/String;", 0x12, null, null),
+        )
+        assertIs<Verdict.SupportClass>(Classifier.classify(old, new))
+    }
+
+    @Test
+    fun `lambda plain body edit stays body-only`() {
+        val invoke = method("invoke(Landroidx/compose/runtime/Composer;I)V", 2L)
+        val ctor = method("<init>(Ljava/lang/String;I)V", 1L)
+        val v = Classifier.classify(lambda(ctor, invoke), lambda(ctor, invoke.copy(bodyHash = 9L)))
+        assertEquals(Verdict.BodyOnly(emptySet()), v)
+    }
+
+    @Test
+    fun `non-lambda constructor signature change still forces rebuild`() {
+        // Regular classes have no proxy path: interpreted callers construct via
+        // Constructor.newInstance on the loaded class, which lacks the new ctor.
+        val old = cls(members = arrayOf(counter, method("<init>(I)V", 1L)))
+        val new = cls(members = arrayOf(counter.copy(bodyHash = 5L), method("<init>(II)V", 1L)))
+        assertIs<Verdict.Rebuild>(Classifier.classify(old, new))
+    }
+
+    @Test
+    fun `suspend lambda base is not proxy-eligible, ctor change rebuilds`() {
+        val base = "kotlin/coroutines/jvm/internal/SuspendLambda"
+        val old = lambda(method("<init>(I)V", 1L)).copy(superName = base)
+        val new = lambda(method("<init>(II)V", 1L)).copy(superName = base)
+        assertIs<Verdict.Rebuild>(Classifier.classify(old, new))
+    }
+
+    @Test
+    fun `plan partitions support classes and keeps inject (T28)`() {
+        val plan = Classifier.plan(
+            listOf(
+                cls(members = arrayOf(greeting)) to Verdict.Interpret(setOf(-2116809900.toInt())),
+                lambda() to Verdict.SupportClass(emptySet()),
+                cls("dev/hotreload/sample/NewFeatureKt") to Verdict.NewClass,
+            ),
+        )
+        val hot = assertIs<Classifier.PatchPlan.HotSwap>(plan)
+        assertEquals(listOf("dev.hotreload.sample.NewFeatureKt"), hot.inject)
+        assertEquals(listOf("dev.hotreload.sample.MainActivityKt"), hot.interpret)
+        assertEquals(listOf("dev.hotreload.sample.MainActivityKt\$Greeting\$1"), hot.support)
+        assertEquals(emptyList(), hot.redefine)
+        assertEquals(setOf(-2116809900.toInt()), hot.groupIds)
     }
 
     @Test
