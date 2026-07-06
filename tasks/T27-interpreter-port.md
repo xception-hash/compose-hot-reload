@@ -1,5 +1,5 @@
 # T27: Phase 6 interpreter port — hot-apply classifier-rejected edits
-Status: TODO
+Status: IN-PROGRESS — Phase 1 DONE (steps 2, 3). Phased across sessions (device/quota); see Progress at bottom.
 Assignee: agy/Opus (device needed throughout; the hardest spec in the queue — read the research
 doc first and follow it, it answers "why" for every step)
 Priority: 7 of T21–T27 (LAST; big)
@@ -104,3 +104,34 @@ From repo root, emulator booted (runtime-client + protocol changed ⇒ reinstall
 3. `./e2e/run.sh` full suite incl. `interpreter-edit` → green twice back-to-back; pgrep clean.
 4. `./e2e/run-multi.sh` 4/4 (no regression; multi-module interpreter coverage not required).
 5. Manual: 3 consecutive signature-change edits in one watch session, all land, same PID.
+
+## Progress (phased across sessions — device/quota constrained)
+Split into 3 phases. **Phase 1 = host-only (no device), DONE this session (commits d6d19d2, 5e959c5).**
+
+- **Phase 1 (DONE):**
+  - **Step 3** — `engine/.../StubTransform.kt`: ASM (tree API) port of `stub_transform.cc`, run
+    host-side on baseline `.class` bytes. Adds `$liveEditBytecode`; per-method
+    getClassBytecode/getInstanceBytecode + null-check + `stub<T>` prologue (params `[null,
+    this|null, boxed args…]`); `<init>` stubConstructor tail before each RETURN. Frames via a
+    classpath-aware `ClassWriter` (`getCommonSuperClass` over a supplied loader; falls back to
+    Object, on-device verifier is the backstop). Tests: `engine/src/test/{kotlin/.../StubTransformTest.kt,
+    java/.../stubfixture/Fixture.java, java/com/android/tools/deploy/liveedit/LiveEditStubs.java}` —
+    8 tests, loading each transformed class runs the JVM verifier. **Acceptance #1 GREEN**
+    (`./gradlew :engine:test`).
+  - **Step 2** — `scripts/build-interp-dex.sh` → committed `engine/src/main/resources/dev/hotreload/
+    interp.dex` (495820 B, 269 classes) + `interp.dex.PROVENANCE`. Spike build.sh untouched.
+
+- **Phase 2 (NEXT, mostly host; device for spike checkpoint):**
+  - **Step 1** — port `jni_dispatch.cc` into `hotreload_agent.cpp` + lazy
+    `nativeRegisterInterpreterJni(Class)`. Checkpoint = spike super.toString()/synchronized (device).
+    NOTE: Apache-2.0 provenance header on ported code (step 8).
+  - **Step 4** — protocol **v7** `LiveEditClasses` opcode `0x0A` (Protocol.kt + Wire.kt codec both
+    ways) + PatchServer.kt handler (first-use interp.dex inject → nativeRegisterInterpreterJni →
+    reflective LiveEditStubs.init; then reflective addClasses + invalidate tail). Protocol is at
+    v6 today (T24); bump to v7. Reinstall device apps before any e2e after the bump.
+
+- **Phase 3 (FINAL, device throughout):** steps 5 (Classifier/WatchSession Interpret routing +
+  session primed-class set), 6 (LIVE first-prime/activity-recreate question — the real unknown,
+  answer before the e2e), 7 (e2e `interpreter-edit`), 8 (docs/README/research §4 addendum/NOTICE).
+
+Acceptance #1 met; #2–#5 are Phase 2/3.
