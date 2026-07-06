@@ -29,8 +29,14 @@ click uses `com.intellij.util.Consumer` — if the target platform wants `java.u
 swap the import; (2) `StatusBarWidgetFactory.createWidget(project)` single-arg overload; (3)
 `platformVersion=2025.1` in gradle.properties — bump if unavailable. `2.5.0` IntelliJ-plugin version.
 
-**Acceptance status:** #3 (root e2e unaffected) — TRUE, no root files touched. #1 (`./gradlew test
-buildPlugin`) and #2 (runIde manual) — PENDING Jay (need network + emulator).
+**Acceptance status:** #1 (`./gradlew test buildPlugin`) — GREEN (2026-07-06, Opus): 18 CliProtocol
+tests pass, `hotreload-intellij-plugin-0.1.0.zip` produced. Two build-config fixes were needed once
+the IDE deps actually resolved on the networked run: (a) dropped `testFramework(TestFrameworkType.
+Platform)` — it registers `com.intellij.tests.JUnit5TestSessionListener` via META-INF/services which
+cannot instantiate outside the full IDE test runtime; our CliProtocol test is pure JUnit5 and never
+needed it; (b) added `testRuntimeOnly("junit:junit:4.13.2")` — the IntelliJ Platform Gradle Plugin
+still wires its JUnit4-based runtime into `:test`, so `org.junit.rules.TestRule` must be present.
+#3 (root e2e unaffected) — TRUE, no root files touched. #2 (runIde manual) — PENDING Jay (emulator).
 
 ## Goal
 Phase 5 MVP: hot reload without leaving the IDE. Decision (made, do not revisit): the plugin
