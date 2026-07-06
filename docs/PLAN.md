@@ -12,7 +12,7 @@ ONE canonical roadmap — update it here, link it elsewhere.
 |---|---|---|---|
 | 0 | Push unpushed commits, confirm CI e2e green on main | 15 min | Jay |
 | 1 | `tasks/T29-release-v0.1.md` — README/license/version/publish + IDE-plugin zip release | 1–2 sessions | agy + Jay, Opus reviews |
-| 2 | `tasks/T28-proxies-codegen.md` — lift composable signature-change limitation (research done: `phase6-interpreter-research.md` §7, verdict GO) | 2–3 sessions | steps 1–3 agy, 4–5 Opus |
+| 2 | `tasks/T28-proxies-codegen.md` — lift composable signature-change limitation (steps 1–4 DONE host-side 2026-07-06; only step 5 device validation + e2e case 15 remains) | 1 session | Opus + device |
 | 3 | `tasks/T30-robustness-leftovers.md` — jni spike checkpoint, callee-exception decision, resource formats | 1 session | Opus + agy |
 | 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies, marketplace | unbounded | defer |
 
