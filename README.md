@@ -60,6 +60,17 @@ Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the w
 | fix-and-save after broken edit | full UI recovers in place, no reinstall | ~1.2s |
 | resource **value** edit (`res/values/*.xml` string/color) | `ResourcesLoader` overlay + whole-tree `invalidateAll`; new value on screen, all state preserved | ~2s |
 | vector **drawable** edit (`res/drawable*/*.xml`) | `ResourcesLoader` overlay + Compose asset-cache clear + whole-tree recompose; new drawable on screen, all state preserved | ~1–2s |
+| member **removal** / non-composable method **signature** change / hierarchy change | AOSP LiveEdit **bytecode interpreter** on-device: the class is primed (host stub-transform → structural redefine) and its edited bodies are interpreted, same process, state preserved | ~1.5s (first prime ~4.5s) |
+
+Edits the classifier would otherwise reject as "rebuild" (member removal, a non-composable
+method's signature change, a hierarchy change) are **interpreted** on-device instead: the affected
+class's method entries are diverted into the vendored AOSP LiveEdit interpreter (see `NOTICE`), so
+the change lands in the same process with `remember`/`rememberSaveable` preserved — no reinstall.
+Once a class is interpreted, all its later edits go through the interpreter too. **Known
+limitation:** a `@Composable` function's own *signature* change still requires a rebuild — Compose
+regenerates the function's restart lambda with a changed constructor, which needs AOSP's `Proxies`
+codegen (out of scope for v1; see `docs/phase6-interpreter-research.md` §4 addendum). `<clinit>`
+and constructor edits also stay rebuild.
 
 Resource edits are **values-only** in v1: changing the *value* of an existing string/color
 hot-reloads. Adding, removing, or renaming a resource is detected and reported as

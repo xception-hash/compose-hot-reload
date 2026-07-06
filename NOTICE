@@ -1,0 +1,29 @@
+Compose Hot Reload
+Copyright 2026 the Compose Hot Reload authors.
+
+This product includes software developed as part of the Android Open Source
+Project (AOSP) "android-tools-base" repository (tools-base/deploy), licensed
+under the Apache License, Version 2.0. See http://www.apache.org/licenses/LICENSE-2.0.
+
+Vendored/ported AOSP components (pin: tools-base 14c65dad2cbdc26198c66375d4e0cef5269436e0,
+recorded in third_party/PINNED.txt):
+
+1. On-device LiveEdit bytecode interpreter — engine/src/main/resources/dev/hotreload/interp.dex
+   Built from tools-base deploy/agent/runtime {interpreter, liveedit, liveedit/backported} plus
+   instrument/ReflectionHelpers, compiled and dexed unchanged except for build-time source-level
+   jarjar of ASM and trivial annotation/Proxies stubs (see the sibling interp.dex.PROVENANCE and
+   scripts/build-interp-dex.sh). Copyright (C) The Android Open Source Project. Apache-2.0.
+
+2. Interpreter JNI dispatch natives — runtime-client/lib/src/main/cpp/interpreter_jni.cpp
+   Port of tools-base deploy/agent/native/jni_dispatch/jni_dispatch.cc (the invokespecial* family
+   and monitor enter/exit natives that com.android.tools.deploy.interpreter.JNI declares).
+   Copyright (C) The Android Open Source Project. Apache-2.0. The per-file header records the
+   differences from the original.
+
+3. Host-side priming transform — engine/src/main/kotlin/dev/hotreload/engine/StubTransform.kt
+   A Kotlin/ASM re-implementation, on JVM `.class` bytes, of the semantics of tools-base
+   deploy/agent/native/transform/stub_transform.cc (the LiveEdit stub prologue / $liveEditBytecode
+   field / stubConstructor tail). Derived from that Apache-2.0 source.
+
+The unbox-flag constants in interpreter_jni.cpp are kept byte-identical to AOSP's
+AndroidEval.java by design; do not alter them independently.
