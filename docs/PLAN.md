@@ -2,23 +2,22 @@
 
 ## Status (2026-07-06) — Phases 0–6 DELIVERED
 
-T01–T27 are done; the product works end-to-end (body edits, structural adds, multi-module,
-resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy, IDE plugin,
-doctor, CI e2e 14/14). Engineering is ~90 % complete. Remaining work is tracked in
-`tasks/T28–T30` and executed per `docs/OPUS-HANDOFF.md` (post-Fable playbook). This table is the
-ONE canonical roadmap — update it here, link it elsewhere.
+T01–T28 are done; the product works end-to-end (body edits, structural adds, multi-module,
+resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
+changes** incl. composables via lambda proxies, IDE plugin, doctor, e2e 15/15). Engineering is
+~95 % complete. Remaining work is tracked in `tasks/T29–T30` and executed per
+`docs/OPUS-HANDOFF.md` (post-Fable playbook). This table is the ONE canonical roadmap — update
+it here, link it elsewhere.
 
 | # | Work | Size | Executor |
 |---|---|---|---|
-| 0 | Push unpushed commits, confirm CI e2e green on main | 15 min | Jay |
+| 0 | ✅ DONE — commits pushed, CI e2e green (PR #2 merged) | — | Jay |
 | 1 | `tasks/T29-release-v0.1.md` — README/license/version/publish + IDE-plugin zip release | 1–2 sessions | agy + Jay, Opus reviews |
-| 2 | `tasks/T28-proxies-codegen.md` — lift composable signature-change limitation (steps 1–4 DONE host-side 2026-07-06; only step 5 device validation + e2e case 15 remains) | 1 session | Opus + device |
+| 2 | ✅ DONE 2026-07-06 — `tasks/T28-proxies-codegen.md` all 5 steps; checkpoints A/B/C + e2e case 15 validated live (Fable) | — | done |
 | 3 | `tasks/T30-robustness-leftovers.md` — jni spike checkpoint, callee-exception decision, resource formats | 1 session | Opus + agy |
 | 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies, marketplace | unbounded | defer |
 
-Recommended order 0→1→2→3 (ship v0.1 first — the rebuild fallback for signature changes is
-already decent UX). Alternative T28-first is fine if Jay prefers feature-completeness before
-tagging; Jay decides.
+Recommended order: T29 (ship v0.1) → T30.
 
 ## Context
 
