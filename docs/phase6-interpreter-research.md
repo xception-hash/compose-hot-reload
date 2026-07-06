@@ -193,12 +193,26 @@ instances", so it never reaches the recreate question.
   so it isn't an additive superset, and even a merged-superset lambda would then call the new
   2-arg `Greeting` overload that the (baseline-primed) `MainActivityKt` doesn't expose.
 
-  **Decision:** @Composable **signature changes stay `Rebuild`** in T27. The classifier already
-  falls back correctly — it sees `Fn$1`'s removed `<init>` (a non-eligible constructor) as a hard
-  reason. Non-composable method signature changes, member removals, member adds on a primed class,
-  and hierarchy edits remain interpreter-eligible (no persistent restart lambda to regenerate).
-  Lifting this needs the `Proxies` codegen (a separate, larger task). The `restartActivities`
-  request field contemplated in the spec is therefore **not added** — no working case needs it.
+- **What does NOT work — ANY signature change (generalized), incl. cross-module:** the restart
+  lambda is one instance of a broader rule. A signature change is a removal PLUS an addition — the
+  new-descriptor overload, Kotlin's `$default` synthetic (when a default param is involved), and
+  the regenerated restart lambda. Those **added methods have no presence on the primed baseline**
+  (structural redefine of the OLD bytes); they live only in the interpreter's stored bytecode. Any
+  **non-interpreted caller** invokes them as real methods → `NoSuchMethodError`. Observed live on
+  multi-module: editing `fun coreLabel(n: Int)` → `(n: Int, suffix: String = "")` in the `:core`
+  (kotlin-jvm) module primed+interpreted `CoreLabelKt`, but the *redefined* cross-module caller
+  `FeatureCardKt.FeatureCard` called the real `coreLabel$default(…)` →
+  `NoSuchMethodError: No method coreLabel$default … in class CoreLabelKt`. The composable restart
+  lambda is the same failure with the caller being `$Fn$1` instead of a cross-module class.
+
+  **Decision:** the classifier interprets **removals / hierarchy changes with NO added method**;
+  any edit that **adds a method** (i.e. every signature change) stays `Rebuild`. This is the
+  validated-safe scope: member removals (caller bodies just drop the call — no new method to
+  resolve), body edits on an already-primed class, and hierarchy edits. Lifting signature changes
+  needs the AOSP `Proxies` codegen for the restart lambda AND real on-device delivery of the new
+  `$default`/overload methods to non-interpreted callers — both out of scope for T27. The
+  `restartActivities` request field contemplated in the spec is **not added** — no working case
+  needs it.
 
 ## 5. Go/no-go + port plan
 

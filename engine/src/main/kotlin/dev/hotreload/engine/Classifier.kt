@@ -101,12 +101,27 @@ object Classifier {
             return Verdict.Rebuild("${new.fqcn}: ${(hard + interpretable).take(3).joinToString()}")
         }
         if (interpretable.isNotEmpty()) {
-            // Invalidate ONLY the changed/added composables' groups, not every composable in the
-            // class — invalidateGroupsWithKey resets remember/rememberSaveable in a group's subtree,
-            // so touching unchanged siblings (e.g. a Counter in the same file) would needlessly drop
-            // their state. Unchanged primed methods re-interpret lazily on their next recomposition.
-            // Empty ⇒ the client falls back to keyless whole-tree invalidateAll (state-preserving).
-            return Verdict.Interpret(invalidate)
+            // A removal / hierarchy change we could interpret — but ONLY if no method was ADDED.
+            // A signature change is a removal PLUS an addition (the new-descriptor overload, plus
+            // Kotlin's `$default` synthetic and, for composables, a regenerated restart lambda).
+            // Those added methods have no presence on the primed baseline (structural redefine of
+            // the OLD bytes) — they exist only in the interpreter's stored bytecode — so any
+            // NON-interpreted caller (a redefined caller in another module; the restart lambda)
+            // invokes them for real and hits NoSuchMethodError. Keep such edits a Rebuild.
+            val addedMethods = added.filter { '(' in it }
+            if (addedMethods.isEmpty()) {
+                // Invalidate ONLY the changed composables' groups, not every composable in the
+                // class — invalidateGroupsWithKey resets remember/rememberSaveable in a group's
+                // subtree, so touching unchanged siblings (e.g. a Counter in the same file) would
+                // needlessly drop their state. Unchanged primed methods re-interpret lazily on
+                // their next recomposition. Empty ⇒ the client falls back to keyless whole-tree
+                // invalidateAll (state-preserving).
+                return Verdict.Interpret(invalidate)
+            }
+            return Verdict.Rebuild(
+                "${new.fqcn}: signatures changed (adds ${addedMethods.sorted().first()}) — the " +
+                    "interpreter can't back the new method for non-interpreted callers",
+            )
         }
 
         if (added.isNotEmpty()) return Verdict.Structural(invalidate)

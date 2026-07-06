@@ -58,11 +58,12 @@ class ClassifierTest {
     }
 
     @Test
-    fun `changed signature is remove-plus-add, routes to interpret with the added group key`() {
+    fun `changed signature is remove-plus-add, forces rebuild (added method not interpretable)`() {
+        // A signature change adds a new-descriptor method; the interpreter can't back it for
+        // non-interpreted callers (a redefined cross-module caller, or a restart lambda).
         val renamed = composable("Greeting(ILandroidx/compose/runtime/Composer;I)V", -2116809900, 2L)
         val v = Classifier.classify(cls(members = arrayOf(greeting)), cls(members = arrayOf(renamed)))
-        val interpret = assertIs<Verdict.Interpret>(v)
-        assertEquals(setOf(-2116809900.toInt()), interpret.groupIds)
+        assertIs<Verdict.Rebuild>(v)
     }
 
     @Test
