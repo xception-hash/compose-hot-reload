@@ -13,7 +13,10 @@ BOUNDS=$(adb exec-out uiautomator dump /dev/tty 2>/dev/null \
 read -r X1 Y1 X2 Y2 <<< "$(echo "$BOUNDS" | tr '[],' '   ')"
 X=$(( (X1 + X2) / 2 )); Y=$(( (Y1 + Y2) / 2 ))
 
-PNG=$(mktemp -t iconpixel).png
+# Bare mktemp for BSD/GNU portability: `mktemp -t iconpixel` works on macOS
+# (BSD treats it as a prefix) but GNU mktemp on the CI runner rejects a template
+# without XXXXXX. No .png suffix needed — PIL sniffs content, screencap emits PNG.
+PNG=$(mktemp)
 adb exec-out screencap -p > "$PNG"
 python3 - "$PNG" "$X" "$Y" <<'EOF'
 import sys
