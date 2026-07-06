@@ -1,7 +1,9 @@
 package dev.hotreload.engine
 
+import dev.hotreload.protocol.ClassBytes
 import dev.hotreload.protocol.ClassDex
 import dev.hotreload.protocol.Protocol
+import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
@@ -48,6 +50,27 @@ class WatchSession(private val config: Config) {
     private var sourceRoots: List<Path> = emptyList()
     private var literalTable: LiteralTable = LiteralTable.empty()
     private val baselineText = HashMap<Path, String>()
+
+    // ---- interpreter fast path (T27) ----
+    /** Internal names of classes primed (stub-transformed + structurally redefined) this session. */
+    private val primedClasses = mutableSetOf<String>()
+    /** interp.dex is injected into the app classloader once, on the first interpreted edit. */
+    private var interpDexInjected = false
+
+    /** The committed interpreter runtime dex, shipped as an engine resource (T27 step 2). */
+    private val interpDex: ByteArray by lazy {
+        javaClass.getResourceAsStream("/dev/hotreload/interp.dex")?.use { it.readBytes() }
+            ?: error("interp.dex resource missing from the engine jar")
+    }
+
+    /**
+     * Classloader used only for StubTransform stack-map frame computation. The module output dirs
+     * resolve the app's own types; framework/Compose types fall back to Object (the on-device
+     * verifier is the real backstop, per StubTransform).
+     */
+    private val frameLoader: ClassLoader by lazy {
+        URLClassLoader(classesDirs.map { it.toUri().toURL() }.toTypedArray(), javaClass.classLoader)
+    }
 
     /** Blocks until the process is killed. */
     fun run() {
@@ -192,7 +215,16 @@ class WatchSession(private val config: Config) {
             return ClassSwapResult(newSnapshot, invalidated = false)
         }
 
-        val verdicts = changed.map { (name, entry) -> entry.facts to Classifier.classify(snapshot[name]?.facts, entry.facts) }
+        val verdicts = changed.map { (name, entry) ->
+            var verdict = Classifier.classify(snapshot[name]?.facts, entry.facts)
+            // Once primed, a class's stub prologue intercepts every method entry, so a plain
+            // redefine would fight the interpreter — route ALL its later edits through the
+            // interpreter (even body-only ones).
+            if (name in primedClasses && verdict !is Classifier.Verdict.Rebuild) {
+                verdict = Classifier.Verdict.Interpret(entry.facts.composableKeys)
+            }
+            entry.facts to verdict
+        }
         return when (val plan = Classifier.plan(verdicts)) {
             is Classifier.PatchPlan.Rebuild -> {
                 plan.reasons.forEach { println("cannot hot-swap: $it") }
@@ -212,25 +244,71 @@ class WatchSession(private val config: Config) {
                     }
                     device.redefine(batch, plan.structural)
                 }
-                // No compose keys among the changed bodies (e.g. a pure-Kotlin module's
-                // helper edit): the redefine landed but nothing would recompose, so the
-                // UI would stay stale until the next natural state change. Whole-tree
-                // invalidateAll is keyless and preserves remember/rememberSaveable (T16).
+                // Redefine-path invalidation (skip when this batch is pure-interpret — the
+                // interpreter path recomposes itself below). No compose keys among the changed
+                // bodies (e.g. a pure-Kotlin module's helper edit) → whole-tree invalidateAll,
+                // keyless and state-preserving (T16).
+                val redefinedAnything = plan.inject.isNotEmpty() || plan.redefine.isNotEmpty()
                 val wholeTree = plan.invalidateKeys.isEmpty()
-                if (wholeTree) {
-                    device.invalidateAll()
-                } else {
-                    device.invalidate(plan.invalidateKeys.toIntArray())
+                if (redefinedAnything) {
+                    if (wholeTree) device.invalidateAll() else device.invalidate(plan.invalidateKeys.toIntArray())
                 }
+
+                if (plan.interpret.isNotEmpty()) {
+                    applyInterpret(plan.interpret, plan.groupIds, changed, snapshot, dexer, device, t0)
+                }
+
                 val what = buildList {
                     if (plan.inject.isNotEmpty()) add("${plan.inject.size} injected")
                     if (plan.redefine.isNotEmpty()) add("${plan.redefine.size} redefined${if (plan.structural) " (structural)" else ""}")
-                    add(if (wholeTree) "whole tree invalidated (no compose keys)" else "${plan.invalidateKeys.size} groups invalidated")
+                    if (redefinedAnything) add(if (wholeTree) "whole tree invalidated (no compose keys)" else "${plan.invalidateKeys.size} groups invalidated")
                 }
-                println("hot-swapped: ${what.joinToString()} in ${elapsedMs(t0)}ms")
+                if (what.isNotEmpty()) println("hot-swapped: ${what.joinToString()} in ${elapsedMs(t0)}ms")
                 ClassSwapResult(newSnapshot, invalidated = true)
             }
         }
+    }
+
+    /**
+     * Route [interpret] classes (FQCNs) through the on-device LiveEdit interpreter (T27 step 5):
+     *  1. prime any class first seen this session — stub-transform its BASELINE (pre-edit,
+     *     on-device) bytes, dex, and structural-redefine so its method entries divert to the
+     *     interpreter (logs `primed:`);
+     *  2. inject interp.dex into the app classloader once per process;
+     *  3. hand the edited `.class` bytes to the interpreter + recompose the class's composables.
+     * Ordering matches the client contract (inject interp.dex → redefine primed originals →
+     * LiveEditClasses); here priming precedes the inject only because ART resolves LiveEditStubs
+     * lazily (not until the primed method next runs, which is after the interpret invalidate).
+     */
+    private fun applyInterpret(
+        interpret: List<String>,
+        groupIds: Set<Int>,
+        changed: Map<String, SnapshotEntry>,
+        baseline: Map<String, SnapshotEntry>,
+        dexer: DexCompiler,
+        device: DeviceClient,
+        t0: Long,
+    ) {
+        if (!interpDexInjected) {
+            device.injectDex(INTERP_DEX_NAME, interpDex)
+            interpDexInjected = true
+        }
+        for (fqcn in interpret) {
+            val internal = fqcn.replace('.', '/')
+            if (internal in primedClasses) continue
+            val baselineBytes = baseline[internal]?.bytes
+                ?: error("no baseline bytes to prime $fqcn (class absent from the pre-edit snapshot)")
+            val stub = StubTransform.transform(baselineBytes, frameLoader)
+            device.redefine(listOf(ClassDex(fqcn, dexer.dexBytes(stub))), structural = true)
+            primedClasses += internal
+            println("primed: $fqcn")
+        }
+        val classes = interpret.map { fqcn ->
+            val internal = fqcn.replace('.', '/')
+            ClassBytes(internal, changed.getValue(internal).bytes)
+        }
+        device.liveEditClasses(classes, primedDexName = null, groupIds = groupIds.toList())
+        println("interpreted: ${interpret.joinToString()} (${elapsedMs(t0)}ms)")
     }
 
     /**
@@ -348,5 +426,8 @@ class WatchSession(private val config: Config) {
     private companion object {
         /** Recomposition happens on a later frame than the Invalidate ack. */
         const val RECOMPOSE_SETTLE_MS = 300L
+
+        /** InjectDex filename for the interpreter runtime (PatchServer allows `.`, `-`). */
+        const val INTERP_DEX_NAME = "hotreload-interp.dex"
     }
 }

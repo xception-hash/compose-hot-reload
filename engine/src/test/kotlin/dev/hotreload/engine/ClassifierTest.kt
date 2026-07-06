@@ -49,16 +49,25 @@ class ClassifierTest {
     }
 
     @Test
-    fun `removed member forces rebuild`() {
+    fun `removed method routes to interpret with the class's composable keys`() {
         val v = Classifier.classify(cls(members = arrayOf(counter, greeting)), cls(members = arrayOf(counter)))
-        assertIs<Verdict.Rebuild>(v)
+        val interpret = assertIs<Verdict.Interpret>(v)
+        assertEquals(setOf(-96578675), interpret.groupIds)
     }
 
     @Test
-    fun `changed signature is remove-plus-add, forces rebuild`() {
+    fun `changed signature is remove-plus-add, routes to interpret`() {
         val renamed = composable("Greeting(ILandroidx/compose/runtime/Composer;I)V", -2116809900, 2L)
         val v = Classifier.classify(cls(members = arrayOf(greeting)), cls(members = arrayOf(renamed)))
-        assertIs<Verdict.Rebuild>(v)
+        val interpret = assertIs<Verdict.Interpret>(v)
+        assertEquals(setOf(-2116809900.toInt()), interpret.groupIds)
+    }
+
+    @Test
+    fun `hierarchy change routes to interpret`() {
+        val old = cls(members = arrayOf(counter))
+        val new = old.copy(superName = "android/app/Activity")
+        assertIs<Verdict.Interpret>(Classifier.classify(old, new))
     }
 
     @Test
@@ -69,10 +78,26 @@ class ClassifierTest {
     }
 
     @Test
-    fun `hierarchy change forces rebuild`() {
-        val old = cls(members = arrayOf(counter))
-        val new = old.copy(superName = "android/app/Activity")
-        assertIs<Verdict.Rebuild>(Classifier.classify(old, new))
+    fun `removed constructor forces rebuild (interpreter can't absorb it)`() {
+        val ctor = method("<init>()V", 1L)
+        val v = Classifier.classify(cls(members = arrayOf(counter, ctor)), cls(members = arrayOf(counter)))
+        assertIs<Verdict.Rebuild>(v)
+    }
+
+    @Test
+    fun `removed field forces rebuild (not code the interpreter runs)`() {
+        val field = MemberFacts("count:I", 0x2, null, null)
+        val v = Classifier.classify(cls(members = arrayOf(counter, field)), cls(members = arrayOf(counter)))
+        assertIs<Verdict.Rebuild>(v)
+    }
+
+    @Test
+    fun `a hard reason wins over an interpretable one`() {
+        // Signature change (interpretable) AND a group-key renumber (hard) → Rebuild.
+        val renamed = composable("Greeting(ILandroidx/compose/runtime/Composer;I)V", -2116809900, 2L)
+        val renumbered = counter.copy(composeKey = 42)
+        val v = Classifier.classify(cls(members = arrayOf(counter, greeting)), cls(members = arrayOf(renumbered, renamed)))
+        assertIs<Verdict.Rebuild>(v)
     }
 
     @Test
@@ -95,6 +120,21 @@ class ClassifierTest {
         assertEquals(listOf("dev.hotreload.sample.NewFeatureKt"), hot.inject)
         assertEquals(listOf("dev.hotreload.sample.MainActivityKt", "dev.hotreload.sample.OtherKt"), hot.redefine)
         assertEquals(setOf(-96578675, 12345), hot.invalidateKeys)
+    }
+
+    @Test
+    fun `plan separates interpret classes from redefines and unions their group keys`() {
+        val plan = Classifier.plan(
+            listOf(
+                cls(members = arrayOf(counter)) to Verdict.BodyOnly(setOf(-96578675)),
+                cls("dev/hotreload/sample/OtherKt") to Verdict.Interpret(setOf(2, 3)),
+            ),
+        )
+        val hot = assertIs<Classifier.PatchPlan.HotSwap>(plan)
+        assertEquals(listOf("dev.hotreload.sample.MainActivityKt"), hot.redefine)
+        assertEquals(listOf("dev.hotreload.sample.OtherKt"), hot.interpret)
+        assertEquals(setOf(2, 3), hot.groupIds)
+        assertEquals(setOf(-96578675), hot.invalidateKeys)
     }
 
     @Test
