@@ -1,5 +1,25 @@
 # Compose Hot Reload for Android — Project Plan
 
+## Status (2026-07-06) — Phases 0–6 DELIVERED
+
+T01–T27 are done; the product works end-to-end (body edits, structural adds, multi-module,
+resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy, IDE plugin,
+doctor, CI e2e 14/14). Engineering is ~90 % complete. Remaining work is tracked in
+`tasks/T28–T30` and executed per `docs/OPUS-HANDOFF.md` (post-Fable playbook). This table is the
+ONE canonical roadmap — update it here, link it elsewhere.
+
+| # | Work | Size | Executor |
+|---|---|---|---|
+| 0 | Push unpushed commits, confirm CI e2e green on main | 15 min | the maintainer |
+| 1 | `tasks/T29-release-v0.1.md` — README/license/version/publish + IDE-plugin zip release | 1–2 sessions | agy + the maintainer, Opus reviews |
+| 2 | `tasks/T28-proxies-codegen.md` — lift composable signature-change limitation (research done: `phase6-interpreter-research.md` §7, verdict GO) | 2–3 sessions | steps 1–3 agy, 4–5 Opus |
+| 3 | `tasks/T30-robustness-leftovers.md` — jni spike checkpoint, callee-exception decision, resource formats | 1 session | Opus + agy |
+| 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies, marketplace | unbounded | defer |
+
+Recommended order 0→1→2→3 (ship v0.1 first — the rebuild fallback for signature changes is
+already decent UX). Alternative T28-first is fine if the maintainer prefers feature-completeness before
+tagging; the maintainer decides.
+
 ## Context
 
 Jetpack Compose has no true hot reload on Android. JetBrains' [compose-hot-reload](https://github.com/jetbrains/compose-hot-reload) works only on desktop JVM targets because it depends on the JetBrains Runtime's enhanced class redefinition (DCEVM, `-XX:+AllowEnhancedClassRedefinition`) — Android's ART runtime has no equivalent. Android Studio's Live Edit is limited (function-body edits, fragile, IDE-locked). The only Android solution today is [HotSwan](https://hotswan.dev/), which is paid and closed source.
