@@ -100,8 +100,8 @@ fun Counter() {
 }
 
 @Composable
-fun Greeting() {
-    Text("Hello from the sample app")
+fun Greeting(name: String = "x") {
+    Text("Hello — hot reloaded! New")
 }
 
 // Live-literals fast-path testbed (T24): the "literal: vN" string is a plain string
