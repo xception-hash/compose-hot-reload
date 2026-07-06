@@ -467,7 +467,8 @@ wait_for_interpret() {
 }
 
 # Baseline present + seed composition state so we can prove interpretation preserves it.
-assert_ui 'content-desc="HOT_PHOTO"'
+# (HotPhoto is an Image with no text; its removal is asserted indirectly — the batch that
+# removes it is what makes the edit an Interpret trigger, verified by the `primed:` line below.)
 assert_ui 'text="Hello from the sample app"'
 "$REPO_ROOT/scripts/taps.sh" 2 >/dev/null
 COUNT_LINE=$(adb exec-out uiautomator dump /dev/tty 2>/dev/null \
