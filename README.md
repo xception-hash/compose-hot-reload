@@ -60,6 +60,7 @@ Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the w
 | fix-and-save after broken edit | full UI recovers in place, no reinstall | ~1.2s |
 | resource **value** edit (`res/values/*.xml` string/color) | `ResourcesLoader` overlay + whole-tree `invalidateAll`; new value on screen, all state preserved | ~2s |
 | vector **drawable** edit (`res/drawable*/*.xml`) | `ResourcesLoader` overlay + Compose asset-cache clear + whole-tree recompose; new drawable on screen, all state preserved | ~1–2s |
+| bitmap **drawable** edit (`res/drawable*/*.{png,webp}`) | `ResourcesLoader` overlay + bashing `painterResource`'s internal remember groups (`invalidateGroupsWithKey`); new bitmap on screen, all state preserved | ~1–2.5s |
 | member **removal** / class hierarchy change | AOSP LiveEdit **bytecode interpreter** on-device: the class is primed (host stub-transform → structural redefine) and its edited bodies are interpreted, same process, state preserved | ~1.5s (first prime ~4.5s) |
 
 Edits the classifier would otherwise reject as "rebuild" — **member removal** and **hierarchy
@@ -79,7 +80,12 @@ hot-reloads. Adding, removing, or renaming a resource is detected and reported a
 "reinstall required" (aapt2 renumbers IDs, which an overlay can't remap). Vector (XML)
 drawable edits under `res/drawable*/` hot-reload too — the overlay is applied and Compose's
 per-`Context` asset caches (`ImageVectorCache`/`ResourceIdCache`) are cleared before the
-recompose. Bitmap drawables (`png`/`webp`) still need a reinstall.
+recompose. Bitmap drawables (`png`/`webp`) hot-reload as well: `painterResource` remembers
+the decoded bitmap keyed on the *intra-APK* path string (identical in every overlay), so the
+engine additionally bashes exactly those remember groups via `invalidateGroupsWithKey` with
+the ui-version-specific group key it extracts from the app's own dex (`PainterKeyExtractor`).
+Only the painter groups rebuild — user state is untouched. Direct `ImageBitmap.imageResource()`
+call sites are not covered (no targetable group); `painterResource` is the standard path.
 
 ### State-reset semantics
 The state-preservation semantics match Android Studio's Live Edit: `invalidateGroupsWithKey` discards `remember` AND `rememberSaveable` state in the **edited function's subtree** because the runtime must re-run initializers that may capture new code. Editing a leaf preserves everything else; editing a parent resets its children's counters to 0.

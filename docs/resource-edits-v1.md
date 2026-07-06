@@ -192,7 +192,30 @@ Scope notes:
 - ~~Loader / dir accumulation~~ — **DONE in T21** (persistent `ResourcesLoader` + `setProviders` + overlay GC).
 - ~~Which `Resources` is strictly necessary (activity vs application) — 2d isolation experiment~~ — **DONE in T22**: Attaching to activity `Resources` is **strictly required** for live same-activity updates because Compose `LocalContext.current.resources` reads from the activity's `Resources` instance (attaching ONLY to application `Resources` fails live same-activity swaps). Attaching to application `Resources` handles non-Activity context lookups (`applicationContext.getString(...)`). Both are required and both shipped.
 - ~~Multi-activity / navigation (2c)~~ — **DONE in T22**: `ActivityTracker.onActivityResumed` re-attaches `sessionLoader` to newly-launched or newly-resumed activity `Resources` before the first frame renders. Tested by e2e case 13 (`multi-activity-resource`).
-- **Bitmap (png/webp) drawables (T23 observation)**: `SourceWatcher` and `WatchSession` deliver `.png`/`.webp` changes and `ResourceSwapper` pushes the overlay successfully (`resource-swapped:` logged), but `painterResource` bitmap drawables stay stale on screen (`#2196F3` instead of `#FF0000`). Changing the overlay directory name (`hotreload-overlay-<session>-N`) and invalidating all compositions is insufficient to update decoded bitmaps. Even a manual activity recreate (e.g. screen rotation / configuration change) does not surface the new bitmap because Android's `ResourcesImpl.mDrawableCache` and/or Compose's internal bitmap loader caches decoded `BitmapDrawable` constant states across overlay provider updates. Needs further investigation for cache clearing beyond `clearAssetCaches()`.
+- ~~Bitmap (png/webp) drawables stay stale~~ — **DONE in T23 v3** (2026-07-06). The T23 spec's
+  remember-key theory was wrong, and so was the original cache diagnosis. Ground truth (from the
+  ui-android **1.11.4** bytecode): `painterResource`'s bitmap branch is
+  `startReplaceGroup(<key>) { remember(path, id, theme) { loadImageBitmapResource(...) } }` where
+  `path` is `TypedValue.string` — the ***intra-APK* file path** (`res/drawable/hot_photo.png`),
+  NOT the overlay filesystem path. Every overlay we build contains the identical string (same
+  project, same aapt2), so the remember key never changes and no amount of `invalidateAll` can
+  re-decode the bitmap. `ResourcesImpl.mDrawableCache` was largely a red herring: each overlay is
+  a new `ResourcesProvider`, so re-resolution yields a fresh `assetCookie` → fresh drawable-cache
+  key → real decode (verified live: 3 consecutive bitmap swaps blue→red→blue→red all rendered).
+  **Fix (engine-only, no protocol/client change):** on a `.png`/`.webp` batch, after
+  `LoadResources`, the engine sends the existing `Invalidate([key])` with the group key of
+  painterResource's bitmap branch — `invalidateGroupsWithKey` *bashes* matching groups (rewrites
+  their key so the next recomposition rebuilds them from scratch, discarding the remember). The
+  group contains only the painter computation, so this is state-lossless everywhere else. The key
+  is a per-ui-version compiler constant (−1771643000 at 1.11.4), so `PainterKeyExtractor` reads it
+  from the **app's own APK dex** via `dexdump` (sibling of d8): the defining dex is found by a
+  byte-search for the private method name `loadImageBitmapResource`, then the last
+  `startReplaceGroup` const preceding that invoke inside `PainterResources_androidKt` is the key.
+  Extraction is lazy (first bitmap edit) and memoized per session; if it fails, the swap degrades
+  to overlay-only with a loud "stale until activity recreate" line. **Not covered:** direct
+  `ImageBitmap.imageResource()` call sites — its remembers are intrinsic (no branch group of
+  their own), so there is no key to target; `painterResource` is the standard path. e2e case 12
+  (`bitmap-edit`) covers red swap + swap-back (repeat-edit cache regression) + state/PID.
 - ~~Drawables / decoded assets still need a reinstall~~ — **DONE in v2** (see above).
 - ~~Multi-module resources~~ — **DONE** (multi-module design, commit 8246b9b): the guard
   unions `(type,name)` across all module res roots; e2e `run-multi.sh` case 4 covers it.

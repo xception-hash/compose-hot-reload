@@ -30,6 +30,8 @@ class ResourceSwapper(
     private val gradle: GradleCompiler,
     private val adb: Adb,
     private val device: DeviceClient,
+    /** `dexdump` from build-tools (sibling of d8); null degrades bitmap edits to overlay-only. */
+    private val dexdump: Path?,
 ) {
     private val assembleTask = "${appModule.gradlePath}:assembleDebug"
     private val apkDir = appModule.dir.resolve("build/outputs/apk/debug")
@@ -46,12 +48,21 @@ class ResourceSwapper(
     /** The (type,name) set of every value resource at last-known-good; guards ID stability. */
     private var resourceIds: Set<String> = scanResourceIds()
 
+    /** Lazily-extracted painterResource bitmap-branch key; resolved once per session. */
+    private var painterKey: Int? = null
+    private var painterKeyResolved = false
+
     /**
      * Overlay the current value resources onto the device. Returns true iff an overlay was
      * pushed and the whole-tree invalidation triggered (caller then verifies recomposition);
      * false if the swap was skipped (guard tripped, or build/extract failed — session continues).
+     *
+     * [bitmap]: the batch touched a `.png`/`.webp`. Overlaying alone can't surface those —
+     * `painterResource` remembers the decoded bitmap keyed on the intra-APK path string,
+     * which is identical in every overlay — so the matching remember groups are bashed via
+     * `invalidateGroupsWithKey` (see [PainterKeyExtractor]).
      */
-    fun swap(t0: Long): Boolean {
+    fun swap(t0: Long, bitmap: Boolean = false): Boolean {
         val currentIds = scanResourceIds()
         if (currentIds != resourceIds) {
             val added = currentIds - resourceIds
@@ -92,11 +103,27 @@ class ResourceSwapper(
             adb.runAs(applicationId, "cp", "-r", "/data/local/tmp/$overlayName", "code_cache/$overlayName")
             adb.shell("rm", "-rf", "/data/local/tmp/$overlayName")
             device.loadResources(overlayName)
+            if (bitmap) invalidateBitmapRemembers(apk)
         } finally {
             staging.toFile().deleteRecursively()
         }
         println("resource-swapped: $overlayName in ${(System.nanoTime() - t0) / 1_000_000}ms")
         return true
+    }
+
+    /** Bash every painterResource bitmap remember so the new overlay's bytes get re-decoded. */
+    private fun invalidateBitmapRemembers(apk: Path) {
+        if (!painterKeyResolved) {
+            painterKeyResolved = true
+            painterKey = dexdump?.let { PainterKeyExtractor.extract(apk, it) }
+        }
+        val key = painterKey
+        if (key != null) {
+            device.invalidate(intArrayOf(key))
+            println("bitmap-invalidated: painterResource remember groups bashed (key=$key)")
+        } else {
+            println("bitmap overlaid, but the painterResource group key is unavailable — bitmaps stay stale until the activity recreates")
+        }
     }
 
     /** Newest `*.apk` in the debug output dir (assembleDebug produces exactly one for the sample). */

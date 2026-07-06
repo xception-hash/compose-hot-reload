@@ -1,5 +1,5 @@
 # T23: Bitmap (png/webp) drawable hot-reload
-Status: IN-REVIEW
+Status: DONE (2026-07-06 — agy landed steps 1–3; Claude/Fable solved the stale-cache step 5 and enabled case 12)
 Assignee: agy (device needed — run interactively)
 Priority: 2 of T21–T27 (after T21)
 
@@ -51,3 +51,20 @@ From repo root, emulator booted:
    `resource-swapped:` line, red pixel on screen ≤3s, `Count`/`Saved` values and PID unchanged.
 3. README.md table: add the bitmap row (or extend the drawable row) consistent with observed
    behavior; update the "png/webp needs reinstall" limitation note.
+
+## Outcome (2026-07-06)
+All three acceptance criteria pass. agy's watcher/testbed work (steps 1–3) landed in a0a6270;
+the step-5 "pixel stays stale" branch fired and was resolved by Claude (Fable) — the fix and
+the full mechanism write-up live in `docs/resource-edits-v1.md` §Open questions (T23 v3 entry).
+Summary: the spec's remember-key theory was wrong — `painterResource` remembers the decoded
+bitmap keyed on the **intra-APK** path string (identical in every overlay), so the engine now
+bashes exactly those remember groups via the existing `Invalidate` opcode, with the
+ui-version-specific group key read from the app's own APK dex by the new
+`engine/.../PainterKeyExtractor.kt` (dexdump, lazy, memoized; loud graceful degrade). No
+protocol/runtime-client change. e2e case 12 enabled and extended with a swap-back leg
+(repeat-edit drawable-cache regression) + a `bitmap-invalidated:` log assertion; full
+`./e2e/run.sh` green twice back-to-back (14/14, 233s/226s), pgrep + tree clean. Also fixed a
+pre-existing watch-start race the first e2e run tripped: `watching` (the readiness gate line)
+printed before `watcher.start()`, so a save landing in that window was silently lost — it now
+prints after registration. Not covered (documented): direct `ImageBitmap.imageResource()`
+call sites; `.jpg`/nine-patch/mipmap/fonts (out of scope per spec).
