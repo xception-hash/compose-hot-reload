@@ -1,5 +1,5 @@
 # T26: IntelliJ/Android Studio plugin MVP (Phase 5)
-Status: IN-REVIEW (built by Opus; acceptance #1/#2 need a network build + emulator by the maintainer)
+Status: DONE (2026-07-06 — all 3 acceptance criteria verified live by the maintainer + Opus)
 Assignee: agy (the maintainer for the runIde manual checks)
 Priority: 6 of T21–T27
 
@@ -36,7 +36,15 @@ Platform)` — it registers `com.intellij.tests.JUnit5TestSessionListener` via M
 cannot instantiate outside the full IDE test runtime; our CliProtocol test is pure JUnit5 and never
 needed it; (b) added `testRuntimeOnly("junit:junit:4.13.2")` — the IntelliJ Platform Gradle Plugin
 still wires its JUnit4-based runtime into `:test`, so `org.junit.rules.TestRule` must be present.
-#3 (root e2e unaffected) — TRUE, no root files touched. #2 (runIde manual) — PENDING the maintainer (emulator).
+#3 (root e2e unaffected) — TRUE, no root files touched. #2 (runIde manual) — GREEN (2026-07-06,
+the maintainer live on emulator-5554): Start→Ready, body edit→Reloading→Ready + emulator updated, signature
+change→Rebuild-needed, Stop→no leaked `dev.hotreload.cli.MainKt` process, Stop→widget `off`.
+Two things surfaced and were fixed during the run (both committed): (1) the CLI launcher was built
+before the T24 protocol-v6 bump → rebuilt via `:cli:installDist`; (2) a stale live-literals APK
+desynced the slot table on first swap (ClassCastis String→MeasurePolicy in an UNEDITED composable)
+→ fresh `installDebug` matching the non-`--literals` watch fixed it (see [[engine-baseline-dex-mismatch]]).
+Also fixed a real plugin bug: Stop went through `destroyProcess()` (signal → non-zero exit) so the
+widget showed `error(watch exited 143)` instead of `off`; added a `stopping` flag (commit 87cc160).
 
 ## Goal
 Phase 5 MVP: hot reload without leaving the IDE. Decision (made, do not revisit): the plugin
