@@ -75,6 +75,11 @@ object Wire {
                         d.writeUTF(c.internalName)
                         writeBytes(d, c.classBytes)
                     }
+                    d.writeInt(request.supportClasses.size)
+                    for (c in request.supportClasses) {
+                        d.writeUTF(c.internalName)
+                        writeBytes(d, c.classBytes)
+                    }
                     // nullable primedDexName: present-flag then string
                     d.writeBoolean(request.primedDexName != null)
                     if (request.primedDexName != null) d.writeUTF(request.primedDexName)
@@ -154,9 +159,10 @@ object Wire {
             }
             Opcode.LIVE_EDIT_CLASSES -> {
                 val classes = List(readCount(d)) { ClassBytes(d.readUTF(), readBytes(d)) }
+                val supportClasses = List(readCount(d)) { ClassBytes(d.readUTF(), readBytes(d)) }
                 val primedDexName = if (d.readBoolean()) d.readUTF() else null
                 val groupIds = List(readCount(d)) { d.readInt() }
-                Request.LiveEditClasses(id, classes, primedDexName, groupIds)
+                Request.LiveEditClasses(id, classes, supportClasses, primedDexName, groupIds)
             }
             else -> throw IOException("unknown request opcode 0x${opcode.toString(16)}")
         }

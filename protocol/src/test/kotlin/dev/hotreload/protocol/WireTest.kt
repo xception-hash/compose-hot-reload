@@ -114,6 +114,10 @@ class WireTest {
                 ClassBytes("dev/hotreload/sample/MainActivityKt", c1),
                 ClassBytes("a/B\$C", c2),
             ),
+            supportClasses = listOf(
+                ClassBytes("dev/hotreload/sample/MainActivityKt\$Greeting\$1", c2),
+                ClassBytes("a/B\$C\$1", c1),
+            ),
             primedDexName = "primed-3.dex",
             groupIds = listOf(796097800, -96578675),
         )
@@ -124,13 +128,18 @@ class WireTest {
         assertContentEquals(c1, got.classes[0].classBytes)
         assertEquals("a/B\$C", got.classes[1].internalName)
         assertContentEquals(c2, got.classes[1].classBytes)
+        assertEquals(2, got.supportClasses.size)
+        assertEquals("dev/hotreload/sample/MainActivityKt\$Greeting\$1", got.supportClasses[0].internalName)
+        assertContentEquals(c2, got.supportClasses[0].classBytes)
+        assertContentEquals(c1, got.supportClasses[1].classBytes)
         assertEquals("primed-3.dex", got.primedDexName)
         assertContentEquals(listOf(796097800, -96578675), got.groupIds)
 
-        // null primedDexName + empty groupIds (the invalidate-all case)
+        // empty supportClasses + null primedDexName + empty groupIds (the invalidate-all case)
         val bare = roundTripRequest(
-            Request.LiveEditClasses(32, listOf(ClassBytes("X", byteArrayOf(1))), null, emptyList()),
+            Request.LiveEditClasses(32, listOf(ClassBytes("X", byteArrayOf(1))), emptyList(), null, emptyList()),
         ) as Request.LiveEditClasses
+        assertTrue(bare.supportClasses.isEmpty())
         assertNull(bare.primedDexName)
         assertTrue(bare.groupIds.isEmpty())
     }

@@ -325,7 +325,7 @@ class WatchSession(private val config: Config) {
             val internal = fqcn.replace('.', '/')
             ClassBytes(internal, changed.getValue(internal).bytes)
         }
-        device.liveEditClasses(classes, primedDexName = null, groupIds = groupIds.toList())
+        device.liveEditClasses(classes, supportClasses = emptyList(), primedDexName = null, groupIds = groupIds.toList())
         println("interpreted: ${interpret.joinToString()} (${elapsedMs(t0)}ms)")
     }
 

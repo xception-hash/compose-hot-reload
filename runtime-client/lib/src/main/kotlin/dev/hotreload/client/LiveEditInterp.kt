@@ -22,8 +22,6 @@ object LiveEditInterp {
     private var initialized = false
     private var addClassesMethod: Method? = null
 
-    private val noProxies = emptyArray<ByteArray>()
-
     /**
      * First-use-per-process setup: resolve the just-injected interpreter classes through [loader],
      * register the interpreter's JNI natives on `interpreter.JNI`, and call `LiveEditStubs.init`.
@@ -51,13 +49,16 @@ object LiveEditInterp {
     }
 
     /**
-     * Reflectively `LiveEditStubs.addClasses(primary, [], structural=false)` — store the edited JVM
-     * `.class` bytes so the primed stubs interpret the latest bytecode. Priming (structural redefine
-     * of the transformed baseline) is handled engine-side via the existing Redefine op; this only
-     * updates the interpreter's per-class bytecode.
+     * Reflectively `LiveEditStubs.addClasses(primary, support, structural=false)` — store the
+     * edited JVM `.class` bytes so the primed stubs interpret the latest bytecode. Priming
+     * (structural redefine of the transformed baseline) is handled engine-side via the existing
+     * Redefine op; this only updates the interpreter's per-class bytecode. [supportClasses]
+     * (protocol v8, T28) are lambda-shaped classes with changed constructors: registering them as
+     * support flags them for the proxy path — interpreted `NEW` creates a `Proxies.*` VM proxy
+     * backed by the new bytes instead of instantiating the stale loaded class.
      */
-    fun addClasses(primaryClasses: Array<ByteArray>) {
+    fun addClasses(primaryClasses: Array<ByteArray>, supportClasses: Array<ByteArray>) {
         val method = addClassesMethod ?: error("LiveEditInterp not initialized")
-        method.invoke(null, primaryClasses, noProxies, false)
+        method.invoke(null, primaryClasses, supportClasses, false)
     }
 }
