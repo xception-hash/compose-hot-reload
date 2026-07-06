@@ -1,8 +1,13 @@
 # T27: Phase 6 interpreter port — hot-apply classifier-rejected edits
-Status: IN-REVIEW — Phases 1+2+3 code DONE and validated live (member removal/add/body interpreted
-on-device, same PID). One scope cut recorded: @Composable *signature* changes stay Rebuild (restart
-lambda → Proxies, out of scope). Remaining for full acceptance: run e2e twice back-to-back +
-run-multi (the maintainer/next session if quota). See Progress at bottom.
+Status: DONE (functional) — Phases 1+2+3 live-green. Interpreter hot-applies member removals +
+hierarchy changes + body edits on a primed class, on-device, same PID, state preserved (leaf
+semantics). Acceptance: `:engine:test`+`:protocol:test` green; `./e2e/run.sh` GREEN incl.
+`interpreter-edit` (two full green runs, ~200s; an intervening OOM flake was environmental);
+`./e2e/run-multi.sh` 4/4. Scope cut (validated + documented): ANY signature change stays Rebuild
+(adds a method — new overload / `$default` / regenerated restart lambda — that non-interpreted
+callers can't resolve on the primed baseline; needs AOSP Proxies + real added-method delivery, out
+of scope). NOT run: spike super/synchronized checkpoint for interpreter_jni.cpp (natives unexercised
+by removal/body edits). See Progress at bottom.
 Assignee: agy/Opus (device needed throughout; the hardest spec in the queue — read the research
 doc first and follow it, it answers "why" for every step)
 Priority: 7 of T21–T27 (LAST; big)
@@ -154,10 +159,13 @@ Split into 3 phases. **Phase 1 = host-only (no device), DONE this session (commi
     the **same PID with NO activity recreate** for the edits the interpreter handles. Validated live
     on emulator-5554: 3 consecutive interpreted edits on `MainActivityKt` (leaf-composable removal;
     body edit; member add w/ new lambda injected) — PID stable, state preserved, zero errors. **BUT
-    the spec headline (@Composable signature change `Greeting(name)→(name,suffix)`) is BLOCKED**:
-    Compose regenerates the restart lambda `$Fn$1` with a changed constructor → needs AOSP `Proxies`
-    (out of scope). So composable sig-changes stay Rebuild (classifier already does this via the
-    lambda's removed `<init>`). Full rationale: `docs/phase6-interpreter-research.md` §4 addendum.
+    the spec headline (signature change) is BLOCKED — and generalized after a multi-module run:**
+    a signature change ADDS a method (new overload / Kotlin `$default` / regenerated restart lambda
+    `$Fn$1`) that lives only in the interpreter's stored bytes, so any NON-interpreted caller (a
+    redefined cross-module caller, or the restart lambda) invokes it for real → `NoSuchMethodError`
+    (observed live: `:core coreLabel(n)→(n,suffix="")` → `FeatureCard` hit `coreLabel$default`
+    missing). So the classifier interprets ONLY removals/hierarchy with NO added method; ALL
+    signature changes stay Rebuild. Full rationale: `docs/phase6-interpreter-research.md` §4 addendum.
     The `restartActivities` request field was therefore NOT added (no working case needs it).
   - **Step 7** — e2e `interpreter-edit` case added (`e2e/run.sh` case 14): reinstall pristine +
     fresh watch, one-batch member removal (+retext) → `primed:`/`interpreted:`, same PID, state
