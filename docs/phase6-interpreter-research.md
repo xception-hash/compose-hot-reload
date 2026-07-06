@@ -159,6 +159,47 @@ Not needed for v1.
   the ctor hook, but the method-entry path covers them (field defaults to null → validator
   gates the first assignment).
 
+### Addendum 2026-07-06 (T27 Phase 3, step 6 answered LIVE on emulator-5554)
+
+The open "does first-prime need an activity recreate?" question is **answered: NO recreate is
+needed** for the edits our interpreter actually handles — but the headline test (a @Composable
+*signature* change) turned out to be blocked for a *different* reason than "stale lambda
+instances", so it never reaches the recreate question.
+
+- **What works, same PID, no recreate (validated live on `samples/single-module`):** priming a
+  live on-screen composable's class (`MainActivityKt`) via host StubTransform → d8 → structural
+  redefine, then `LiveEditClasses` + targeted `invalidateGroupsWithKey`, renders correctly on the
+  **same process** with `remember`/`rememberSaveable` preserved. Confirmed across **3 consecutive
+  interpreted edits** (member **removal** of a leaf composable `HotPhoto`; a **body** edit of a
+  primed composable; a member **addition** `Extra()` whose brand-new restart lambda `$Extra$1` is
+  injected as a real class and resolved by the interpreter's `NEW`/`Constructor.newInstance`) —
+  PID stable throughout, zero recomposition errors. So our atomic ART structural-redefine +
+  keyed invalidate is sufficient where AOSP restarts the activity; **the group tree does NOT hold
+  unusable stale lambdas** for these edits (the pre-existing restart lambda re-invokes the primed
+  method, whose entry is diverted to the interpreter).
+
+- **What does NOT work — @Composable signature change (`Greeting(name)` → `(name, suffix)`):**
+  every @Composable compiles to a restart lambda `Fn$1 extends kotlin.jvm.internal.Lambda`
+  whose captured fields (and therefore its **constructor** signature) mirror the composable's
+  parameters. Changing the signature regenerates `Fn$1` with a *changed constructor* (old
+  `<init>` removed). Interpreting the edited `Greeting` body reaches
+  `new Greeting$1(name, suffix, …)`, which `AndroidEval.invokeSpecial("<init>")` resolves via
+  `klass.getDeclaredConstructor(...)` **on the real on-device class** — whose constructor is still
+  the baseline shape → `NoSuchMethodException`. AOSP's answer is the **`Proxies` / `ProxyClassEval`
+  path** (ship the lambda as a *support/proxy* class; `createProxyInstance()` fabricates a
+  stand-in whose fields/methods are all interpreted) — i.e. exactly the `Proxies` codegen we
+  stubbed to `null` and put **out of scope** for T27 (§5.1, spec "Out of scope"). Structural
+  redefine can't rescue it either: the new `Fn$1` *removes* the old constructor (and `$$default`),
+  so it isn't an additive superset, and even a merged-superset lambda would then call the new
+  2-arg `Greeting` overload that the (baseline-primed) `MainActivityKt` doesn't expose.
+
+  **Decision:** @Composable **signature changes stay `Rebuild`** in T27. The classifier already
+  falls back correctly — it sees `Fn$1`'s removed `<init>` (a non-eligible constructor) as a hard
+  reason. Non-composable method signature changes, member removals, member adds on a primed class,
+  and hierarchy edits remain interpreter-eligible (no persistent restart lambda to regenerate).
+  Lifting this needs the `Proxies` codegen (a separate, larger task). The `restartActivities`
+  request field contemplated in the spec is therefore **not added** — no working case needs it.
+
 ## 5. Go/no-go + port plan
 
 **GO.** Live-proven on our exact pins; every AOSP piece is either compile-verbatim, a small

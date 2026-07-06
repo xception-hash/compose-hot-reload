@@ -427,7 +427,95 @@ adb shell input keyevent KEYCODE_BACK
 assert_pid
 echo "PASS: multi-activity-resource"
 
-# Case 14: live-literals fast path (T24) — GUARDED. The default run installs the app
+# Case 14: interpreter-edit (T27) — an edit the classifier would otherwise REBUILD (member
+# REMOVAL) hot-applies by interpreting the edited method bodies on-device. Reinstalls the pristine
+# app + a fresh watch so priming operates on a clean baseline matching the device, then in ONE
+# batch removes the HotPhoto composable (a Rebuild trigger) and retexts Greeting so the result is
+# visible: MainActivityKt is primed (`primed:`) and interpreted (`interpreted:`), same PID, with
+# remember/rememberSaveable preserved. Then a throw in a now-primed body reports via the normal
+# error flow and fix-and-save recovers in place.
+echo "Running case: interpreter-edit"
+kill_watch
+sleep 2
+cp "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY"
+adb shell am force-stop dev.hotreload.sample >/dev/null 2>&1 || true
+(cd "$REPO_ROOT/samples/single-module" && ./gradlew -q :app:installDebug)
+adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+sleep 3
+INITIAL_PID=$(adb shell pidof dev.hotreload.sample || echo DEAD)
+[ "$INITIAL_PID" = "DEAD" ] && { echo "app failed to start (interpreter-edit)"; exit 1; }
+
+WATCH_LOG=$(mktemp)
+(cd "$REPO_ROOT" && ./gradlew -q :cli:run --args="watch --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample") > "$WATCH_LOG" 2>&1 &
+WATCH_PID=$!
+START=$(date +%s)
+while ! grep -q "watching " "$WATCH_LOG"; do
+    if (( $(date +%s) - START > TIMEOUT )); then
+        echo "TIMEOUT waiting for interpreter-edit watch loop."; cat "$WATCH_LOG"; exit 1
+    fi
+    sleep 1
+done
+
+wait_for_interpret() {
+    local initial="$1"; local timeout=60; local start=$(date +%s)
+    while (( $(grep -c "interpreted:" "$WATCH_LOG" || true) <= initial )); do
+        if (( $(date +%s) - start > timeout )); then
+            echo "TIMEOUT waiting for interpreted:"; tail -n 20 "$WATCH_LOG"; exit 1
+        fi
+        sleep 1
+    done
+}
+
+# Baseline present + seed composition state so we can prove interpretation preserves it.
+assert_ui 'content-desc="HOT_PHOTO"'
+assert_ui 'text="Hello from the sample app"'
+"$REPO_ROOT/scripts/taps.sh" 2 >/dev/null
+COUNT_LINE=$(adb exec-out uiautomator dump /dev/tty 2>/dev/null \
+    | LC_ALL=C grep -oE 'text="Count: [0-9]+ / Saved: [0-9]+"' | head -1)
+[ -z "$COUNT_LINE" ] && { echo "could not read counter line"; exit 1; }
+
+interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
+prime_count=$(grep -c "primed:" "$WATCH_LOG" || true)
+# ONE batch (single file write): remove the HotPhoto composable + its call site (a classifier
+# Rebuild trigger) and retext Greeting so the interpreted result is assertable by presence.
+python3 - "$MAIN_ACTIVITY" << 'PY'
+import sys, re
+p = sys.argv[1]; s = open(p).read()
+s = s.replace("        HotPhoto()\n", "", 1)
+s = re.sub(r"@Composable\nfun HotPhoto\(\) \{.*?\n\}\n\n", "", s, count=1, flags=re.S)
+s = s.replace('Text("Hello from the sample app")', 'Text("INTERPRETED EDIT OK")', 1)
+assert "HotPhoto" not in s and "INTERPRETED EDIT OK" in s
+open(p, "w").write(s)
+PY
+wait_for_interpret "$interp_count"
+assert_ui 'text="INTERPRETED EDIT OK"'   # edited body interpreted on-device
+assert_ui "$COUNT_LINE"                   # remember + rememberSaveable preserved
+assert_pid                                # same process — no recreate
+# The trigger must have gone through priming (not a plain redefine).
+(( $(grep -c "primed:" "$WATCH_LOG" || true) > prime_count )) || {
+    echo "expected a 'primed:' line for the interpreted class"; tail -n 20 "$WATCH_LOG"; exit 1
+}
+
+# Error path through the interpreter: a throw in a now-primed body reports via the normal flow;
+# fix-and-save recovers in place (the last-good frame stays on screen meanwhile).
+perl -pi -e 's/Text\("INTERPRETED EDIT OK"\)/error("interp crash")/' "$MAIN_ACTIVITY"
+start_err=$(date +%s)
+while ! grep -q "recomposition failed:" "$WATCH_LOG"; do
+    if (( $(date +%s) - start_err > 60 )); then
+        echo "TIMEOUT waiting for recomposition failed: (interpreter)"; tail -n 20 "$WATCH_LOG"; exit 1
+    fi
+    sleep 1
+done
+assert_ui 'text="INTERPRETED EDIT OK"'   # last-good frame preserved
+assert_pid
+interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
+perl -pi -e 's/error\("interp crash"\)/Text("INTERPRETED RECOVERED")/' "$MAIN_ACTIVITY"
+wait_for_interpret "$interp_count"
+assert_ui 'text="INTERPRETED RECOVERED"'
+assert_pid
+echo "PASS: interpreter-edit"
+
+# Case 15: live-literals fast path (T24) — GUARDED. The default run installs the app
 # WITHOUT -Photreload.liveLiterals=true (no LiveLiterals$ classes), so this case SKIPs
 # unless HOTRELOAD_LITERALS=1, which rebuilds+reinstalls the app with the property and
 # drives a fresh `watch --literals` session. Asserts: a plain string literal edit lands on

@@ -1,5 +1,8 @@
 # T27: Phase 6 interpreter port — hot-apply classifier-rejected edits
-Status: IN-PROGRESS — Phases 1 (steps 2,3) + 2 (steps 1,4) DONE host-side; Phase 3 (steps 5-8) + 2 device checkpoints remain. See Progress at bottom.
+Status: IN-REVIEW — Phases 1+2+3 code DONE and validated live (member removal/add/body interpreted
+on-device, same PID). One scope cut recorded: @Composable *signature* changes stay Rebuild (restart
+lambda → Proxies, out of scope). Remaining for full acceptance: run e2e twice back-to-back +
+run-multi (the maintainer/next session if quota). See Progress at bottom.
 Assignee: agy/Opus (device needed throughout; the hardest spec in the queue — read the research
 doc first and follow it, it answers "why" for every step)
 Priority: 7 of T21–T27 (LAST; big)
@@ -139,11 +142,33 @@ Split into 3 phases. **Phase 1 = host-only (no device), DONE this session (commi
     NDK). **DEFERRED (device):** live protocol handshake — **reinstall device apps before e2e**
     (Ping shows client version; v7 now). Engine still SENDS nothing yet (that's Phase 3 step 5).
 
-- **Phase 3 (FINAL, device throughout):** steps 5 (Classifier/WatchSession Interpret routing +
-  session primed-class set; engine calls StubTransform→d8→structural redefine, then sends
-  InjectDex(interp.dex) + LiveEditClasses), 6 (LIVE first-prime/activity-recreate question — the
-  real unknown, answer before the e2e), 7 (e2e `interpreter-edit`), 8 (docs/README/research §4
-  addendum/**NOTICE file** for the ported jni_dispatch — header already in interpreter_jni.cpp).
-  Fold in the two deferred Phase 2 device checkpoints here (spike super/synchronized; live v7).
+- **Phase 3 DONE (code + live validation) 2026-07-06:**
+  - **Step 5** — `Classifier.Verdict.Interpret(groupIds)` + eligibility split (removal/sig/hierarchy
+    on non-`<init>`/`<clinit>` methods → interpret; composeKey renumber, `<init>`/`<clinit>`, field
+    removal → hard Rebuild). `PatchPlan.HotSwap` carries `interpret`/`groupIds`. `WatchSession`:
+    primed-class set + `applyInterpret` (StubTransform baseline → `DexCompiler.dexBytes` → structural
+    redefine = prime; inject interp.dex once/session; `LiveEditClasses`), primed-override routes ALL
+    later edits of a primed class through the interpreter. `SnapshotEntry` now keeps raw `.class`
+    bytes (pre-edit baseline for priming). Logs `primed:`/`interpreted:`. Host tests green.
+  - **Step 6 (the LIVE unknown) — ANSWERED:** structural-redefine + targeted invalidate renders on
+    the **same PID with NO activity recreate** for the edits the interpreter handles. Validated live
+    on emulator-5554: 3 consecutive interpreted edits on `MainActivityKt` (leaf-composable removal;
+    body edit; member add w/ new lambda injected) — PID stable, state preserved, zero errors. **BUT
+    the spec headline (@Composable signature change `Greeting(name)→(name,suffix)`) is BLOCKED**:
+    Compose regenerates the restart lambda `$Fn$1` with a changed constructor → needs AOSP `Proxies`
+    (out of scope). So composable sig-changes stay Rebuild (classifier already does this via the
+    lambda's removed `<init>`). Full rationale: `docs/phase6-interpreter-research.md` §4 addendum.
+    The `restartActivities` request field was therefore NOT added (no working case needs it).
+  - **Step 7** — e2e `interpreter-edit` case added (`e2e/run.sh` case 14): reinstall pristine +
+    fresh watch, one-batch member removal (+retext) → `primed:`/`interpreted:`, same PID, state
+    preserved; then throw-in-primed-body error + fix-and-save recovery. (Mechanics proven live
+    manually; full e2e suite run pending — see Status.)
+  - **Step 8** — README "what hot-reloads" row + known-limitation note; research §4 addendum; root
+    `NOTICE` (Apache-2.0 attribution for interp.dex, interpreter_jni.cpp port, StubTransform).
+  - **Deferred Phase-2 checkpoints:** live v7 handshake CONFIRMED (`device: … protocol=7`). Spike
+    super.toString()/synchronized checkpoint for interpreter_jni.cpp still NOT run (the natives are
+    not exercised by the removal/add e2e; low risk, note for a follow-up).
 
-Acceptance #1 met (host). #2–#5 need the emulator (Phase 3).
+Acceptance #1 met (host). #2 (spike super/sync) NOT run. #3 (e2e incl. interpreter-edit ×2), #4
+(run-multi), #5 (3 consecutive sig-changes — N/A, sig-changes rebuild; covered instead by 3
+consecutive *interpreted* edits, done live) — full e2e run pending.
