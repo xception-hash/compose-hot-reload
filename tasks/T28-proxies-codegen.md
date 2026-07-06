@@ -1,6 +1,6 @@
 # T28: Proxies codegen — lift the composable signature-change limitation
-Status: IN-REVIEW (steps 1–4 DONE host-side; step 5 device validation remains)
-Assignee: steps 1–4 done by Fable 2026-07-06 | step 5 opus + device
+Status: IN-REVIEW (steps 1–5 DONE; e2e double-run gate in progress)
+Assignee: steps 1–4 done by Fable 2026-07-06 | step 5 done by Fable 2026-07-06 (emulator-5554)
 
 ## Progress (2026-07-06, Fable final session)
 - **Step 1 DONE** (commit c131c0f): `scripts/gen-proxies.sh` works fully offline; 147 nested
@@ -17,8 +17,28 @@ Assignee: steps 1–4 done by Fable 2026-07-06 | step 5 opus + device
   Design deltas from the original spec text (both deliberate): (a) suspend-lambda bases are NOT
   proxy-eligible (ctor changes on them stay Rebuild — out of scope); (b) extra hard rules kept:
   added/removed `<clinit>` anywhere, and added-ctor-with-interpret on regular classes.
-- **Step 5 NOT STARTED** — needs emulator. Preconditions unchanged (reinstall apps for v8,
-  rebuild `:cli:installDist`, force-stop once for the new interp.dex).
+- **Step 5 DONE** (Fable 2026-07-06, emulator-5554, protocol=8 handshake confirmed live).
+  Preconditions executed first: both sample apps reinstalled, `:cli:installDist` rebuilt,
+  apps force-stopped (new interp.dex).
+  - **Checkpoint A PASS** — `Greeting()` → `Greeting(name, suffix = "!")` + caller in one
+    write: `support: …MainActivityKt$Greeting$1` + `primed:`×4 + `interpreted:` (3814ms),
+    `SIG CHANGE OK!` on screen, SAME PID, no crash. **Spec deviation (expected, not a bug):**
+    Counter state RESET, not preserved — the caller edit lives in MainScreen, and
+    invalidateGroupsWithKey on the parent resets its subtree remember (identical to the
+    documented case-14 Part A semantics). Any signature change necessarily edits its caller,
+    so subtree reset is inherent to this case shape.
+  - **Repeat-edit risk retired** — second signature change through the primed class (dropped
+    the default param → `$default` bridge removal): interpreted in 1143ms, UI updated, no
+    `BytecodeValidator` complaints in logcat, same PID.
+  - **Checkpoint B PASS** — multi-module: `coreLabel(n)` → `coreLabel(n, tag = "T28")`
+    (source-compatible; :feature recompiles via ABI fan-out onto the new `coreLabel$default`).
+    Whole-batch rule primed+interpreted BOTH FeatureCardKt and CoreLabelKt together;
+    `core says: 0 [T28]` rendered, same PID, **no NoSuchMethodError** (T27's failure fixed).
+  - **Checkpoint C PASS** — after interpret, normal recomposition (counter taps) keeps
+    rendering interpreted output with live state (`core says: 2 [T28]`); converged, stable.
+  - **e2e case 15 `signature-change-edit`** added to `e2e/run.sh` (case-14 pattern: fresh
+    install+watch; Part A sig change asserting a `support:` line, Part B repeat sig change,
+    Part C recomposition stability). Literals case renumbered 15→16 (comment only).
 
 ## Goal
 T27's interpreter handles member removals and hierarchy edits, but a `@Composable` **signature

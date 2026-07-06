@@ -538,7 +538,85 @@ assert_ui 'text="INTERPRETED RECOVERED"'
 assert_pid
 echo "PASS: interpreter-edit"
 
-# Case 15: live-literals fast path (T24) — GUARDED. The default run installs the app
+# Case 15: signature-change-edit (T28) — a @Composable SIGNATURE change (the T27-blocked
+# headline case) hot-applies via the interpreter + lambda proxies: Compose regenerates the
+# restart lambda Greeting$1 with a changed constructor, which now travels as a SUPPORT class
+# (`support:` log, proxy-constructed on device, never primed). Reinstalls pristine + fresh
+# watch (clean baseline for priming). Part A: add params to Greeting + update the caller in
+# ONE write — expect support: + interpreted:, new text on screen, same PID (the caller edit
+# invalidates MainScreen, so its subtree remember resets — same documented semantics as case
+# 14 Part A). Part B: a REPEAT signature change through the already-primed class (drops the
+# $default bridge — the BytecodeValidator repeat-edit risk from tasks/T28). Part C: a normal
+# recomposition (counter taps) keeps rendering interpreted output — the proxy path is
+# stable, not a one-frame fluke.
+echo "Running case: signature-change-edit"
+kill_watch
+sleep 2
+cp "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY"
+adb shell am force-stop dev.hotreload.sample >/dev/null 2>&1 || true
+(cd "$REPO_ROOT/samples/single-module" && ./gradlew -q :app:installDebug)
+adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+sleep 3
+INITIAL_PID=$(adb shell pidof dev.hotreload.sample || echo DEAD)
+[ "$INITIAL_PID" = "DEAD" ] && { echo "app failed to start (signature-change-edit)"; exit 1; }
+
+WATCH_LOG=$(mktemp)
+(cd "$REPO_ROOT" && ./gradlew -q :cli:run --args="watch --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample") > "$WATCH_LOG" 2>&1 &
+WATCH_PID=$!
+START=$(date +%s)
+while ! grep -q "watching " "$WATCH_LOG"; do
+    if (( $(date +%s) - START > TIMEOUT )); then
+        echo "TIMEOUT waiting for signature-change-edit watch loop."; cat "$WATCH_LOG"; exit 1
+    fi
+    sleep 1
+done
+
+assert_ui 'text="Hello from the sample app"'
+
+# Part A — signature change + caller update in ONE write. Greeting gains (name, suffix = "!");
+# the regenerated restart lambda's changed ctor makes Greeting$1 a support class.
+interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
+support_count=$(grep -c "support:" "$WATCH_LOG" || true)
+python3 - "$MAIN_ACTIVITY" << 'PY'
+import sys
+p = sys.argv[1]; s = open(p).read()
+s = s.replace("        Greeting()\n", '        Greeting("SIG CHANGE OK")\n', 1)
+s = s.replace('fun Greeting() {\n    Text("Hello from the sample app")\n}',
+              'fun Greeting(name: String, suffix: String = "!") {\n    Text("$name$suffix")\n}', 1)
+assert 'SIG CHANGE OK' in s and 'suffix: String = "!"' in s
+open(p, "w").write(s)
+PY
+wait_for_interpret "$interp_count"
+assert_ui 'text="SIG CHANGE OK!"'
+assert_pid
+# The restart lambda must have travelled as a support class (the proxy path).
+(( $(grep -c "support:" "$WATCH_LOG" || true) > support_count )) || {
+    echo "expected a 'support:' line for the restart lambda"; tail -n 20 "$WATCH_LOG"; exit 1
+}
+
+# Part B — REPEAT signature change through the primed class: drop the default param (removes
+# the $default bridge) and re-shape the call site.
+interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
+python3 - "$MAIN_ACTIVITY" << 'PY'
+import sys
+p = sys.argv[1]; s = open(p).read()
+s = s.replace('        Greeting("SIG CHANGE OK")\n', '        Greeting("SIG CHANGE TWO", "??")\n', 1)
+s = s.replace('fun Greeting(name: String, suffix: String = "!")', 'fun Greeting(name: String, suffix: String)', 1)
+assert 'SIG CHANGE TWO' in s
+open(p, "w").write(s)
+PY
+wait_for_interpret "$interp_count"
+assert_ui 'text="SIG CHANGE TWO??"'
+assert_pid
+
+# Part C — a normal recomposition keeps the interpreted output live (proxy path is stable).
+"$REPO_ROOT/scripts/taps.sh" 2 >/dev/null
+assert_ui 'text="Count: 2 / Saved: 2"'
+assert_ui 'text="SIG CHANGE TWO??"'
+assert_pid
+echo "PASS: signature-change-edit"
+
+# Case 16: live-literals fast path (T24) — GUARDED. The default run installs the app
 # WITHOUT -Photreload.liveLiterals=true (no LiveLiterals$ classes), so this case SKIPs
 # unless HOTRELOAD_LITERALS=1, which rebuilds+reinstalls the app with the property and
 # drives a fresh `watch --literals` session. Asserts: a plain string literal edit lands on
