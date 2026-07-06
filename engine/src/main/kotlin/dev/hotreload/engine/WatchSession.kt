@@ -109,7 +109,9 @@ class WatchSession(private val config: Config) {
                 var snapshot = ClassSnapshot.scan(classesDirs)
                 check(snapshot.isNotEmpty()) { "no classes found under ${classesDirs.joinToString()}" }
 
-                val resources = ResourceSwapper(modules.first(), resDirs, config.applicationId, gradle, adb, device)
+                val dexdump = config.d8.resolveSibling("dexdump").takeIf { Files.isRegularFile(it) }
+                if (dexdump == null) println("warning: no dexdump next to ${config.d8} — bitmap edits will overlay without invalidating")
+                val resources = ResourceSwapper(modules.first(), resDirs, config.applicationId, gradle, adb, device, dexdump)
 
                 // Registering a nonexistent root makes DirectoryWatcher fail (asynchronously).
                 sourceRoots = modules.flatMap { it.sourceRoots }.filter { Files.isDirectory(it) }
@@ -118,12 +120,14 @@ class WatchSession(private val config: Config) {
                 if (config.literals) initLiterals()
                 // res/values value edits are hot-swapped too, but only if the dir exists.
                 val roots = sourceRoots + resDirs.filter { Files.isDirectory(it) }
-                println("watching ${roots.joinToString()} (${snapshot.size} classes)")
 
                 SourceWatcher(roots) { changedSources ->
                     snapshot = onSave(changedSources, gradle, dexer, device, resources, snapshot)
                 }.use { watcher ->
                     watcher.start()
+                    // AFTER start(): "watching" is the e2e/IDE readiness gate — printing it
+                    // before registration completes loses saves made in that window.
+                    println("watching ${roots.joinToString()} (${snapshot.size} classes)")
                     CountDownLatch(1).await() // run until Ctrl-C
                 }
             }
@@ -139,6 +143,9 @@ class WatchSession(private val config: Config) {
      * unchanged on disk. So resource swaps stay pending until one succeeds.
      */
     private var pendingResourceSwap = false
+
+    /** Whether the pending resource batch includes a bitmap (`.png`/`.webp`) — see [ResourceSwapper.swap]. */
+    private var pendingBitmapSwap = false
 
     private fun onSave(
         changedSources: Set<Path>,
@@ -159,7 +166,10 @@ class WatchSession(private val config: Config) {
 
         var newSnapshot = snapshot
         var invalidated = false
-        if (resChanges.isNotEmpty()) pendingResourceSwap = true
+        if (resChanges.isNotEmpty()) {
+            pendingResourceSwap = true
+            if (resChanges.any { it.extension == "png" || it.extension == "webp" }) pendingBitmapSwap = true
+        }
 
         // Live-literals fast path (T24): a single .kt save that only changes one constant
         // is pushed in place NOW — it wins the latency race. The normal compile+swap below
@@ -181,8 +191,9 @@ class WatchSession(private val config: Config) {
             if (config.literals) refreshLiterals(ktChanges)
         }
 
-        if (pendingResourceSwap && resources.swap(t0)) {
+        if (pendingResourceSwap && resources.swap(t0, pendingBitmapSwap)) {
             pendingResourceSwap = false
+            pendingBitmapSwap = false
             invalidated = true
         }
 

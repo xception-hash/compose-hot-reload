@@ -380,32 +380,40 @@ assert_ui "$COUNT_LINE"       # state preserved across the drawable swap
 assert_pid
 echo "PASS: drawable-edit"
 
-# Case 12: bitmap-edit — SKIPPED (T23 IN-REVIEW: bitmap cache clearing pending)
-# echo "Running case: bitmap-edit"
-# assert_photo() {
-#     local expected="$1"
-#     local timeout=10
-#     local start=$(date +%s)
-#     local got
-#     while true; do
-#         got=$("$REPO_ROOT/scripts/icon-pixel.sh" "HOT_PHOTO" 2>/dev/null || echo "")
-#         [ "$got" = "$expected" ] && break
-#         if (( $(date +%s) - start > timeout )); then
-#             echo "TIMEOUT waiting for photo pixel $expected (got '$got')"
-#             tail -n 20 "$WATCH_LOG"
-#             exit 1
-#         fi
-#         sleep 1
-#     done
-# }
-# assert_photo '#2196F3'
-# res_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
-# cp "$HOT_PHOTO_FIXTURE" "$HOT_PHOTO"
-# wait_for_resource_swap "$res_count"
-# assert_photo '#FF0000'
-# assert_ui "$COUNT_LINE"
-# assert_pid
-# echo "PASS: bitmap-edit"
+# Case 12: bitmap-edit (T23) — png swaps live: overlay + bashing painterResource's
+# remember groups via the extracted group key (see engine PainterKeyExtractor). The
+# swap BACK guards the repeat-edit path (each overlay must re-decode, never serve a
+# stale ResourcesImpl drawable-cache entry).
+echo "Running case: bitmap-edit"
+assert_photo() {
+    local expected="$1"
+    local timeout=10
+    local start=$(date +%s)
+    local got
+    while true; do
+        got=$("$REPO_ROOT/scripts/icon-pixel.sh" "HOT_PHOTO" 2>/dev/null || echo "")
+        [ "$got" = "$expected" ] && break
+        if (( $(date +%s) - start > timeout )); then
+            echo "TIMEOUT waiting for photo pixel $expected (got '$got')"
+            tail -n 20 "$WATCH_LOG"
+            exit 1
+        fi
+        sleep 1
+    done
+}
+assert_photo '#2196F3'
+res_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
+cp "$HOT_PHOTO_FIXTURE" "$HOT_PHOTO"
+wait_for_resource_swap "$res_count"
+grep -q "bitmap-invalidated:" "$WATCH_LOG" || { echo "missing bitmap-invalidated: line"; tail -n 20 "$WATCH_LOG"; exit 1; }
+assert_photo '#FF0000'
+res_count=$(grep -c "resource-swapped:" "$WATCH_LOG" || true)
+git -C "$REPO_ROOT" checkout -- "$HOT_PHOTO"
+wait_for_resource_swap "$res_count"
+assert_photo '#2196F3'
+assert_ui "$COUNT_LINE"
+assert_pid
+echo "PASS: bitmap-edit"
 
 # Case 13: multi-activity-resource — editing a resource while MainActivity is visible,
 # then launching SecondActivity. SecondActivity must carry the updated resource
