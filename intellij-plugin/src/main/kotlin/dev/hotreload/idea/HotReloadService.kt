@@ -33,6 +33,11 @@ class HotReloadService(private val project: Project) : Disposable {
     private val listeners = CopyOnWriteArrayList<Runnable>()
     private var handler: OSProcessHandler? = null
 
+    /** True while a user-initiated stop() is in flight, so processTerminated reports Off,
+     *  not Error — destroyProcess() kills via signal, which always yields a non-zero exit code. */
+    @Volatile
+    private var stopping = false
+
     /** Accumulates output between newlines — onTextAvailable may hand us partial lines. */
     private val lineBuffer = StringBuilder()
 
@@ -68,9 +73,12 @@ class HotReloadService(private val project: Project) : Disposable {
 
             override fun processTerminated(event: ProcessEvent) {
                 flushBuffer()
-                val ended = if (event.exitCode == 0) HotReloadStatus.OFF
+                // A user-initiated stop() destroys the process via signal (non-zero exit), so
+                // treat it as a clean Off; only an unexpected exit surfaces as an error.
+                val ended = if (stopping || event.exitCode == 0) HotReloadStatus.OFF
                 else status.copy(state = HotReloadState.ERROR, detail = "watch exited (code ${event.exitCode})")
                 handler = null
+                stopping = false
                 lineBuffer.setLength(0)
                 setStatus(ended)
             }
@@ -82,7 +90,9 @@ class HotReloadService(private val project: Project) : Disposable {
 
     @Synchronized
     fun stop() {
-        handler?.destroyProcess() // triggers processTerminated → status reset
+        if (handler == null) return
+        stopping = true
+        handler?.destroyProcess() // triggers processTerminated → status reset to Off
     }
 
     /** Buffer a chunk of process output and fold every complete (newline-terminated) line. */
