@@ -3,10 +3,12 @@ interp.dex — AOSP LiveEdit bytecode interpreter, dexed for on-device injection
 Source:  third_party/tools-base deploy/agent/runtime {interpreter,liveedit,liveedit/backported}
          + instrument/ReflectionHelpers, with source-level jarjar of ASM (com.android.deploy.asm
          -> org.jetbrains.org.objectweb.asm), stub com.android.annotations {NonNull,Nullable,
-         VisibleForTesting}, and stub liveedit.Proxies.
+         VisibleForTesting}, and the GENERATED liveedit.Proxies lambda-proxy table
+         (third_party/generated/liveedit, scripts/gen-proxies.sh — T28); kotlin-stdlib 2.4.0
+         on compile classpath + d8 --classpath only, NOT dexed in.
 Pin:     tools-base 14c65dad2cbdc26198c66375d4e0cef5269436e0 2026-07-04
 Toolchain: JBR javac --release 8; d8 (build-tools 36.0.0) --min-api 30, default desugaring, all of
            asm-all-9.0 folded in; single dex.
 Build:   scripts/build-interp-dex.sh
-Size:    495820 bytes
+Size:    831448 bytes
 License: Apache-2.0 (AOSP) — see third_party/PINNED.txt and NOTICE.
