@@ -68,6 +68,19 @@ object Wire {
                         else -> throw IOException("unknown literal type ${request.type}")
                     }
                 }
+                is Request.LiveEditClasses -> {
+                    header(d, Opcode.LIVE_EDIT_CLASSES, request.requestId)
+                    d.writeInt(request.classes.size)
+                    for (c in request.classes) {
+                        d.writeUTF(c.internalName)
+                        writeBytes(d, c.classBytes)
+                    }
+                    // nullable primedDexName: present-flag then string
+                    d.writeBoolean(request.primedDexName != null)
+                    if (request.primedDexName != null) d.writeUTF(request.primedDexName)
+                    d.writeInt(request.groupIds.size)
+                    for (g in request.groupIds) d.writeInt(g)
+                }
             }
         }
     }
@@ -138,6 +151,12 @@ object Wire {
                     else -> throw IOException("unknown literal type $type")
                 }
                 Request.LiteralUpdate(id, key, helperClass, invalidateKey, type, value)
+            }
+            Opcode.LIVE_EDIT_CLASSES -> {
+                val classes = List(readCount(d)) { ClassBytes(d.readUTF(), readBytes(d)) }
+                val primedDexName = if (d.readBoolean()) d.readUTF() else null
+                val groupIds = List(readCount(d)) { d.readInt() }
+                Request.LiveEditClasses(id, classes, primedDexName, groupIds)
             }
             else -> throw IOException("unknown request opcode 0x${opcode.toString(16)}")
         }
