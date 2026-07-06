@@ -49,18 +49,31 @@ class ClassifierTest {
     }
 
     @Test
-    fun `removed method routes to interpret with the class's composable keys`() {
+    fun `removed method routes to interpret, invalidating only changed groups`() {
+        // Only greeting removed; the surviving counter is untouched, so nothing is invalidated
+        // (the client then falls back to keyless whole-tree invalidateAll, state-preserving).
         val v = Classifier.classify(cls(members = arrayOf(counter, greeting)), cls(members = arrayOf(counter)))
         val interpret = assertIs<Verdict.Interpret>(v)
-        assertEquals(setOf(-96578675), interpret.groupIds)
+        assertEquals(emptySet(), interpret.groupIds)
     }
 
     @Test
-    fun `changed signature is remove-plus-add, routes to interpret`() {
+    fun `changed signature is remove-plus-add, routes to interpret with the added group key`() {
         val renamed = composable("Greeting(ILandroidx/compose/runtime/Composer;I)V", -2116809900, 2L)
         val v = Classifier.classify(cls(members = arrayOf(greeting)), cls(members = arrayOf(renamed)))
         val interpret = assertIs<Verdict.Interpret>(v)
         assertEquals(setOf(-2116809900.toInt()), interpret.groupIds)
+    }
+
+    @Test
+    fun `interpret invalidates a changed sibling but not an unchanged one`() {
+        // Remove a helper (interpret trigger) while editing counter's body; only counter's key
+        // should be invalidated — greeting (unchanged) keeps its state.
+        val helper = method("helper()V", 5L)
+        val old = cls(members = arrayOf(counter, greeting, helper))
+        val new = cls(members = arrayOf(counter.copy(bodyHash = 42L), greeting))
+        val interpret = assertIs<Verdict.Interpret>(Classifier.classify(old, new))
+        assertEquals(setOf(-96578675), interpret.groupIds)
     }
 
     @Test

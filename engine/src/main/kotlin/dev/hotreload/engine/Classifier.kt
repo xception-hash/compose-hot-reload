@@ -92,20 +92,24 @@ object Classifier {
             }
         }
 
+        // New members have no live groups yet; recomposition of their (changed) callers inserts
+        // the new groups naturally (Experiment C). Their own keys are included anyway —
+        // invalidating a nonexistent group is a no-op.
+        added.forEach { newById.getValue(it).composeKey?.let { k -> invalidate += k } }
+
         if (hard.isNotEmpty()) {
             return Verdict.Rebuild("${new.fqcn}: ${(hard + interpretable).take(3).joinToString()}")
         }
         if (interpretable.isNotEmpty()) {
-            return Verdict.Interpret(new.composableKeys)
+            // Invalidate ONLY the changed/added composables' groups, not every composable in the
+            // class — invalidateGroupsWithKey resets remember/rememberSaveable in a group's subtree,
+            // so touching unchanged siblings (e.g. a Counter in the same file) would needlessly drop
+            // their state. Unchanged primed methods re-interpret lazily on their next recomposition.
+            // Empty ⇒ the client falls back to keyless whole-tree invalidateAll (state-preserving).
+            return Verdict.Interpret(invalidate)
         }
 
-        if (added.isNotEmpty()) {
-            // New members have no live groups yet; recomposition of their (changed)
-            // callers inserts the new groups naturally (Experiment C). Their own keys
-            // are included anyway — invalidating a nonexistent group is a no-op.
-            added.forEach { newById.getValue(it).composeKey?.let { k -> invalidate += k } }
-            return Verdict.Structural(invalidate)
-        }
+        if (added.isNotEmpty()) return Verdict.Structural(invalidate)
 
         return Verdict.BodyOnly(invalidate)
     }

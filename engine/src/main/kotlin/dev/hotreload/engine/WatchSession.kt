@@ -219,9 +219,16 @@ class WatchSession(private val config: Config) {
             var verdict = Classifier.classify(snapshot[name]?.facts, entry.facts)
             // Once primed, a class's stub prologue intercepts every method entry, so a plain
             // redefine would fight the interpreter — route ALL its later edits through the
-            // interpreter (even body-only ones).
-            if (name in primedClasses && verdict !is Classifier.Verdict.Rebuild) {
-                verdict = Classifier.Verdict.Interpret(entry.facts.composableKeys)
+            // interpreter (even body-only ones), keeping the same changed-only invalidate keys the
+            // classifier already computed (so unchanged siblings keep their state).
+            if (name in primedClasses) {
+                val keys = when (verdict) {
+                    is Classifier.Verdict.BodyOnly -> verdict.invalidateKeys
+                    is Classifier.Verdict.Structural -> verdict.invalidateKeys
+                    is Classifier.Verdict.Interpret -> verdict.groupIds
+                    else -> emptySet() // Rebuild stays Rebuild; NewClass can't apply to a primed class
+                }
+                if (verdict !is Classifier.Verdict.Rebuild) verdict = Classifier.Verdict.Interpret(keys)
             }
             entry.facts to verdict
         }
