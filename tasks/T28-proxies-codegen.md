@@ -149,6 +149,6 @@ scripts/gen-proxies.sh                          # step 1: writes third_party/gen
 grep -c "public static class" third_party/generated/liveedit/Proxies.java   # ≥ 140
 scripts/build-interp-dex.sh                     # step 2: single dex, size 700–1100 KB
 ./gradlew :protocol:test :engine:test           # steps 3–4: green
-(cd runtime-client && ./gradlew :lib:assembleDebug)   # step 3: green
+(cd runtime-client && ./gradlew :runtime-client:assembleDebug)   # step 3: green
 ./e2e/run.sh                                    # step 5: 15/15 green, twice
 ```

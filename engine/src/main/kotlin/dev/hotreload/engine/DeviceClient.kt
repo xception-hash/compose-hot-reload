@@ -60,8 +60,13 @@ class DeviceClient(host: String = "127.0.0.1", port: Int) : Closeable {
      * interpreter + recompose. interp.dex must already be injected and the target classes primed
      * (structural redefine of their stub-transformed baseline) earlier in the same batch.
      */
-    fun liveEditClasses(classes: List<ClassBytes>, primedDexName: String?, groupIds: List<Int>) {
-        expectAck(exchange { Request.LiveEditClasses(it, classes, primedDexName, groupIds) })
+    fun liveEditClasses(
+        classes: List<ClassBytes>,
+        supportClasses: List<ClassBytes>,
+        primedDexName: String?,
+        groupIds: List<Int>,
+    ) {
+        expectAck(exchange { Request.LiveEditClasses(it, classes, supportClasses, primedDexName, groupIds) })
     }
 
     /** Attach a resource overlay (dir relative to codeCacheDir) + whole-tree invalidate. */

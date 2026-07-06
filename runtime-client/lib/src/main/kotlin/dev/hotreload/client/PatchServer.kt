@@ -155,7 +155,10 @@ class PatchServer(private val context: Context) {
             // interpreter the edited bytes and recompose.
             LiveEditInterp.ensureInitialized(context.classLoader)
             request.primedDexName?.let { Log.i(tag, "interpreter batch primed dex: $it") }
-            LiveEditInterp.addClasses(request.classes.map { it.classBytes }.toTypedArray())
+            LiveEditInterp.addClasses(
+                request.classes.map { it.classBytes }.toTypedArray(),
+                request.supportClasses.map { it.classBytes }.toTypedArray(),
+            )
             if (request.groupIds.isNotEmpty()) {
                 request.groupIds.all { ComposeBridge.invalidateGroupsWithKey(it) }
             } else {
