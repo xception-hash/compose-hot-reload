@@ -1,6 +1,24 @@
 # T28: Proxies codegen — lift the composable signature-change limitation
-Status: TODO
-Assignee: steps 1–3 agy | steps 4–5 opus
+Status: IN-REVIEW (steps 1–4 DONE host-side; step 5 device validation remains)
+Assignee: steps 1–4 done by Fable 2026-07-06 | step 5 opus + device
+
+## Progress (2026-07-06, Fable final session)
+- **Step 1 DONE** (commit c131c0f): `scripts/gen-proxies.sh` works fully offline; 147 nested
+  proxy classes generated, exactly as §7 predicted. Gotchas hit + solved IN the script: the
+  embeddable compiler process itself needs kotlin-stdlib + kotlin-reflect (2.3.21 cached is
+  fine — compiler-process dep only) + kotlinx-coroutines-core-jvm + org.jetbrains annotations
+  (reuse `$RT/lib/annotations-19.0.0.jar`) on its `java -cp`, and stdlib must ALSO be on the
+  `-classpath` compilation arg.
+- **Step 2 DONE** (commit 6422880): interp.dex 495 820 → 831 448 B (+335 KB, in range).
+  Verified via dexdump: 147 `Proxies$*` classes defined, zero `kotlin/*` classes defined.
+- **Step 3 DONE** (commit 066325b): protocol **v8**, `supportClasses` on the wire both ways,
+  WireTest green (12/12 + new cases), client pass-through built (`:runtime-client:assembleDebug`).
+- **Step 4 DONE** (this commit): classifier + plan per spec below; 21/21 ClassifierTest green.
+  Design deltas from the original spec text (both deliberate): (a) suspend-lambda bases are NOT
+  proxy-eligible (ctor changes on them stay Rebuild — out of scope); (b) extra hard rules kept:
+  added/removed `<clinit>` anywhere, and added-ctor-with-interpret on regular classes.
+- **Step 5 NOT STARTED** — needs emulator. Preconditions unchanged (reinstall apps for v8,
+  rebuild `:cli:installDist`, force-stop once for the new interp.dex).
 
 ## Goal
 T27's interpreter handles member removals and hierarchy edits, but a `@Composable` **signature
@@ -102,12 +120,10 @@ In `engine` classifier (`Classifier.kt` + `WatchSession`):
    - top-level changed class → **primary**: prime (StubTransform→dex→structural redefine) +
      send in `classes`;
    - lambda-shaped class with a changed `<init>` → **support**: send in `supportClasses`, do
-     NOT prime (its old class stays; proxies replace instances). Lambda-shaped = ASM
-     `ClassReader.superName` ∈ {`kotlin/jvm/internal/Lambda`,
-     `kotlin/coroutines/jvm/internal/SuspendLambda`,
-     `kotlin/coroutines/jvm/internal/RestrictedSuspendLambda`,
-     `kotlin/jvm/internal/FunctionReference`, `kotlin/jvm/internal/FunctionReferenceImpl`,
-     `kotlin/jvm/internal/AdaptedFunctionReference`};
+     NOT prime (its old class stays; proxies replace instances). Lambda-shaped = `superName`
+     (already in ClassFacts) ∈ {`kotlin/jvm/internal/Lambda`, `kotlin/jvm/internal/FunctionReference`,
+     `kotlin/jvm/internal/FunctionReferenceImpl`, `kotlin/jvm/internal/AdaptedFunctionReference`}
+     — suspend bases deliberately EXCLUDED (out of scope, ctor changes on them stay Rebuild);
    - brand-new class (no baseline) → existing InjectDex path, unchanged.
 5. Host tests in `ClassifierTest` (or sibling): signature change → Interpret; field change →
    Rebuild; mixed batch → all-interpret; lambda partition → support list.
