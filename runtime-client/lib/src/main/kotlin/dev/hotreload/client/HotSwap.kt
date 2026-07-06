@@ -38,6 +38,16 @@ object HotSwap {
     /** Atomic multi-class redefine; arrays are parallel (targets[i] gets dexFiles[i]). */
     external fun nativeRedefine(targets: Array<Class<*>>, dexFiles: Array<ByteArray>, structural: Boolean): Int
     external fun nativeInjectDexFile(loader: ClassLoader, path: String): Int
+
+    /**
+     * Register the interpreter's `com.android.tools.deploy.interpreter.JNI` natives (the
+     * invokespecial* / enter-exitMonitor dispatch in interpreter_jni.cpp) via `RegisterNatives`
+     * on [jniClass]. Must be called AFTER interp.dex is injected — the class does not exist before
+     * that, so [jniClass] is resolved by the caller through the app classloader. Idempotent;
+     * returns 0 on success. See [dev.hotreload.client.LiveEditInterp].
+     */
+    external fun nativeRegisterInterpreterJni(jniClass: Class<*>): Int
+
     external fun nativeGetLastError(): String?
     external fun nativeCanRedefine(): Boolean
     external fun nativeHasStructural(): Boolean

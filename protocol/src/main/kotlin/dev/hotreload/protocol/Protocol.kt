@@ -26,7 +26,7 @@ package dev.hotreload.protocol
  * so they must use only the Java/Kotlin stdlib.
  */
 object Protocol {
-    const val VERSION: Int = 6
+    const val VERSION: Int = 7
 
     /** Abstract-namespace socket the runtime-client PatchServer binds, per app. */
     fun deviceSocketName(applicationId: String): String = "hotreload-$applicationId"
@@ -46,6 +46,7 @@ object Opcode {
     const val LOAD_RESOURCES: Int = 0x07
     const val INVALIDATE_ALL: Int = 0x08
     const val LITERAL_UPDATE: Int = 0x09
+    const val LIVE_EDIT_CLASSES: Int = 0x0A
 
     // Responses (client -> engine)
     const val CAPABILITIES: Int = 0x81
@@ -56,6 +57,14 @@ object Opcode {
 
 /** One class's replacement bytecode: single-class dex bytes (d8 --no-desugaring output). */
 class ClassDex(val className: String, val dexBytes: ByteArray)
+
+/**
+ * One class to hand to the on-device interpreter ([Request.LiveEditClasses]): raw JVM `.class`
+ * bytes (NOT dex — the interpreter evaluates classfile bytecode directly). [internalName] is the
+ * slash-separated internal name (e.g. `dev/hotreload/sample/MainActivityKt`), used for logging;
+ * the interpreter re-derives it from [classBytes] anyway.
+ */
+class ClassBytes(val internalName: String, val classBytes: ByteArray)
 
 /**
  * Wire type tags for a live-literal value ([Request.LiteralUpdate]). The order matches
@@ -160,6 +169,26 @@ sealed class Request(val requestId: Int) {
         val invalidateKey: Int,
         val type: Int,
         val value: Any,
+    ) : Request(requestId)
+
+    /**
+     * Interpreter fast path (T27): hand [classes] (raw JVM `.class` bytes) to the on-device
+     * LiveEdit bytecode interpreter so edits the classifier would otherwise `Rebuild` (member
+     * removal, signature change, hierarchy change) hot-apply by interpreting the edited method
+     * bodies instead of redefining. The client, on first use per process, registers the
+     * interpreter JNI natives and calls `LiveEditStubs.init` (interp.dex is delivered separately
+     * via the existing [InjectDex] op earlier in the same batch — no new transport); every time it
+     * reflectively calls `LiveEditStubs.addClasses(classes, [], structural=false)`, then the
+     * invalidate tail: `invalidateGroupsWithKey` per [groupIds] when non-empty, else
+     * `invalidateAllCompositions()`. [primedDexName] is informational (the InjectDex name of the
+     * batch's primed-originals dex, or null) — the engine orchestrates redefine/inject ordering.
+     * Response: [Ack]/[Failure].
+     */
+    class LiveEditClasses(
+        requestId: Int,
+        val classes: List<ClassBytes>,
+        val primedDexName: String?,
+        val groupIds: List<Int>,
     ) : Request(requestId)
 }
 

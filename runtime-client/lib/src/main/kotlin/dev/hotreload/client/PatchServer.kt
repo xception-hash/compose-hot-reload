@@ -148,6 +148,20 @@ class PatchServer(private val context: Context) {
         is Request.LiteralUpdate -> onMainThread(request.requestId) {
             ComposeBridge.updateLiteral(request.key, request.helperClass, request.invalidateKey, request.value)
         }
+
+        is Request.LiveEditClasses -> onMainThread(request.requestId) {
+            // interp.dex + any primed originals were delivered earlier in this batch via the
+            // existing InjectDex/Redefine ops (engine-orchestrated order); here we only hand the
+            // interpreter the edited bytes and recompose.
+            LiveEditInterp.ensureInitialized(context.classLoader)
+            request.primedDexName?.let { Log.i(tag, "interpreter batch primed dex: $it") }
+            LiveEditInterp.addClasses(request.classes.map { it.classBytes }.toTypedArray())
+            if (request.groupIds.isNotEmpty()) {
+                request.groupIds.all { ComposeBridge.invalidateGroupsWithKey(it) }
+            } else {
+                ComposeBridge.invalidateAllCompositions()
+            }
+        }
     }
 
     /**

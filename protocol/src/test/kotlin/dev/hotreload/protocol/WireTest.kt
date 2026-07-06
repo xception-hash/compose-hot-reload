@@ -105,6 +105,37 @@ class WireTest {
     }
 
     @Test
+    fun liveEditClasses() {
+        val c1 = ByteArray(50) { it.toByte() }
+        val c2 = byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0xBA.toByte(), 0xBE.toByte())
+        val sent = Request.LiveEditClasses(
+            31,
+            classes = listOf(
+                ClassBytes("dev/hotreload/sample/MainActivityKt", c1),
+                ClassBytes("a/B\$C", c2),
+            ),
+            primedDexName = "primed-3.dex",
+            groupIds = listOf(796097800, -96578675),
+        )
+        val got = roundTripRequest(sent) as Request.LiveEditClasses
+        assertEquals(31, got.requestId)
+        assertEquals(2, got.classes.size)
+        assertEquals("dev/hotreload/sample/MainActivityKt", got.classes[0].internalName)
+        assertContentEquals(c1, got.classes[0].classBytes)
+        assertEquals("a/B\$C", got.classes[1].internalName)
+        assertContentEquals(c2, got.classes[1].classBytes)
+        assertEquals("primed-3.dex", got.primedDexName)
+        assertContentEquals(listOf(796097800, -96578675), got.groupIds)
+
+        // null primedDexName + empty groupIds (the invalidate-all case)
+        val bare = roundTripRequest(
+            Request.LiveEditClasses(32, listOf(ClassBytes("X", byteArrayOf(1))), null, emptyList()),
+        ) as Request.LiveEditClasses
+        assertNull(bare.primedDexName)
+        assertTrue(bare.groupIds.isEmpty())
+    }
+
+    @Test
     fun capabilities() {
         val got = roundTripResponse(
             Response.Capabilities(1, Protocol.VERSION, 36, true, true, false, true, 10700),
