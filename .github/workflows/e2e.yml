@@ -61,6 +61,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # scripts/icon-pixel.sh reads a screencap centre-pixel via Pillow for the
+      # drawable/bitmap cases (11-13) — every other case uses uiautomator text
+      # dumps. Pillow is the suite's only host-side Python dep and isn't in the
+      # runner image; install via apt to sidestep PEP-668 externally-managed pip.
+      - name: Install Pillow (icon-pixel screencap reader)
+        run: sudo apt-get update && sudo apt-get install -y python3-pil
+
       # Boots the emulator, then runs the gate. emulator-up.sh sees the connected
       # device and short-circuits its own boot. Tee combined output to e2e-run.log
       # (run.sh deletes its mktemp watch log in its trap; on timeouts it tails that
