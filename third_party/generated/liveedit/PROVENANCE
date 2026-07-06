@@ -1,0 +1,11 @@
+Proxies.java — generated lambda-proxy lookup table for the LiveEdit interpreter (T28).
+
+Generator: third_party/tools-base .../codegen/LambdaGenerator.kt (asm relocated to
+           org.jetbrains.org.objectweb.asm to match our interp build), run offline.
+Inputs:    javapoet 1.13.0, kotlin-stdlib 2.4.0 (reflected over at generation time),
+           kotlin-compiler-embeddable 2.4.0, interp build classes.
+Pin:       tools-base 14c65dad2cbdc26198c66375d4e0cef5269436e0 2026-07-04
+Build:     scripts/gen-proxies.sh
+Classes:   147 nested proxy classes
+Date:      2026-07-06
+License:   Apache-2.0 (AOSP) — see third_party/PINNED.txt and NOTICE.
