@@ -466,19 +466,18 @@ wait_for_interpret() {
     done
 }
 
-# Baseline present + seed composition state so we can prove interpretation preserves it.
-# (HotPhoto is an Image with no text; its removal is asserted indirectly — the batch that
-# removes it is what makes the edit an Interpret trigger, verified by the `primed:` line below.)
 assert_ui 'text="Hello from the sample app"'
-"$REPO_ROOT/scripts/taps.sh" 2 >/dev/null
-COUNT_LINE=$(adb exec-out uiautomator dump /dev/tty 2>/dev/null \
-    | LC_ALL=C grep -oE 'text="Count: [0-9]+ / Saved: [0-9]+"' | head -1)
-[ -z "$COUNT_LINE" ] && { echo "could not read counter line"; exit 1; }
 
+# Part A — the interpret TRIGGER (member removal). One batch (single file write): remove the
+# HotPhoto composable + its call site (a classifier Rebuild trigger) and retext Greeting so the
+# interpreted result is assertable by presence. Removing HotPhoto edits MainScreen (Greeting's
+# and Counter's PARENT), so — exactly like a normal parent hot-swap — invalidating MainScreen's
+# group resets its subtree's remember/rememberSaveable. We assert that documented behavior, then
+# prove state IS preserved for a LEAF interpret edit in Part B.
+"$REPO_ROOT/scripts/taps.sh" 2 >/dev/null
+assert_ui 'text="Count: 2 / Saved: 2"'
 interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
 prime_count=$(grep -c "primed:" "$WATCH_LOG" || true)
-# ONE batch (single file write): remove the HotPhoto composable + its call site (a classifier
-# Rebuild trigger) and retext Greeting so the interpreted result is assertable by presence.
 python3 - "$MAIN_ACTIVITY" << 'PY'
 import sys, re
 p = sys.argv[1]; s = open(p).read()
@@ -489,17 +488,29 @@ assert "HotPhoto" not in s and "INTERPRETED EDIT OK" in s
 open(p, "w").write(s)
 PY
 wait_for_interpret "$interp_count"
-assert_ui 'text="INTERPRETED EDIT OK"'   # edited body interpreted on-device
-assert_ui "$COUNT_LINE"                   # remember + rememberSaveable preserved
+assert_ui 'text="INTERPRETED EDIT OK"'    # edited body interpreted on-device
+assert_ui 'text="Count: 0 / Saved: 0"'    # parent edit resets subtree (documented semantics)
 assert_pid                                # same process — no recreate
 # The trigger must have gone through priming (not a plain redefine).
 (( $(grep -c "primed:" "$WATCH_LOG" || true) > prime_count )) || {
     echo "expected a 'primed:' line for the interpreted class"; tail -n 20 "$WATCH_LOG"; exit 1
 }
 
-# Error path through the interpreter: a throw in a now-primed body reports via the normal flow;
-# fix-and-save recovers in place (the last-good frame stays on screen meanwhile).
-perl -pi -e 's/Text\("INTERPRETED EDIT OK"\)/error("interp crash")/' "$MAIN_ACTIVITY"
+# Part B — a LEAF interpret edit preserves sibling state. MainActivityKt is now primed, so even a
+# body-only edit routes through the interpreter (groupIds = only Greeting's key). Counter is a
+# sibling, not under Greeting, so its state must survive.
+"$REPO_ROOT/scripts/taps.sh" 3 >/dev/null
+assert_ui 'text="Count: 3 / Saved: 3"'
+interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
+perl -pi -e 's/Text\("INTERPRETED EDIT OK"\)/Text("INTERPRETED LEAF OK")/' "$MAIN_ACTIVITY"
+wait_for_interpret "$interp_count"
+assert_ui 'text="INTERPRETED LEAF OK"'    # leaf interpreted
+assert_ui 'text="Count: 3 / Saved: 3"'    # sibling state preserved through the interpreter
+assert_pid
+
+# Part C — error path through the interpreter: a throw in a now-primed body reports via the normal
+# flow; fix-and-save recovers in place (the last-good frame stays on screen meanwhile).
+perl -pi -e 's/Text\("INTERPRETED LEAF OK"\)/error("interp crash")/' "$MAIN_ACTIVITY"
 start_err=$(date +%s)
 while ! grep -q "recomposition failed:" "$WATCH_LOG"; do
     if (( $(date +%s) - start_err > 60 )); then
@@ -507,7 +518,7 @@ while ! grep -q "recomposition failed:" "$WATCH_LOG"; do
     fi
     sleep 1
 done
-assert_ui 'text="INTERPRETED EDIT OK"'   # last-good frame preserved
+assert_ui 'text="INTERPRETED LEAF OK"'   # last-good frame preserved
 assert_pid
 interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
 perl -pi -e 's/error\("interp crash"\)/Text("INTERPRETED RECOVERED")/' "$MAIN_ACTIVITY"
