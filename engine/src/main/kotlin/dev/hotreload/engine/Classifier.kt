@@ -21,46 +21,84 @@ object Classifier {
         /** Class does not exist in the snapshot: inject into the app classloader. */
         object NewClass : Verdict()
 
+        /**
+         * Would be [Rebuild], but every disqualifying change is a removal/signature/hierarchy
+         * change on eligible (non-`<init>`/`<clinit>`) methods — so the edited method bodies can
+         * be interpreted on-device instead (T27). [groupIds] = the class's composable keys.
+         */
+        data class Interpret(val groupIds: Set<Int>) : Verdict()
+
         /** Not hot-swappable; [reason] is shown to the user before the fallback build. */
         data class Rebuild(val reason: String) : Verdict()
     }
 
     /**
+     * A method member (id contains a descriptor's `(`) that is neither a constructor nor the
+     * static initializer — the only members whose removal/signature change the interpreter can
+     * absorb (`<init>`/`<clinit>` interpretation is unsupported; fields aren't code).
+     */
+    private fun isEligibleMethod(id: String): Boolean =
+        '(' in id && !id.startsWith("<init>") && !id.startsWith("<clinit>")
+
+    private fun memberKind(id: String): String = if ('(' in id) "method" else "field"
+
+    /**
      * Classify one recompiled class. [old] is the snapshot facts, null when the class
      * is brand new. Compose group keys of changed composable bodies are collected for
-     * targeted invalidation.
+     * targeted invalidation. Edits that would `Rebuild` but only touch eligible methods'
+     * signatures/removals (or the class hierarchy) become [Interpret] (T27).
      */
     fun classify(old: ClassFacts?, new: ClassFacts): Verdict {
         if (old == null) return Verdict.NewClass
 
-        if (old.superName != new.superName || old.interfaces != new.interfaces || old.access != new.access) {
-            return Verdict.Rebuild("${new.fqcn}: class hierarchy or modifiers changed")
-        }
-
         val oldById = old.members.associateBy { it.id }
         val newById = new.members.associateBy { it.id }
-
         val removed = oldById.keys - newById.keys
-        if (removed.isNotEmpty()) {
-            return Verdict.Rebuild("${new.fqcn}: members removed or signatures changed: ${removed.sorted().take(3).joinToString()}")
+        val added = newById.keys - oldById.keys
+
+        // Reasons this edit can't be a plain/structural redefine, split by whether the
+        // interpreter can absorb them. A single hard reason forces Rebuild; otherwise any
+        // interpretable reason routes the whole class to the interpreter.
+        val hard = mutableListOf<String>()
+        val interpretable = mutableListOf<String>()
+
+        if (old.superName != new.superName || old.interfaces != new.interfaces || old.access != new.access) {
+            // Class-shape change: the interpreter evaluates method bodies regardless of the
+            // (structurally-redefined) on-device shape, so it can carry a hierarchy/modifier edit.
+            interpretable += "class hierarchy or modifiers changed"
+        }
+
+        for (id in removed) {
+            if (isEligibleMethod(id)) interpretable += "member removed or signature changed: $id"
+            else hard += "removed ${memberKind(id)}: $id"
         }
 
         val invalidate = mutableSetOf<Int>()
         for ((id, oldMember) in oldById) {
-            val newMember = newById.getValue(id)
-            if (oldMember.access != newMember.access) {
-                return Verdict.Rebuild("${new.fqcn}: modifiers changed on $id")
-            }
-            // Group-key renumbering invalidates the whole key map — never hot-swap it.
+            val newMember = newById[id] ?: continue // removed: handled above
+            // Group-key renumbering invalidates the whole key map — the interpreter can't fix the
+            // slot table either, so it stays a hard Rebuild.
             if (oldMember.composeKey != newMember.composeKey) {
-                return Verdict.Rebuild("${new.fqcn}: Compose group key changed on $id (group structure edit)")
+                hard += "Compose group key changed on $id (group structure edit)"
+                continue
+            }
+            if (oldMember.access != newMember.access) {
+                if (isEligibleMethod(id)) interpretable += "modifiers changed on $id"
+                else hard += "modifiers changed on ${memberKind(id)} $id"
+                continue
             }
             if (oldMember.bodyHash != newMember.bodyHash) {
                 newMember.composeKey?.let { invalidate += it }
             }
         }
 
-        val added = newById.keys - oldById.keys
+        if (hard.isNotEmpty()) {
+            return Verdict.Rebuild("${new.fqcn}: ${(hard + interpretable).take(3).joinToString()}")
+        }
+        if (interpretable.isNotEmpty()) {
+            return Verdict.Interpret(new.composableKeys)
+        }
+
         if (added.isNotEmpty()) {
             // New members have no live groups yet; recomposition of their (changed)
             // callers inserts the new groups naturally (Experiment C). Their own keys
@@ -77,12 +115,16 @@ object Classifier {
         data class HotSwap(
             /** FQCNs to inject (new classes), before any redefine. */
             val inject: List<String>,
-            /** FQCNs to redefine, atomically in one batch. */
+            /** FQCNs to redefine, atomically in one batch (excludes [interpret] classes). */
             val redefine: List<String>,
             /** The ART structural extension handles unchanged-structure classes too, so
              *  one added member anywhere upgrades the whole batch (keeps it atomic). */
             val structural: Boolean,
             val invalidateKeys: Set<Int>,
+            /** FQCNs whose edited bodies are interpreted on-device (T27). */
+            val interpret: List<String>,
+            /** Composable keys to invalidate for the [interpret] classes. */
+            val groupIds: Set<Int>,
         ) : PatchPlan()
 
         data class Rebuild(val reasons: List<String>) : PatchPlan()
@@ -95,7 +137,8 @@ object Classifier {
 
         return PatchPlan.HotSwap(
             inject = changes.filter { it.second is Verdict.NewClass }.map { it.first.fqcn },
-            redefine = changes.filter { it.second !is Verdict.NewClass }.map { it.first.fqcn },
+            redefine = changes.filter { it.second is Verdict.BodyOnly || it.second is Verdict.Structural }
+                .map { it.first.fqcn },
             structural = changes.any { it.second is Verdict.Structural },
             invalidateKeys = changes.flatMapTo(mutableSetOf()) { (_, v) ->
                 when (v) {
@@ -104,6 +147,8 @@ object Classifier {
                     else -> emptySet()
                 }
             },
+            interpret = changes.filter { it.second is Verdict.Interpret }.map { it.first.fqcn },
+            groupIds = changes.flatMapTo(mutableSetOf()) { (_, v) -> (v as? Verdict.Interpret)?.groupIds ?: emptySet() },
         )
     }
 }

@@ -1,5 +1,6 @@
 package dev.hotreload.engine
 
+import dev.hotreload.protocol.ClassBytes
 import dev.hotreload.protocol.ClassDex
 import dev.hotreload.protocol.ComposeErrorInfo
 import dev.hotreload.protocol.Request
@@ -52,6 +53,15 @@ class DeviceClient(host: String = "127.0.0.1", port: Int) : Closeable {
     /** Live-literals fast path: update one constant in place (T24). */
     fun literalUpdate(key: String, helperClass: String, invalidateKey: Int, type: Int, value: Any) {
         expectAck(exchange { Request.LiteralUpdate(it, key, helperClass, invalidateKey, type, value) })
+    }
+
+    /**
+     * Interpreter fast path (T27): hand raw JVM `.class` bytes to the on-device LiveEdit
+     * interpreter + recompose. interp.dex must already be injected and the target classes primed
+     * (structural redefine of their stub-transformed baseline) earlier in the same batch.
+     */
+    fun liveEditClasses(classes: List<ClassBytes>, primedDexName: String?, groupIds: List<Int>) {
+        expectAck(exchange { Request.LiveEditClasses(it, classes, primedDexName, groupIds) })
     }
 
     /** Attach a resource overlay (dir relative to codeCacheDir) + whole-tree invalidate. */

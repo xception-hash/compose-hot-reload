@@ -24,6 +24,9 @@ data class ClassFacts(
     val members: Set<MemberFacts>,
 ) {
     val fqcn: String get() = internalName.replace('/', '.')
+
+    /** FunctionKeyMeta keys of this class's composables (for interpreter group invalidation). */
+    val composableKeys: Set<Int> get() = members.mapNotNullTo(mutableSetOf()) { it.composeKey }
 }
 
 data class MemberFacts(
