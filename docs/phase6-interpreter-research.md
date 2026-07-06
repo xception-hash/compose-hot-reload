@@ -161,6 +161,11 @@ Not needed for v1.
 
 ### Addendum 2026-07-06 (T27 Phase 3, step 6 answered LIVE on emulator-5554)
 
+> **T28 UPDATE (same day, validated live):** the "does NOT work" case below is now FIXED — §7's
+> Proxies codegen shipped (T28 steps 1–5): the regenerated restart lambda travels as a support
+> class and is proxy-constructed; checkpoints A/B/C + e2e case 15 all green on emulator-5554.
+> The text below is kept as the historical record of *why* T28 exists.
+
 The open "does first-prime need an activity recreate?" question is **answered: NO recreate is
 needed** for the edits our interpreter actually handles — but the headline test (a @Composable
 *signature* change) turned out to be blocked for a *different* reason than "stale lambda

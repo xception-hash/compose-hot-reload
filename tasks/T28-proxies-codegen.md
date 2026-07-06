@@ -1,5 +1,5 @@
 # T28: Proxies codegen — lift the composable signature-change limitation
-Status: IN-REVIEW (steps 1–5 DONE; e2e double-run gate in progress)
+Status: DONE (all 5 steps; acceptance `./e2e/run.sh` 15/15 GREEN twice — 257s / 250s)
 Assignee: steps 1–4 done by Fable 2026-07-06 | step 5 done by Fable 2026-07-06 (emulator-5554)
 
 ## Progress (2026-07-06, Fable final session)

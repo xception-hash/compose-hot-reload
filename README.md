@@ -62,18 +62,21 @@ Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the w
 | vector **drawable** edit (`res/drawable*/*.xml`) | `ResourcesLoader` overlay + Compose asset-cache clear + whole-tree recompose; new drawable on screen, all state preserved | ~1–2s |
 | bitmap **drawable** edit (`res/drawable*/*.{png,webp}`) | `ResourcesLoader` overlay + bashing `painterResource`'s internal remember groups (`invalidateGroupsWithKey`); new bitmap on screen, all state preserved | ~1–2.5s |
 | member **removal** / class hierarchy change | AOSP LiveEdit **bytecode interpreter** on-device: the class is primed (host stub-transform → structural redefine) and its edited bodies are interpreted, same process, state preserved | ~1.5s (first prime ~4.5s) |
+| `@Composable` **signature change** (params added/removed, caller updated in the same save) | interpreter + AOSP lambda **proxies**: the regenerated restart lambda ships as a *support class* and is proxy-constructed on device; whole batch interprets, same process | ~1–4s |
 
-Edits the classifier would otherwise reject as "rebuild" — **member removal** and **hierarchy
-changes** — are **interpreted** on-device instead: the affected class's method entries are diverted
-into the vendored AOSP LiveEdit interpreter (see `NOTICE`), so the change lands in the same process
-with `remember`/`rememberSaveable` preserved (leaf-edit semantics — a parent edit still resets its
-subtree). Once a class is interpreted, all its later edits go through the interpreter too. **Known
-limitation:** a **signature change** still requires a rebuild — it *adds* a method (the new
-overload, Kotlin's `$default`, and for composables a regenerated restart lambda) that
-non-interpreted callers invoke as a real method the primed baseline doesn't have. Lifting it needs
-AOSP's `Proxies` codegen + real delivery of the added methods (out of scope for v1; see
-`docs/phase6-interpreter-research.md` §4 addendum). `<clinit>`/constructor and field-removal edits
-also stay rebuild.
+Edits the classifier would otherwise reject as "rebuild" — **member removal**, **hierarchy
+changes**, and **signature changes** — are **interpreted** on-device instead: the affected class's
+method entries are diverted into the vendored AOSP LiveEdit interpreter (see `NOTICE`), so the
+change lands in the same process with `remember`/`rememberSaveable` preserved (leaf-edit semantics
+— a parent edit still resets its subtree, and a signature change always edits its caller, so its
+parent's subtree resets). Once a class is interpreted, all its later edits go through the
+interpreter too, and if any class in a save routes to the interpreter the whole batch does (mixing
+compiled callers with interpreter-only methods would `NoSuchMethodError`). For a composable
+signature change, the regenerated restart lambda's changed constructor is handled by AOSP's
+generated lambda `Proxies`: the lambda travels as a *support class* and is proxy-constructed on
+device (`docs/phase6-interpreter-research.md` §7). **Remaining rebuild cases:** `<clinit>` changes,
+constructor changes on non-lambda classes, field add/remove/type-change, Compose group-key
+renumbering, and suspend-lambda constructor changes.
 
 Resource edits are **values-only** in v1: changing the *value* of an existing string/color
 hot-reloads. Adding, removing, or renaming a resource is detected and reported as
