@@ -1,5 +1,5 @@
 # T27: Phase 6 interpreter port — hot-apply classifier-rejected edits
-Status: IN-PROGRESS — Phase 1 DONE (steps 2, 3). Phased across sessions (device/quota); see Progress at bottom.
+Status: IN-PROGRESS — Phases 1 (steps 2,3) + 2 (steps 1,4) DONE host-side; Phase 3 (steps 5-8) + 2 device checkpoints remain. See Progress at bottom.
 Assignee: agy/Opus (device needed throughout; the hardest spec in the queue — read the research
 doc first and follow it, it answers "why" for every step)
 Priority: 7 of T21–T27 (LAST; big)
@@ -121,17 +121,29 @@ Split into 3 phases. **Phase 1 = host-only (no device), DONE this session (commi
   - **Step 2** — `scripts/build-interp-dex.sh` → committed `engine/src/main/resources/dev/hotreload/
     interp.dex` (495820 B, 269 classes) + `interp.dex.PROVENANCE`. Spike build.sh untouched.
 
-- **Phase 2 (NEXT, mostly host; device for spike checkpoint):**
-  - **Step 1** — port `jni_dispatch.cc` into `hotreload_agent.cpp` + lazy
-    `nativeRegisterInterpreterJni(Class)`. Checkpoint = spike super.toString()/synchronized (device).
-    NOTE: Apache-2.0 provenance header on ported code (step 8).
-  - **Step 4** — protocol **v7** `LiveEditClasses` opcode `0x0A` (Protocol.kt + Wire.kt codec both
-    ways) + PatchServer.kt handler (first-use interp.dex inject → nativeRegisterInterpreterJni →
-    reflective LiveEditStubs.init; then reflective addClasses + invalidate tail). Protocol is at
-    v6 today (T24); bump to v7. Reinstall device apps before any e2e after the bump.
+- **Phase 2 CODE DONE (commit 9c1b4a4) — host-verified; 2 device checkpoints deferred:**
+  - **Step 1** — `runtime-client/lib/src/main/cpp/interpreter_jni.cpp`: port of `jni_dispatch.cc`
+    (NOT into hotreload_agent.cpp — separate file, cleaner; 12 interpreter.JNI natives, unbox flags
+    byte-identical to AndroidEval.java, file-local + explicit `RegisterNatives`). Lazy
+    `HotSwap.nativeRegisterInterpreterJni(jniClass)` export (called by LiveEditInterp AFTER
+    interp.dex inject). CMakeLists updated. Apache-2.0 provenance header present. **Verified:** clean
+    CMake rebuild (arm64+x86_64), export symbol present via llvm-nm. **DEFERRED (device):** spike
+    super.toString()/synchronized checkpoint (extend `spike/interpreter/` target-v2 + driver).
+  - **Step 4** — protocol **v7** (`Protocol.kt` VERSION 6→7, opcode `LIVE_EDIT_CLASSES=0x0A`,
+    `ClassBytes` + `Request.LiveEditClasses{classes, primedDexName:String?, groupIds}`),
+    `Wire.kt` codec both ways, `WireTest` round-trip (null/non-null primedDexName, empty/non-empty
+    groupIds) — **`:protocol:test` 12 GREEN**. Client: `LiveEditInterp.kt` (reflective bridge:
+    ensureInitialized = register JNI + LiveEditStubs.init once; addClasses per req) +
+    `PatchServer.kt` `LiveEditClasses` handler (main thread: addClasses → invalidateGroups per
+    groupId else invalidateAllCompositions). **Verified:** `runtime-client:assembleDebug` (Kotlin +
+    NDK). **DEFERRED (device):** live protocol handshake — **reinstall device apps before e2e**
+    (Ping shows client version; v7 now). Engine still SENDS nothing yet (that's Phase 3 step 5).
 
 - **Phase 3 (FINAL, device throughout):** steps 5 (Classifier/WatchSession Interpret routing +
-  session primed-class set), 6 (LIVE first-prime/activity-recreate question — the real unknown,
-  answer before the e2e), 7 (e2e `interpreter-edit`), 8 (docs/README/research §4 addendum/NOTICE).
+  session primed-class set; engine calls StubTransform→d8→structural redefine, then sends
+  InjectDex(interp.dex) + LiveEditClasses), 6 (LIVE first-prime/activity-recreate question — the
+  real unknown, answer before the e2e), 7 (e2e `interpreter-edit`), 8 (docs/README/research §4
+  addendum/**NOTICE file** for the ported jni_dispatch — header already in interpreter_jni.cpp).
+  Fold in the two deferred Phase 2 device checkpoints here (spike super/synchronized; live v7).
 
-Acceptance #1 met; #2–#5 are Phase 2/3.
+Acceptance #1 met (host). #2–#5 need the emulator (Phase 3).
