@@ -355,7 +355,10 @@ assert_icon() {
     local start=$(date +%s)
     local got
     while true; do
-        got=$("$REPO_ROOT/scripts/icon-pixel.sh" 2>/dev/null || echo "")
+        # Let icon-pixel.sh's stderr through (missing Pillow, absent node, failed
+        # screencap): on a wrong colour it prints to stdout with no stderr, so this
+        # only surfaces genuine failures instead of swallowing them into got=''.
+        got=$("$REPO_ROOT/scripts/icon-pixel.sh" || echo "")
         [ "$got" = "$expected" ] && break
         if (( $(date +%s) - start > timeout )); then
             echo "TIMEOUT waiting for icon pixel $expected (got '$got')"
@@ -391,7 +394,7 @@ assert_photo() {
     local start=$(date +%s)
     local got
     while true; do
-        got=$("$REPO_ROOT/scripts/icon-pixel.sh" "HOT_PHOTO" 2>/dev/null || echo "")
+        got=$("$REPO_ROOT/scripts/icon-pixel.sh" "HOT_PHOTO" || echo "")  # stderr through (see assert_icon)
         [ "$got" = "$expected" ] && break
         if (( $(date +%s) - start > timeout )); then
             echo "TIMEOUT waiting for photo pixel $expected (got '$got')"
