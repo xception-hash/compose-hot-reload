@@ -57,3 +57,13 @@ intellijPlatform {
 tasks.test {
     useJUnitPlatform()
 }
+
+tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("prepareSandbox") {
+    // Build the CLI distribution from the composite-included root build first.
+    dependsOn(gradle.includedBuild("compose-hot-reload").task(":cli:installDist"))
+
+    // Copy the installDist output tree (bin/ + lib/) into <sandbox>/plugins/<pluginName>/cli/
+    from(layout.projectDirectory.dir("../cli/build/install/cli")) {
+        into("${pluginName.get()}/cli")
+    }
+}

@@ -1,6 +1,23 @@
 # T31: IDE plugin — release readiness (validation, CLI bundling, Marketplace)
-Status: TODO
+Status: IN-PROGRESS
 Assignee: Opus + the maintainer (device + accounts/tokens are the maintainer's)
+
+## Progress
+- **Part 2 (CLI bundling) — CODE DONE ✅ (branch `feat/t31-cli-bundle`).** Approach A decided.
+  - Plugin Kotlin (Opus): `HotReloadService` resolves the CLI from its own install dir
+    (`<pluginDir>/cli/bin/cli`, `.bat` on Windows) when the Settings path is blank (now an
+    *override*); restores the exec bit if the unzip drops it; injects `JAVA_HOME` = the IDE's JBR
+    into the spawned CLI (fixes the T26 GUI-launch "no Java Runtime" gotcha for the bundled CLI).
+    `compileKotlin` green against cached platform.
+  - Gradle packaging (agy, spec `T31b-cli-bundle-packaging.md`): composite `includeBuild("..")` +
+    `prepareSandbox` copies `:cli:installDist` into `<pluginDir>/cli/`. Opus-verified: zip carries
+    `cli/bin/cli`+`.bat`, `cli/lib/engine.jar` with `interp.dex` (831448 B). Zip 6.9 MB. `test` green.
+  - **STILL NEEDED for Part 2 acceptance:** device proof (bundled zip + SDK, NO clone, hot-reload
+    works) — Opus+the maintainer on emulator. Folds together with Part 1 (validate the *bundled* zip).
+- **Part 1 (device validation):** pending the maintainer's GUI run. Recommendation: skip validating the old
+  shipped zip; validate the NEW bundled zip instead (strictly stronger — no clone/override).
+- **Part 3 (Marketplace):** not started; do after Part 2 device proof. Opus: `signPlugin`/
+  `publishPlugin` config in `build.gradle.kts` + change-notes. the maintainer: account/token/signing key/publish.
 
 ## Goal
 Take the IntelliJ/Android Studio plugin from "builds + attached to the v0.1.0 GitHub Release as a
