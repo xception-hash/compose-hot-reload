@@ -36,7 +36,7 @@ $ sed -n '1,3p' samples/multi-module/core/build.gradle.kts       # org.jetbrains
 ```
 
 Flag wiring:
-- **`:app` (via plugin)** — `dev.hotreload` adds `debugImplementation dev.hotreload:runtime-client`
+- **`:app` (via plugin)** — `dev.hotreload` adds `debugImplementation com.github.xception-hash.compose-hot-reload:runtime-client` (group renamed for JitPack in T29)
   and the three flags reflectively; `app/build.gradle.kts` has **no** `kotlin {}` block.
   `gradle-plugin/src/main/kotlin/dev/hotreload/gradle/HotReloadPlugin.kt:58-60`:
   ```

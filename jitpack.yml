@@ -1,2 +1,8 @@
 jdk:
   - 21
+# The root Gradle build only contains engine/cli/protocol (host-side tools). The two
+# published modules live in separate composite builds, so JitPack's default install
+# would publish nothing — install each explicitly.
+install:
+  - ./gradlew -p gradle-plugin publishToMavenLocal
+  - ./gradlew -p runtime-client publishToMavenLocal

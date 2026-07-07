@@ -68,7 +68,26 @@ Fixed during review (verified):
   to apply `id("dev.hotreload")` + a pluginManagement `resolutionStrategy.eachPlugin` mapping that
   id to the JitPack module. `jitpack.yml` jdk 21 confirmed correct (JBR = openjdk 21).
 
-### KNOWN BLOCKER — runtime-client auto-add coordinate (needs Jay's JitPack test)
+### RESOLVED 2026-07-07 — runtime-client coordinate fix applied (tag naming DECIDED: `0.1.0`, no `v`)
+Jay picked tag `0.1.0`. The recommended fix below was applied in full (Fable session 2026-07-07):
+- `runtime-client` group → `com.github.xception-hash.compose-hot-reload` (build.gradle.kts, both
+  the project `group` and the publication `groupId`).
+- `HotReloadPlugin.kt` now injects `com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0`.
+- README: `version "0.1.0"` in the plugins block + matching AAR coordinate (no `v` prefix anywhere).
+- **jitpack.yml gained an `install:` section** — the root Gradle build only contains
+  engine/cli/protocol, so JitPack's default install would have published NOTHING; it now runs
+  `./gradlew -p gradle-plugin publishToMavenLocal` + `./gradlew -p runtime-client publishToMavenLocal`
+  (both verified working locally with the root wrapper; runtime-client lands under the new group in ~/.m2).
+- Verified: both samples `assembleDebug` green; `:app:dependencies` shows
+  `com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0 -> project ':runtime-client:runtime-client'`
+  (composite substitution matches the new group — samples' repos have no mavenLocal/JitPack, so this
+  can't be a false positive).
+Still open (Jay, unchanged): the acceptance "scratch project resolves from JitPack" gate — first
+real JitPack build will exercise the install commands + Android SDK/NDK availability on their
+builder (runtime-client has NDK native code; if the JitPack build times out or lacks NDK, that
+surfaces there, not locally).
+
+### Original blocker record (pre-fix, kept for context)
 `HotReloadPlugin.kt:59` injects `debugImplementation("dev.hotreload:runtime-client:0.1")`. This
 works for **local e2e** only because the samples `includeBuild("../../runtime-client")` and Gradle
 composite substitution matches on group:artifact (`dev.hotreload:runtime-client`), ignoring version

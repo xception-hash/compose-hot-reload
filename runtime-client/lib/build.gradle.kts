@@ -3,7 +3,9 @@ plugins {
     id("maven-publish")
 }
 
-group = "dev.hotreload"
+// Group = the JitPack coordinate (com.github.<user>.<repo>) so the samples' composite-build
+// substitution matches the exact dependency the gradle plugin injects for published consumers.
+group = "com.github.xception-hash.compose-hot-reload"
 version = "0.1.0"
 
 android {
@@ -46,7 +48,7 @@ afterEvaluate {
         publications {
             create<MavenPublication>("release") {
                 from(components["release"])
-                groupId = "dev.hotreload"
+                groupId = project.group.toString()
                 artifactId = "runtime-client"
                 version = project.version.toString()
             }

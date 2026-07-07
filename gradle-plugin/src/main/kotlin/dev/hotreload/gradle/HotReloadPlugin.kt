@@ -56,7 +56,10 @@ class HotReloadPlugin : Plugin<Project> {
         project.pluginManager.withPlugin("com.android.application") {
             project.dependencies.add(
                 "debugImplementation",
-                "dev.hotreload:runtime-client:0.1"
+                // Group matches what JitPack serves (com.github.<user>.<repo>) AND what the
+                // samples' composite build substitutes on — one coordinate for both paths.
+                // Version must equal the release git tag verbatim (JitPack version == tag).
+                "com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0"
             )
 
             val android = project.extensions.getByType(ApplicationExtension::class.java)
