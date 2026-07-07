@@ -12,12 +12,25 @@ Assignee: Opus + Jay (device + accounts/tokens are Jay's)
   - Gradle packaging (agy, spec `T31b-cli-bundle-packaging.md`): composite `includeBuild("..")` +
     `prepareSandbox` copies `:cli:installDist` into `<pluginDir>/cli/`. Opus-verified: zip carries
     `cli/bin/cli`+`.bat`, `cli/lib/engine.jar` with `interp.dex` (831448 B). Zip 6.9 MB. `test` green.
-  - **STILL NEEDED for Part 2 acceptance:** device proof (bundled zip + SDK, NO clone, hot-reload
-    works) — Opus+Jay on emulator. Folds together with Part 1 (validate the *bundled* zip).
-- **Part 1 (device validation):** pending Jay's GUI run. Recommendation: skip validating the old
-  shipped zip; validate the NEW bundled zip instead (strictly stronger — no clone/override).
-- **Part 3 (Marketplace):** not started; do after Part 2 device proof. Opus: `signPlugin`/
-  `publishPlugin` config in `build.gradle.kts` + change-notes. Jay: account/token/signing key/publish.
+  - **DEVICE-PROVEN ✅ (2026-07-07):** Jay installed the bundled zip in Android Studio, left the
+    CLI-path field BLANK → bundled CLI resolved + launched (JAVA_HOME=JBR) + reached `ready` + clean
+    Stop on emulator-5554. Part 2 acceptance MET. (Gotcha found: the app must be RUNNING before Start
+    — the plugin attaches to a live process, doesn't launch it; preamble omitted the relaunch step.)
+- **Part 1 (device validation):** SUBSUMED by the Part 2 device proof above (validating the bundled
+  zip is strictly stronger than the old shipped zip). Body-edit/sig/error cases already proven by T26
+  with the identically-behaving CLI — not re-run.
+- **Part 3 (Marketplace) — build config DONE ✅ (Opus).** `intellijPlatform { signing { }
+  publishing { } }` added, all secrets from env (`CERTIFICATE_CHAIN`, `PRIVATE_KEY`,
+  `PRIVATE_KEY_PASSWORD`, `PUBLISH_TOKEN`) — nothing sensitive in-repo. `changeNotes` added (0.1.1 +
+  0.1.0). Verified: `signPlugin` + `publishPlugin` tasks resolve; `buildPlugin` green producing the
+  0.1.1 zip. plugin.xml range kept (sinceBuild=242, untilBuild open — core APIs only, safe).
+  **pluginVersion bumped 0.1.0 → 0.1.1** (bundled-CLI is a functional change; ships as a new tag).
+  - **STILL NEEDED (Jay-only, external):** JetBrains Marketplace vendor account → permanent upload
+    token → signing cert/key (`openssl`) → `./gradlew signPlugin && ./gradlew publishPlugin` with the
+    4 env vars set → JetBrains first-upload review (a few business days). Then set Marketplace
+    metadata (icon, tags, source URL).
+  - **Release:** tag `0.1.1` + refresh the GitHub Release asset with the bundled zip (the public
+    0.1.0 asset is the old clone-required zip).
 
 ## Goal
 Take the IntelliJ/Android Studio plugin from "builds + attached to the v0.1.0 GitHub Release as a
