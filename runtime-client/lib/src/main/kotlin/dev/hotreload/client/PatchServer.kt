@@ -9,6 +9,7 @@ import android.net.LocalSocket
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.Process
 import android.util.Log
 import dev.hotreload.protocol.ComposeErrorInfo
 import dev.hotreload.protocol.Protocol
@@ -37,6 +38,18 @@ class PatchServer(private val context: Context) {
     private var currentOverlayDir: File? = null
     private var isFirstLoad = true
 
+    /**
+     * uids permitted to drive the injection surface. The abstract-namespace socket has no
+     * filesystem gate, so without this any co-installed app could connect and inject code.
+     * Legitimate clients are only ever: this app itself, or the engine reaching us through
+     * `adb forward` — adbd forwards connections as SHELL (2000) regardless of the server's
+     * own uid (verified on API 36), and ROOT (0) covers rooted/`adb root` setups.
+     */
+    private val allowedUids = intArrayOf(Process.myUid(), 2000 /* SHELL */, 0 /* ROOT */)
+
+    /** Bound the blocking frame read so a stalled/slow-loris peer can't wedge the accept loop. */
+    private val socketReadTimeoutMs = 30_000
+
     fun start() {
         Thread({ serve() }, "hotreload-server").apply { isDaemon = true }.start()
     }
@@ -54,7 +67,7 @@ class PatchServer(private val context: Context) {
             try {
                 val socket = server.accept()
                 try {
-                    session(socket)
+                    if (authorize(socket)) session(socket)
                 } finally {
                     socket.close()
                 }
@@ -62,6 +75,22 @@ class PatchServer(private val context: Context) {
                 Log.e(tag, "session error", t)
             }
         }
+    }
+
+    /**
+     * Peer-credential gate: reject any connection whose uid isn't in [allowedUids] before a
+     * single frame is read, and arm a read timeout so an authorized-but-stalled peer can't
+     * hold the serial accept loop open. This is the standard fix for the abstract-socket
+     * injection class (the old Stetho / WebView-devtools pattern).
+     */
+    private fun authorize(socket: LocalSocket): Boolean {
+        val creds = socket.peerCredentials // synthesized by the kernel; not attacker-forgeable
+        if (creds.uid !in allowedUids) {
+            Log.w(tag, "rejected connection from uid=${creds.uid} pid=${creds.pid} (not in allowlist)")
+            return false
+        }
+        socket.soTimeout = socketReadTimeoutMs
+        return true
     }
 
     private fun session(socket: LocalSocket) {
