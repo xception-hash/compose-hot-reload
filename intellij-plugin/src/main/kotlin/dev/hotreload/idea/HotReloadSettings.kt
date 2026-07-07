@@ -25,8 +25,8 @@ class HotReloadSettings : PersistentStateComponent<HotReloadSettings.State> {
         /** Android SDK root; blank = the CLI's default ($ANDROID_HOME). */
         var sdkPath: String = ""
         /**
-         * Path to the CLI launcher from `./gradlew :cli:installDist`
-         * (…/cli/build/install/cli/bin/cli). No bundled binary in the MVP.
+         * Override path to a CLI launcher (…/cli/build/install/cli/bin/cli from
+         * `./gradlew :cli:installDist`). Blank = use the CLI bundled inside the plugin (T31 Part 2).
          */
         var cliLauncherPath: String = ""
         /** Extra `watch` args appended verbatim, e.g. `--literals` or `--build-tools 36.0.0`. */

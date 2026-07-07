@@ -18,7 +18,8 @@ class HotReloadConfigurable(project: Project) : BoundConfigurable("Compose Hot R
     override fun createPanel(): DialogPanel = panel {
         row("CLI launcher:") {
             textField().bindText(state::cliLauncherPath).columns(45)
-                .comment("Path to …/cli/build/install/cli/bin/cli — produce it with <code>./gradlew :cli:installDist</code> in the repo.")
+                .comment("Blank = use the CLI bundled with the plugin. Override with a path to " +
+                    "…/cli/build/install/cli/bin/cli from <code>./gradlew :cli:installDist</code>.")
         }
         row("Project dir:") {
             textField().bindText(state::projectDir).columns(45)

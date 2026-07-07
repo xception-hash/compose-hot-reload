@@ -43,17 +43,55 @@ intellijPlatform {
         version = providers.gradleProperty("pluginVersion").get()
         description = "Flutter-style hot reload for Jetpack Compose on Android, driven from the IDE. " +
             "Spawns the hotreload CLI and shows live reload status in the status bar."
+        changeNotes = """
+            <ul>
+              <li><b>0.1.1</b> — The <code>hotreload</code> CLI is now bundled inside the plugin.
+                  Install from disk (or the Marketplace) and hot-reload with no repo clone: leave the
+                  Settings ▸ Tools ▸ Compose Hot Reload ▸ CLI launcher field blank to use it. Requires
+                  the Android SDK (build-tools 36.0.0) on the machine.</li>
+              <li><b>0.1.0</b> — Initial release: status-bar widget, Start/Stop, error &amp;
+                  rebuild-needed balloons. Required a locally built CLI launcher.</li>
+            </ul>
+        """.trimIndent()
         vendor {
             name = "Compose Hot Reload (OSS)"
         }
         ideaVersion {
             // JDK 21 baseline (2024.2+). Leave the upper bound open so new IDE builds load it.
+            // Verified live in Android Studio 2026.1 (build 261). Core-platform APIs only, so an
+            // open upper bound is safe for the Marketplace.
             sinceBuild = "242"
             untilBuild = provider { null }
         }
+    }
+
+    // Marketplace signing + publishing (T31 Part 3). All secrets come from env vars so nothing
+    // sensitive lives in the repo; the tasks are no-ops until Jay supplies them:
+    //   CERTIFICATE_CHAIN     — PEM chain from the signing cert (openssl)
+    //   PRIVATE_KEY           — PEM private key
+    //   PRIVATE_KEY_PASSWORD  — password protecting the private key
+    //   PUBLISH_TOKEN         — JetBrains Marketplace permanent upload token
+    // Then: ./gradlew signPlugin && ./gradlew publishPlugin
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
     }
 }
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("prepareSandbox") {
+    // Build the CLI distribution from the composite-included root build first.
+    dependsOn(gradle.includedBuild("compose-hot-reload").task(":cli:installDist"))
+
+    // Copy the installDist output tree (bin/ + lib/) into <sandbox>/plugins/<pluginName>/cli/
+    from(layout.projectDirectory.dir("../cli/build/install/cli")) {
+        into("${pluginName.get()}/cli")
+    }
 }

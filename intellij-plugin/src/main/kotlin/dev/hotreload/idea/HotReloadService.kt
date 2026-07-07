@@ -4,14 +4,17 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.OSProcessHandler
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessListener
+import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.wm.WindowManager
 import java.nio.file.Files
 import java.nio.file.Path
@@ -150,19 +153,18 @@ class HotReloadService(private val project: Project) : Disposable {
     private class ConfigError(message: String) : Exception(message)
 
     private fun buildCommand(s: HotReloadSettings.State): GeneralCommandLine {
-        val launcher = s.cliLauncherPath.trim()
-        if (launcher.isEmpty()) {
-            throw ConfigError("CLI launcher path is not set — run `./gradlew :cli:installDist` and point Settings › Compose Hot Reload at …/cli/build/install/cli/bin/cli")
-        }
-        if (!Files.isRegularFile(Path.of(launcher))) {
-            throw ConfigError("CLI launcher not found: $launcher")
-        }
+        val launcher = resolveLauncher(s)
         val projectDir = s.projectDir.ifBlank { project.basePath ?: "" }
         if (projectDir.isBlank()) throw ConfigError("project dir is not set and the IDE project has no base path")
         if (s.appId.isBlank()) throw ConfigError("application id is not set")
 
-        val cmd = GeneralCommandLine(launcher).apply {
+        val cmd = GeneralCommandLine(launcher.toString()).apply {
             withWorkDirectory(projectDir)
+            // The installDist launcher runs `$JAVA_HOME/bin/java`. A GUI-launched IDE usually has no
+            // JAVA_HOME in its env (T26 gotcha: the CLI then dies "Unable to locate a Java Runtime"),
+            // so point the child at the IDE's own bundled JBR — always present, and a valid JDK for
+            // the CLI JVM and the target project's Gradle daemon (JBR matches the pinned toolchain).
+            withEnvironment("JAVA_HOME", System.getProperty("java.home"))
             addParameters("watch", "--project", projectDir, "--app-id", s.appId.trim())
             val modules = s.modules.trim().ifBlank { "app" }
             addParameters("--module", modules)
@@ -171,6 +173,44 @@ class HotReloadService(private val project: Project) : Disposable {
                 ?.split(Regex("\\s+"))?.let { addParameters(it) }
         }
         return cmd
+    }
+
+    /**
+     * Resolve the CLI launcher to spawn. A non-blank Settings path is an explicit override (kept for
+     * devs pointing at a local `:cli:installDist`); otherwise use the CLI bundled inside the plugin
+     * (T31 Part 2) so a Marketplace user needs no repo clone.
+     */
+    private fun resolveLauncher(s: HotReloadSettings.State): Path {
+        val override = s.cliLauncherPath.trim()
+        if (override.isNotEmpty()) {
+            val p = Path.of(override)
+            if (!Files.isRegularFile(p)) throw ConfigError("CLI launcher not found: $override")
+            return p
+        }
+        val bundled = bundledLauncher()
+            ?: throw ConfigError(
+                "No CLI launcher is set and none is bundled with this plugin build. Set " +
+                    "Settings › Tools › Compose Hot Reload › CLI launcher to a " +
+                    "…/cli/build/install/cli/bin/cli produced by `./gradlew :cli:installDist`.",
+            )
+        if (!Files.isRegularFile(bundled)) {
+            throw ConfigError("bundled CLI launcher missing at $bundled — the plugin build may not have packaged the CLI")
+        }
+        // The Unix launcher can lose its executable bit when the plugin zip is unpacked on install;
+        // restore it so GeneralCommandLine can exec it directly (no-op on Windows / if already set).
+        val file = bundled.toFile()
+        if (!SystemInfo.isWindows && !file.canExecute()) file.setExecutable(true)
+        return bundled
+    }
+
+    /**
+     * Path to the CLI launcher packaged inside this plugin's install dir (`<pluginDir>/cli/bin/cli`,
+     * `cli.bat` on Windows). Null if this plugin path can't be resolved — an override must then be set.
+     */
+    private fun bundledLauncher(): Path? {
+        val pluginPath = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.pluginPath ?: return null
+        val binName = if (SystemInfo.isWindows) "cli.bat" else "cli"
+        return pluginPath.resolve("cli").resolve("bin").resolve(binName)
     }
 
     private fun balloon(title: String, content: String, type: NotificationType) {
@@ -186,6 +226,8 @@ class HotReloadService(private val project: Project) : Disposable {
 
     companion object {
         const val NOTIFICATION_GROUP = "Compose Hot Reload"
+        /** Must match `<id>` in META-INF/plugin.xml — used to find the plugin's own install dir. */
+        private const val PLUGIN_ID = "dev.hotreload.intellij"
         private val LOG = logger<HotReloadService>()
         fun getInstance(project: Project): HotReloadService = project.service()
     }
