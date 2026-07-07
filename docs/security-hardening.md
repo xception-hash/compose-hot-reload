@@ -43,6 +43,13 @@ shell), or root (0). Reject anything else before reading a single frame, with a 
 log line naming the rejected uid. This is the standard fix for the abstract-socket
 class of bug (the old Stetho/WebView-devtools pattern).
 
+> **Verified 2026-07-07 on the pinned emulator (API 36):** a `LocalServerSocket` in the
+> abstract namespace, reached via `adb forward tcp:0 localabstract:...` exactly as the
+> engine does, reports `getPeerCredentials().uid == 2000` (shell). So the engine/CLI
+> path — the only legitimate client — lands squarely inside the allowlist, and the
+> proposed check does **not** break it. adbd forwards as shell regardless of the uid the
+> server process runs as, so this holds for the real app-uid server too.
+
 **2. Debuggable-only guard in `HotReloadInitializer`.** Bail (loud log, server never
 constructed) unless `applicationInfo.flags` has `FLAG_DEBUGGABLE`. Belt-and-braces on
 top of `debugImplementation` wiring — protects against release-classpath mistakes and
