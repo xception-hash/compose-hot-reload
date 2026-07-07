@@ -14,3 +14,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "hotreload-intellij-plugin"
+
+// Wire the root compose-hot-reload build so we can depend on :cli:installDist
+// and bundle the CLI distribution inside the plugin zip.
+includeBuild("..")
