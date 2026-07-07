@@ -67,11 +67,11 @@ dependencyResolutionManagement {
 In your **app** `build.gradle.kts`:
 ```kotlin
 plugins {
-    id("dev.hotreload") version "v0.1.0"
+    id("dev.hotreload") version "0.1.0"
 }
 ```
 
-The plugin automatically adds the runtime-client AAR (`com.github.xception-hash.compose-hot-reload:runtime-client:v0.1.0`) to your debug build — no manual dependency needed.
+The plugin automatically adds the runtime-client AAR (`com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0`) to your debug build — no manual dependency needed.
 
 ### b) Build and install
 
@@ -188,7 +188,7 @@ See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 - `tasks/` — Task specifications and progress tracking.
 
 ## 8. Status
-**v0.1.0 — first public release.** Hot reload supports single-module and multi-module applications, resource edits, the AOSP LiveEdit interpreter for structural changes, and composable signature changes via lambda proxies. See the [Project Plan](docs/PLAN.md) for future milestones.
+**0.1.0 — first public release.** Hot reload supports single-module and multi-module applications, resource edits, the AOSP LiveEdit interpreter for structural changes, and composable signature changes via lambda proxies. See the [Project Plan](docs/PLAN.md) for future milestones.
 
 ## 9. Troubleshooting
 If hot reload fails to connect or experience issues on device, run `hotreload doctor` to verify your environment, SDK toolchain, device status, project configuration, and runtime handshake:
