@@ -1,6 +1,20 @@
 # T29: Release v0.1 — docs polish, license audit, versioning, publish
-Status: IN-REVIEW
+Status: DONE (2026-07-07)
 Assignee: agy + maintainer (Opus reviews)
+
+## Outcome (2026-07-07) — v0.1.0 SHIPPED, all acceptance met
+- CI green on release commit 5a7cf2a (15-case e2e). Clean-clone README quickstart verified live on
+  emulator-5554 (bundled sample, leaf edit hot-reloaded, state preserved).
+- `git tag 0.1.0` pushed; GitHub Release created with plugin zip attached
+  (https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.0).
+- Repo made public (secret scan clean). JitPack build GREEN (1m9s): NDK available on their builder,
+  `install:` cmds published runtime-client(.aar)+gradle-plugin(.jar)+marker under
+  `com.github.xception-hash.compose-hot-reload:*:0.1.0`; scratch Gradle project resolved the jar
+  through the JitPack repo for real. **JitPack cache gotcha:** after making the repo public the owner
+  had to click "Get it" in a signed-in browser to force the first build + public flip (raw curls kept
+  401ing on JitPack's stale private-cache).
+- Known doc gap (deferred, not a blocker): README Quickstart has no "try the bundled sample" on-ramp
+  for new users — candidate for a quick README add / T30 doc item.
 
 ## Goal
 Ship the first public release. The product is functionally complete (T21–T28; e2e 15/15).
