@@ -33,6 +33,23 @@ It leverages a custom JVMTI agent attached to debuggable apps to perform class r
 
 ## 3. Quickstart
 
+### Try it on the bundled sample (fastest way to see it work)
+Want to see hot reload before wiring it into your own app? This repo ships a ready-to-go sample
+(`samples/single-module`, app id `dev.hotreload.sample`) that already applies the plugin. With an
+API 30+ emulator/device running:
+```bash
+git clone https://github.com/xception-hash/compose-hot-reload.git
+cd compose-hot-reload
+source scripts/env.sh                                   # sets JAVA_HOME (JBR) etc.
+(cd samples/single-module && ./gradlew :app:installDebug)
+adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1
+./gradlew -q :cli:run --args="watch --project $PWD/samples/single-module --app-id dev.hotreload.sample"
+```
+Now edit any composable in
+`samples/single-module/app/src/main/kotlin/dev/hotreload/sample/MainActivity.kt` (e.g. change the
+`Greeting()` text), save, and watch the device update in ~1s with the on-screen counter state
+preserved. To add hot reload to **your own** app instead, follow a)–c) below.
+
 ### a) Add the JitPack repository and plugin dependency
 
 In your **root** `settings.gradle.kts`:
