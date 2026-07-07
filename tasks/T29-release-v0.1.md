@@ -1,9 +1,9 @@
 # T29: Release v0.1 — docs polish, license audit, versioning, publish
-Status: TODO
+Status: IN-REVIEW
 Assignee: agy + maintainer (Opus reviews)
 
 ## Goal
-Ship the first public release. The product is functionally complete (T21–T27; e2e 14/14).
+Ship the first public release. The product is functionally complete (T21–T28; e2e 15/15).
 This task is packaging + polish only — NO engine/runtime code changes. Anything that looks like
 a product bug found along the way goes into a new task file, not fixed inline here.
 
@@ -16,15 +16,18 @@ a product bug found along the way goes into a new task file, not fixed inline he
   Compose BOM 2026.06.01, NDK 28.2.13676358, build-tools 36.0.0, JBR as JAVA_HOME, API 30+
   debuggable) → apply gradle plugin → `hotreload watch` → first edit. Must match what
   `scripts/env.sh` pins — do not invent versions.
-- Limitations section, explicitly including: composable signature changes fall back to rebuild
-  until T28 lands; `<clinit>`/constructor edits rebuild; debuggable builds only; min API 30;
-  compiled-callee exceptions skip interpreted try/catch (research §5).
+- Limitations section, explicitly including (T28 has LANDED — sig changes are NO LONGER a
+  limitation; do not write "until T28"): `<clinit>`/constructor edits rebuild; composeKey
+  renumber rebuilds; field removal rebuilds; debuggable builds only; min API 30; compiled-callee
+  exceptions skip interpreted try/catch (research §5). Note that @Composable signature changes
+  now hot-reload via lambda proxies (T28) but may reset the enclosing subtree's remember state
+  (parent invalidate) — document this behavior, not as a rebuild fallback.
 - IDE plugin section: what it does (spawns CLI, status widget), where the zip comes from (§4).
 
 ### 2 (agy, maintainer reviews) — LICENSE + NOTICE audit
 - Root `LICENSE`: confirm present + correct for OUR code (repo is Apache-2.0).
 - `NOTICE`: already attributes interp.dex / interpreter_jni.cpp / StubTransform (T27 step 8).
-  Extend for T28 artifacts once merged (generated Proxies.java, LambdaGenerator usage) — the
+  T28 has merged — extend NOW for T28 artifacts (generated Proxies.java, LambdaGenerator usage) — the
   ported-file inventory = `third_party/PINNED.txt` + every file with an AOSP copyright header:
   `grep -rl "Android Open Source Project" --include=*.kt --include=*.java --include=*.cpp \
    engine/ runtime-client/ scripts/` — every hit must be listed in NOTICE.
@@ -36,22 +39,57 @@ a product bug found along the way goes into a new task file, not fixed inline he
   if published, `intellij-plugin` (already 0.1.0 — its zip name proves it). Grep for stray
   `0.0.1`/`SNAPSHOT`.
 
-### 4 (maintainer decides, agy executes) — publish path
-- **Recommended for v1: JitPack or GitHub Packages** (no Sonatype account friction; Maven
-  Central can be v0.2). the maintainer decides; whatever is picked, the README quickstart must reference
-  the real coordinates.
-- Artifacts: gradle-plugin (plugin marker + jar), runtime-client AAR. Publish from a tagged
-  commit.
-- IDE plugin: attach `hotreload-intellij-plugin-0.1.0.zip` (built by
-  `cd intellij-plugin && ./gradlew buildPlugin`) to a GitHub Release. Marketplace publishing is
-  OUT of scope (stretch).
-- Tag `v0.1.0`, GitHub Release notes = README feature matrix + limitations.
+### 4 (agy configures, maintainer tags/publishes) — publish path: JitPack (DECIDED 2026-07-07)
+- **JitPack chosen** (no Sonatype/token friction; Maven Central deferred to v0.2). agy tasks:
+  - Add `jitpack.yml` at repo root pinning the JDK to the Android Studio JBR major version
+    (JitPack builds on a tag) — see `scripts/env.sh` for the JBR.
+  - Ensure each published module (gradle-plugin, runtime-client AAR) applies `maven-publish` with
+    a `publishing {}` block JitPack can drive (groupId can stay the JitPack default
+    `com.github.xception-hash.compose-hot-reload`; no credentials).
+  - README quickstart references the REAL JitPack coordinates:
+    repo `maven { url "https://jitpack.io" }` +
+    `com.github.xception-hash.compose-hot-reload:<module>:v0.1.0`.
+- **the maintainer-only (do NOT attempt headless):** tag `v0.1.0`, push tag, create the GitHub Release,
+  attach `hotreload-intellij-plugin-0.1.0.zip` (built by `cd intellij-plugin && ./gradlew
+  buildPlugin`), verify the JitPack build resolves from a scratch project. Marketplace publishing
+  is OUT of scope. Release notes = README feature matrix + limitations.
 
 ## Out of scope
 Engine/runtime/classifier changes; T28; marketplace; Maven Central.
 
+## Review notes (Opus, 2026-07-07) — agy pass reviewed
+Fixed during review (verified):
+- `runtime-client/lib/build.gradle.kts` — agy added a top-level `publishing` publication using
+  `components["release"]` but not the AGP-side `android { publishing { singleVariant("release") } }`,
+  so `publishReleasePublicationToMavenLocal` failed ("SoftwareComponent 'release' not found").
+  Added the variant; dry-run now BUILD SUCCESSFUL.
+- `README.md` quickstart — `dependencyResolution` typo → `dependencyResolutionManagement`; plugin-id
+  mismatch (`gradlePlugin{}` declares `id = "dev.hotreload"`, README applied a com.github id). Fixed
+  to apply `id("dev.hotreload")` + a pluginManagement `resolutionStrategy.eachPlugin` mapping that
+  id to the JitPack module. `jitpack.yml` jdk 21 confirmed correct (JBR = openjdk 21).
+
+### KNOWN BLOCKER — runtime-client auto-add coordinate (needs the maintainer's JitPack test)
+`HotReloadPlugin.kt:59` injects `debugImplementation("dev.hotreload:runtime-client:0.1")`. This
+works for **local e2e** only because the samples `includeBuild("../../runtime-client")` and Gradle
+composite substitution matches on group:artifact (`dev.hotreload:runtime-client`), ignoring version
+— which is why e2e is green with the stale `0.1`. But a **published JitPack consumer** cannot
+resolve `dev.hotreload:runtime-client`; JitPack serves it as
+`com.github.xception-hash.compose-hot-reload:runtime-client:<tag>` (which is what README line ~65
+already promises the plugin adds). NOT fixed inline — changing the coordinate would break the green
+composite-build e2e, and the correct form can only be confirmed by a real JitPack build.
+Recommended coherent fix (apply + validate together, the maintainer decides tag naming):
+1. Set `runtime-client` `group = "com.github.xception-hash.compose-hot-reload"` (aligns composite
+   substitution + JitPack on one group).
+2. Plugin injects `com.github.xception-hash.compose-hot-reload:runtime-client:<version>`.
+3. Tag naming: JitPack version == the git tag verbatim. If plugin hardcodes `0.1.0`, tag `0.1.0`
+   (no `v`) and make README coordinates match; if you keep `v0.1.0`, the plugin must inject `v0.1.0`.
+4. Validate via the acceptance "scratch project resolves" gate BEFORE announcing the release.
+
 ## Acceptance
-- `./e2e/run.sh` green on the release commit (no code changed, so this is a sanity gate).
+> agy (headless) runs ONLY the NOTICE-grep check below and confirms the version grep is clean.
+> The e2e run, clean-clone, and tag/release gates are DEVICE/manual — the maintainer runs them. agy must
+> NOT attempt `./e2e/run.sh`, `git tag`, or any publish/network command.
+- `./e2e/run.sh` green on the release commit (no code changed, so this is a sanity gate). [MAINTAINER]
 - A **clean clone** on the pinned toolchain, following ONLY the README quickstart, reaches a
   working hot-reload session (the maintainer runs this by hand — the quickstart must not assume repo
   scripts knowledge).

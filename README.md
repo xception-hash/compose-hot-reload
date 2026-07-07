@@ -6,47 +6,94 @@ A Flutter-style hot reload for Jetpack Compose on real Android devices and emula
 ### How it works
 It leverages a custom JVMTI agent attached to debuggable apps to perform class redefinition in place (including ART's structural redefinition for added methods/fields), and injects brand-new classes into the app's own classloader via ART's `add_to_dex_class_loader` JVMTI extension. When code changes, the engine compiles and dexes just the diff, pushes the patched dex bytes to the device, and uses reflection into Compose internals (`invalidateGroupsWithKey`) to trigger targeted recomposition.
 
+### Feature matrix
+
+| Edit type | Mechanism | Latency |
+|---|---|---|
+| Constant literal (color, dp, string in code) | Live Literals patch over socket | ~22 ms |
+| Composable/function body change | JVMTI `RedefineClasses` + `invalidateGroupsWithKey` | <1 s |
+| New composable/function/field in existing class | Structural redefinition (API 30+) + recompose | <1 s |
+| New class / changed lambda | Inject new dex via `InMemoryDexClassLoader` + redefine call sites | <1 s |
+| Resource value edit (`res/values/*.xml` string/color) | `ResourcesLoader` overlay + whole-tree recompose | ~2 s |
+| Vector/bitmap drawable edit (`res/drawable*/*.xml`, `.png`, `.webp`) | `ResourcesLoader` overlay + Compose asset-cache clear + recompose | ~1–2.5 s |
+| Member removal / class hierarchy change | AOSP LiveEdit bytecode interpreter on-device (same process, state preserved) | ~1.5 s |
+| `@Composable` signature change (params added/removed) | Interpreter + AOSP lambda proxies: regenerated restart lambda ships as support class, proxy-constructed on device | ~1–4 s |
+
 ## 2. Requirements
 - **Device**: API 30+ (Android 11+) emulator or physical device via adb
 - **Build**: Debuggable build variant only
-- **Pinned Toolchain**: 
+- **Pinned Toolchain**:
   - Kotlin 2.4.0
   - Android Gradle Plugin (AGP) 9.2.1
   - Gradle 9.6.1
   - Compose BOM 2026.06.01
+  - NDK 28.2.13676358
+  - Build-tools 36.0.0
+  - JBR (JetBrains Runtime from Android Studio) as `JAVA_HOME`
 
 ## 3. Quickstart
-Apply the `dev.hotreload` plugin in your application's `build.gradle.kts`, and make it resolvable in `settings.gradle.kts` (this is how `samples/single-module` is wired):
 
+### a) Add the JitPack repository and plugin dependency
+
+In your **root** `settings.gradle.kts`:
 ```kotlin
-// settings.gradle.kts
 pluginManagement {
-    includeBuild("../../gradle-plugin")
+    repositories {
+        maven { url = uri("https://jitpack.io") }
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+    // The plugin's ID is `dev.hotreload`, but on JitPack it is served under the
+    // repo's coordinates — map the plugin request to the JitPack module.
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "dev.hotreload") {
+                useModule("com.github.xception-hash.compose-hot-reload:gradle-plugin:${requested.version}")
+            }
+        }
+    }
 }
 
-// app/build.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        maven { url = uri("https://jitpack.io") }
+        google()
+        mavenCentral()
+    }
+}
+```
+
+In your **app** `build.gradle.kts`:
+```kotlin
 plugins {
-    id("dev.hotreload")
+    id("dev.hotreload") version "v0.1.0"
 }
 ```
 
-Make sure your emulator is up, then install and launch the sample:
+The plugin automatically adds the runtime-client AAR (`com.github.xception-hash.compose-hot-reload:runtime-client:v0.1.0`) to your debug build — no manual dependency needed.
+
+### b) Build and install
+
+Make sure your emulator/device is up (API 30+, debuggable build):
 ```bash
-(cd samples/single-module && ./gradlew :app:installDebug)
-adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1
+./gradlew :app:installDebug
+adb shell monkey -p <your.app.id> -c android.intent.category.LAUNCHER 1
 ```
 
-Start the hot-reload watcher from the repository root:
+### c) Start the hot-reload watcher
+
+Clone this repository and run from its root:
 ```bash
 source scripts/env.sh   # JAVA_HOME etc.
-./gradlew -q :cli:run --args="watch --project $PWD/samples/single-module --app-id dev.hotreload.sample"
+./gradlew -q :cli:run --args="watch --project /path/to/your/project --app-id <your.app.id>"
 ```
 
-Edit a composable in the sample project, save the file, and watch the UI update on the device instantly.
+Edit a composable, save the file, and watch the UI update on the device instantly.
 
 For multi-module projects, pass `--module` with a comma-separated list of Gradle module names (first entry = app module; nested paths use `/`):
 ```bash
-./gradlew -q :cli:run --args="watch --project $PWD/samples/multi-module --app-id dev.hotreload.multisample --module app,feature,core"
+./gradlew -q :cli:run --args="watch --project /path/to/your/project --app-id <your.app.id> --module app,feature,core"
 ```
 Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the whole tree with state preserved.
 
@@ -96,27 +143,60 @@ The state-preservation semantics match Android Studio's Live Edit: `invalidateGr
 ### Broken-edit behavior
 If you make a broken edit (like throwing an exception in a composable body), the recomposition error is detected and reported with the source location. The UI will keep the last-good frame running. Once you fix the code and save, the full UI recovers in-place without needing a reinstall.
 
-## 5. Repo layout
+## 5. Limitations
+
+- **`<clinit>` / static-initializer edits** cause a full rebuild (ART cannot re-run class initializers).
+- **Constructor edits** on non-lambda classes cause a full rebuild (existing object instances cannot be re-constructed).
+- **Compose group-key renumbering** (reordering composable calls) causes a full rebuild (the invalidation key map becomes stale).
+- **Field removal / field type change** causes a full rebuild (ART's structural redefinition can only add fields, not remove or retype them).
+- **Debuggable builds only** — ART's JVMTI agent attachment and class redefinition require `android:debuggable="true"`.
+- **Minimum API 30** (Android 11) — structural class redefinition (`RedefineClassesStructurally`) is only available on API 30+.
+- **Compiled-callee exceptions skip interpreted try/catch** — when a class is interpreted and calls a compiled method that throws, the exception propagates through the native call boundary and cannot be caught by the interpreter's try/catch handler (see `docs/phase6-interpreter-research.md` §5).
+- **`@Composable` signature changes hot-reload via lambda proxies** but may reset the enclosing subtree's `remember` state: because the signature change necessarily edits the caller, the parent composable is invalidated and its subtree's `remember`/`rememberSaveable` state resets (parent-invalidate semantics, not a rebuild fallback).
+- **Suspend-lambda constructor changes** cause a full rebuild (suspend continuations have structural constraints the proxy path cannot satisfy).
+
+## 6. IDE plugin
+
+An IntelliJ IDEA / Android Studio plugin is available for driving hot reload from the IDE.
+
+**What it does:**
+- Spawns the `hotreload` CLI (`hotreload watch …`) and reflects its state in the status bar.
+- Status-bar widget shows: `Hot Reload: off / starting… / ready (Nms) / reloading… / error(n) / rebuild needed`. Click it to Start/Stop.
+- **Tools ▸ Start/Stop Hot Reload** menu toggle.
+- **Settings ▸ Tools ▸ Compose Hot Reload** for CLI path, project dir, app id, modules, and extra CLI args (persisted per-project).
+- Balloons on failure: reload error (with first compiler/recompose error) and rebuild-required notice.
+
+**Install from disk:**
+Build the plugin zip:
+```bash
+cd intellij-plugin && ./gradlew buildPlugin
+```
+This produces `build/distributions/hotreload-intellij-plugin-0.1.0.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
+
+See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
+
+## 7. Repo layout
 - `protocol/` — Shared message definitions and binary protocol.
 - `runtime-client/` — Android AAR injected into apps: startup init, JVMTI agent `.so`, socket server, and Compose bridge shims.
 - `engine/` — JVM library: orchestrator for watcher, Gradle compiler, class diffing, D8 dexing, and client protocol.
 - `cli/` — Thin CLI wrapper around the engine.
 - `gradle-plugin/` — Gradle plugin that wires the runtime-client into debug builds and sets compiler flags.
-- `samples/` — Example apps (currently a single-module sample).
+- `intellij-plugin/` — IntelliJ IDEA / Android Studio plugin (status bar widget, CLI spawner).
+- `samples/` — Example apps (single-module and multi-module).
 - `e2e/` — Scripted emulator end-to-end tests.
 - `docs/` — Project plan, findings, and architectural notes.
 - `tasks/` — Task specifications and progress tracking.
 
-## 6. Status
-**Experimental.** Hot reload currently only supports single-module applications. For future milestones, multi-module support, and IDE integration, see the [Project Plan](docs/PLAN.md) phases.
+## 8. Status
+**v0.1.0 — first public release.** Hot reload supports single-module and multi-module applications, resource edits, the AOSP LiveEdit interpreter for structural changes, and composable signature changes via lambda proxies. See the [Project Plan](docs/PLAN.md) for future milestones.
 
-## 7. Troubleshooting
+## 9. Troubleshooting
 If hot reload fails to connect or experience issues on device, run `hotreload doctor` to verify your environment, SDK toolchain, device status, project configuration, and runtime handshake:
 ```bash
 ./gradlew -q :cli:run --args="doctor --project $PWD/samples/single-module --app-id dev.hotreload.sample"
 ```
 
-## 8. Live-literals fast path (experimental, opt-in)
+## 10. Live-literals fast path (experimental, opt-in)
 Editing only a constant inside a composable — a plain string, number, boolean, or char — can skip Gradle + d8 + class redefinition entirely and push the new value straight into Compose's live-literals mechanism, for a sub-100ms update. It is **off by default** because the Compose compiler's live-literals instrumentation adds overhead to debug builds.
 
 To use it, build the app with the property and watch with `--literals`:
