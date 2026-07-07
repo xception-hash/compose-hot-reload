@@ -32,6 +32,12 @@ is the last line; this catches the mistake at build time with a clear message.
   and match on group `com.github.xception-hash.compose-hot-reload` + name `runtime-client`. If the
   app never adds it to release (the plugin doesn't), a hand-added `implementation`/`releaseImplementation`
   is exactly what this must catch → `GradleException`.
+- Reference only (do NOT copy verbatim): Gemini's `hardened_HotReloadPlugin.kt` (path in
+  docs/security-hardening.md triage section) sketches the same tripwire, but uses name-based
+  `RuntimeClasspath && !debug` matching (false-positives on custom debuggable build types — use the
+  variant-API `debuggable` check per this spec), `configurations.forEach` at afterEvaluate (misses
+  late-registered configs — `configureEach`), and strips every doc comment. Its
+  `resolutionResult.allComponents` group/name match is the one usable snippet.
 - **Judgment flag (surface, don't guess):** fail-hard vs warn is a UX call. Default to
   `GradleException` (fail) — the plan says "fail (or at minimum warn loudly)". If the variant-API
   walk proves flaky across AGP 9.2.1 configuration timing, downgrade to a loud `project.logger.error`
@@ -104,10 +110,16 @@ Cheap CI supply-chain hardening on `.github/workflows/e2e.yml` (and any new work
   step's implicit needs suffice; if `upload-artifact` complains, scope `actions: write` on that job
   only, don't widen the top level).
 - Pin every third-party action by full commit SHA (not the floating tag), with the tag in a trailing
-  comment. Current tags to pin: `actions/checkout@v4`, `actions/setup-java@v4`,
-  `android-actions/setup-android@v3`, `gradle/actions/setup-gradle@v4`,
-  `reactivecircus/android-emulator-runner@v2`, `actions/upload-artifact@v4`. Look each SHA up from
-  the action's release for that tag.
+  comment. **Use EXACTLY these SHAs — each verified against upstream tags via `gh api` on 2026-07-07
+  (= what the current floating tag resolves to, so zero behavior change). Do NOT generate or "recall"
+  a SHA: Gemini's review fabricated 4 of 6 (see docs/security-hardening.md triage section). If you
+  must change one, re-verify with `gh api repos/<action>/tags` first.**
+  - `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683` # v4.2.2
+  - `actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9` # v4.8.0
+  - `android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407` # v3.2.2
+  - `gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1` # v4.4.4
+  - `reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d` # v2.38.0
+  - `actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08` # v4.6.0
 - Never introduce `pull_request_target` with secrets (none exists today — just don't add one).
 - Also fix the stale header comment: e2e.yml line 3 says "5 cases"; the suite is now 16
   (`e2e/run.sh`). One-line doc fix while you're in the file.
@@ -121,6 +133,8 @@ One page at repo root. Content, all already written — assemble, don't invent:
   code injection into your own debug app is the product; authentication is the control, not bytecode
   validation). Condense the doc's prose — link to `docs/security-hardening.md` for the full model.
 - Supported versions: 0.1.x (current).
+- One sentence scoping `spike/` (incl. the toy app's exported PatchReceiver) as dev-only
+  scaffolding — never shipped, never install the toy app on a non-dev device.
 - Private report channel: GitHub private vulnerability reporting (Security tab → "Report a
   vulnerability") — the standard OSS default; name it explicitly.
 - Acceptance: `SECURITY.md` renders on GitHub and the "Report a vulnerability" link/text is correct

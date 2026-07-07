@@ -110,5 +110,19 @@ now; note it so it isn't forgotten when Phase 4 publishing lands.
   to be written) — mechanical Gradle/CI/docs work with exact acceptance commands.
 - **P1 item 4:** delegable once P0 lands (tests describe fixed behavior).
 
+## External review triage (Gemini/Antigravity, 2026-07-07)
+
+Gemini produced 4 "hardened" file rewrites
+(`~/.gemini/antigravity-cli/brain/88968d60-e25f-4b28-985f-506997262921/`). Triage verdict
+(Claude, verified by diff against HEAD + `gh api` SHA checks): **nothing new found** — every
+valid point was already in this doc/T32 — and 2 of 4 files would break working functionality.
+
+| File | Verdict |
+|---|---|
+| `hardened_e2e.yml` | Concept = P2 item 7 (already planned). **4 of its 6 pinned action SHAs are fabricated** (don't exist upstream; the setup-java one shares a 21-char prefix with the real v4.7.0 SHA then diverges). Verified-correct SHAs are now baked into T32 item 4 — use those, never a model-supplied SHA unverified. |
+| `hardened_HotReloadPlugin.kt` | Concept = P1 item 3 (already planned). Weaker than the T32 item 1 spec (name-based config match, `forEach` not `configureEach`, strips all doc comments). Reference only. |
+| `hardened_ResourceSwapper.kt` | **Rejected — breaks resource swap twice**: `chmod 700` on the shell-owned staging dir denies the app-uid `run-as cp`; `adb push` into the pre-created dir nests the payload a level deeper. Its Zip Slip guard already exists in `extractOverlay`. Threat premise moot (app's own public resources; SELinux blocks untrusted_app on shell_data_file). |
+| `hardened_PatchReceiver.kt` | **Rejected — dev-only spike, breaks it**: the exported receiver IS the adb-broadcast transport; `cacheDir` reads kill `adb push` delivery and its handshake token is never written by anything → all spike scripts fail. Shipped path (PatchServer) is P0-hardened. Salvage: SECURITY.md scopes `spike/` as dev scaffolding (T32 item 5). |
+
 Related: docs/PLAN.md Phase 4 (robustness hardening — separate track),
 tasks/T30-robustness-leftovers.md.
