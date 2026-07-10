@@ -41,6 +41,7 @@ android {
 
 dependencies {
     implementation("androidx.startup:startup-runtime:1.2.0")
+    testImplementation("junit:junit:4.13.2")
 }
 
 afterEvaluate {

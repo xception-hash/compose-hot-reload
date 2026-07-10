@@ -1,6 +1,7 @@
 package dev.hotreload.gradle
 
 import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.GradleException
@@ -73,6 +74,39 @@ class HotReloadPlugin : Plugin<Project> {
                     ) + classShapeFlags + liveLiteralsFlags,
                 )
             ) flagsApplied = true
+
+            // Release-variant tripwire (T32 item 1): defense-in-depth on top of the
+            // debugImplementation wiring above and the AAR's own runtime debuggable-guard
+            // (the last line). If runtime-client ever lands on a NON-debuggable variant's
+            // runtime classpath — a hand-added `implementation`/`releaseImplementation` is
+            // exactly the mistake this catches — fail configuration with a clear message
+            // rather than ship the arbitrary-code injection surface in a release build.
+            //
+            // Uses the AGP variant API: `onVariants` (configureEach-style — sees late
+            // variants, unlike a `configurations.forEach` at afterEvaluate) and the
+            // variant-API `debuggable` boolean (NOT a name-based `!debug` match, which
+            // false-positives on custom debuggable build types). Inspects the variant's
+            // declared runtime dependencies (no resolution) by group + name.
+            val androidComponents =
+                project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
+            androidComponents.onVariants { variant ->
+                if (variant.debuggable) return@onVariants
+                val onReleaseClasspath = variant.runtimeConfiguration.allDependencies.any {
+                    it.group == "com.github.xception-hash.compose-hot-reload" &&
+                        it.name == "runtime-client"
+                }
+                if (onReleaseClasspath) {
+                    throw GradleException(
+                        "The dev.hotreload plugin on project '${project.path}' found " +
+                            "com.github.xception-hash.compose-hot-reload:runtime-client on the " +
+                            "runtime classpath of the non-debuggable variant '${variant.name}'. " +
+                            "The hot-reload runtime opens an on-device code-injection surface and " +
+                            "must never ship in a release/non-debuggable build. Remove the " +
+                            "runtime-client dependency from this variant — the plugin already adds " +
+                            "it as `debugImplementation` for debuggable variants only."
+                    )
+                }
+            }
         }
 
         // Library and pure-JVM modules: class-shape flags only, no device runtime.
