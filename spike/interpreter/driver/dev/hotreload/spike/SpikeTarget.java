@@ -22,4 +22,9 @@ public class SpikeTarget {
     public static String parse(String s) {
         return "v1";
     }
+
+    // v1 — no synchronized block; v2's interpreted override wraps the computation in one.
+    public static int lockedCompute(int n) {
+        return n;
+    }
 }

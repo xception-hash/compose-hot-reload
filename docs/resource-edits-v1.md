@@ -219,3 +219,44 @@ Scope notes:
 - ~~Drawables / decoded assets still need a reinstall~~ — **DONE in v2** (see above).
 - ~~Multi-module resources~~ — **DONE** (multi-module design, commit 8246b9b): the guard
   unions `(type,name)` across all module res roots; e2e `run-multi.sh` case 4 covers it.
+- **`ImageBitmap.imageResource()` call sites (T30 item 3).** T23's fix bashes the specific
+  `startReplaceGroup` that wraps `painterResource`'s bitmap branch; a direct
+  `ImageBitmap.imageResource()` call has no branch group of its own — its `remember` is
+  intrinsic to the call site, not wrapped in a keyed group — so there is nothing for
+  `PainterKeyExtractor`'s key to target and such edits stay stale on device. Candidate
+  future mechanism: a tier-2 `HotReloader` reset (state-lossy, broader than a group-key
+  bash) fired on batches that touch these edits instead of the group-key path. The blocker
+  is knowing *when* a batch needs it — that requires a call-site scan of the edited/affected
+  sources to tell `imageResource` calls apart from `painterResource` calls, which is out of
+  scope here.
+- **`.jpg`/nine-patch/font coverage (T30 item 4, 2026-07-10, all three live-verified on
+  emulator-5554).** (a) `.jpg`/`.jpeg`: **supported**, one-line extension-allowlist extension
+  of the existing bitmap path — added to `SourceWatcher`'s watch filter, `WatchSession`'s
+  `pendingBitmapSwap` trigger and `isResourceFile` guard scan (now a shared
+  `BITMAP_EXTENSIONS` set), plus doc comments in `ResourceSwapper`/`PainterKeyExtractor`. No
+  other change: the overlay build already ships the whole `res/` tree regardless of
+  extension, and `PainterKeyExtractor`'s bashed group key is format-agnostic. Verified: blue
+  jpg → red jpg swap, `bitmap-invalidated:` + `resource-swapped:` lines, on-device pixel
+  `#2196F3` → `#FE0000` (JPEG lossy rounding of `#FF0000`, expected). Same save also
+  regression-checked the T30 item 1 MONITORENTER guard (batch: remove a private helper +
+  add a `synchronized` block) → `cannot hot-swap: ...MainActivityKt: synchronized block in
+  locked()I — interpreted monitorenter aborts under CheckJNI`, app stayed alive, same PID.
+  (b) Nine-patch (`.9.png`): **not supported, and not fixable in the overlay pipeline** —
+  `Path.extension` of `foo.9.png` is already `png` so it was never excluded by the watcher,
+  and `aapt2`/`assembleDebug` compiles a hand-built valid 9-patch source fine (reinstall with
+  the resource present succeeded). The failure is one layer up, in Compose itself: fresh
+  install (no hot reload in the loop at all) throws
+  `androidx.compose.ui.res.ResourceResolutionException` wrapping
+  `java.lang.ClassCastException: android.graphics.drawable.NinePatchDrawable cannot be cast
+  to android.graphics.drawable.BitmapDrawable` from
+  `ImageResources_androidKt.imageResource` — `painterResource()`'s bitmap branch hard-casts
+  to `BitmapDrawable`, and aapt2's compiled 9-patch output is a `NinePatchDrawable`, a
+  sibling type, not a subtype. No engine change attempted (per the T30 spec's own "don't sink
+  time into aapt2 integration" guidance — moot anyway, since the blocker isn't aapt2).
+  (c) Fonts (`res/font/*.ttf`): **not supported, as expected** — but the actual behavior is
+  stricter than "prints the ignored message": `SourceWatcher`'s `DirectoryWatcher` listener
+  gates on extension (`kt`/`xml`/`png`/`webp`/`jpg`/`jpeg`) *before* adding the path to the
+  debounced batch, so a `.ttf` create/write event never reaches `onBatch` at all — no
+  `changed:` line, no `ignored (...)` line, nothing prints. Verified live: appended a byte to
+  a `res/font/*.ttf` file while watching, zero log lines, app PID unchanged. A full reinstall
+  is required for font changes.

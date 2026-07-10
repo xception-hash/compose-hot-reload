@@ -251,6 +251,16 @@ LambdaGenerator/Proxies codegen, `RiskyChange` UX.
   tests only cover throw+catch inside interpreted code (`TestException.java`). Spike asserts the
   escape explicitly (`parseX=escaped:NumberFormatException`). Candidate one-line-class fix in our
   copy: try `exceptionCaught(...)` (real `instanceOf`) before the sneaky rethrow — decide in T27.
+  **DECIDED 2026-07-10 (T30 item 2): NOT applied — permanent v1 limitation.** Rationale: the
+  failure is loud + recoverable (recompose error reported with source location, last-good frame
+  stays up, fix-and-save or the next rebuild restores full compiled semantics — matches the
+  report + fix-and-save policy), and the interpreted window is temporary by design. The fix would
+  fork exception routing in vendored AOSP code — a subtle bug class (handler-range lookup,
+  `finally` compiled as catch-all handlers, monitor cleanup on unwind) that upstream has zero
+  test coverage for (`TestException.java` only covers interpreted throw+catch) and our spike
+  would guard with a single assert; the patch would also need re-carrying on every future AOSP
+  sync. README documents the limitation (§5 Limitations). Revisit only if a real-world report
+  shows this biting more than the loud-error path suggests.
 - `<clinit>` edits unsupported (skipped by the transform).
 - `super.<init>(...)` inside interpreted ctor bodies unsupported (`AndroidEval.invokeSpecial`:
   "Unable to do super.<init>") — interpreted `<init>` only via `Constructor.newInstance` of an
@@ -261,6 +271,23 @@ LambdaGenerator/Proxies codegen, `RiskyChange` UX.
   timestamps); per-eval cost after warm-up is single-digit ms for these small bodies. Fine for
   "run the edited composable until next rebuild"; recursion-heavy bodies will be visibly slower
   (each nested interpreted call re-enters `interpreterLoop`).
+- **2026-07-10 (T30 item 1, spike-verified live on emulator-5554):** (a) `super.toString()` in
+  an interpreted body — `invokespecialL` and the unbox path — works: verified against a real
+  instance (interpreted override returned `v2super:` + the identical identity string as the
+  compiled call). The spike harness previously could not reach ANY of the 12 JNI natives (they
+  bind via `RegisterNatives`, and standalone `spike/toy-app` had no registration entry point);
+  closed by compiling `interpreter_jni.cpp` verbatim into the toy `.so` + a toy-mangled bridge
+  symbol, so the spike now registers natives exactly like production `LiveEditInterp`.
+  (b) `synchronized` BLOCKS in interpreted bodies are **fatal, not merely unsupported**:
+  CheckJNI (force-enabled on every debuggable app — `Late-enabling -Xcheck:jni`) aborts the
+  process (`JNI DETECTED ERROR ... Still holding a locked object on JNI end`,
+  `JNIEnvExt::CheckNoHeldMonitors`) the moment `JNI.enterMonitor` returns while holding the
+  monitor it just acquired — inherent to the AOSP jni_dispatch design, not our port. Guard
+  landed engine-side (T30): FactsExtractor records MONITORENTER methods and `Classifier.plan()`
+  demotes any interpret/support-bound batch containing one to Rebuild. `synchronized` METHODS
+  are unaffected (ART acquires their monitor on the real frame, no JNI round-trip). Spike
+  asserts the abort as documented behavior (`run.sh`, same philosophy as the `parseX` escape
+  assert).
 
 **Task breakdown → `tasks/T27-interpreter-port.md`** (write from this doc): (1) agent natives,
 (2) interp.dex build integration (reuse spike build.sh), (3) host StubTransform + tests,

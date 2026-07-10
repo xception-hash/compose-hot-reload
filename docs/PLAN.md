@@ -12,9 +12,9 @@ it here, link it elsewhere.
 | # | Work | Size | Executor |
 |---|---|---|---|
 | 0 | ✅ DONE — commits pushed, CI e2e green (PR #2 merged) | — | the maintainer |
-| 1 | `tasks/T29-release-v0.1.md` — README/license/version/publish + IDE-plugin zip release | 1–2 sessions | agy + the maintainer, Opus reviews |
+| 1 | ✅ DONE 2026-07-07 — `tasks/T29-release-v0.1.md` v0.1.0 tagged, GitHub Release, JitPack resolvable | — | done |
 | 2 | ✅ DONE 2026-07-06 — `tasks/T28-proxies-codegen.md` all 5 steps; checkpoints A/B/C + e2e case 15 validated live (Fable) | — | done |
-| 3 | `tasks/T30-robustness-leftovers.md` — jni spike checkpoint, callee-exception decision, resource formats | 1 session | Opus + agy |
+| 3 | ✅ DONE 2026-07-10 — `tasks/T30-robustness-leftovers.md` all 4 items: super/invokespecial verified, synchronized-block SIGABRT found + classifier MONITORENTER→Rebuild guard, jpg/jpeg supported, 9-patch/fonts documented unsupported | — | done |
 | 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies, marketplace | unbounded | defer |
 
 Recommended order: T29 (ship v0.1) → T30.
