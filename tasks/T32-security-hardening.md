@@ -1,5 +1,5 @@
 # T32: Security hardening — P1/P2 (defense-in-depth + supply chain)
-Status: TODO
+Status: IN-REVIEW
 Assignee: agy (all items) — with the two noted judgment flags surfaced back to Opus/the maintainer
 
 ## Goal
