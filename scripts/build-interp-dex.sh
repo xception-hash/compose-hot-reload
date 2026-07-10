@@ -82,7 +82,8 @@ find "$BUILD/java" "$BUILD/gen" -name '*.java' > "$BUILD/sources.txt"
 
 mkdir -p "$(dirname "$OUT")"
 cp "$BUILD/dex/classes.dex" "$OUT"
-SIZE=$(stat -f%z "$OUT")
+# `wc -c` (not BSD `stat -f%z`, which GNU stat on Linux CI rejects) for a portable byte count.
+SIZE=$(wc -c < "$OUT" | tr -d ' ')
 
 PIN=$(grep -m1 -i 'tools-base' "$REPO_ROOT/third_party/PINNED.txt" 2>/dev/null || echo "see third_party/PINNED.txt")
 cat > "$PROVENANCE" <<EOF
