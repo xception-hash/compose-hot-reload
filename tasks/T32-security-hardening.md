@@ -141,7 +141,8 @@ One page at repo root. Content, all already written — assemble, don't invent:
   for this repo. Doc-only — no e2e.
 
 ## Out of scope
-- P0 (peer-cred check, debuggable guard, read timeout) — Opus, separate change, must land first for item 2.
+- P0 (peer-cred check, debuggable guard, first-frame read timeout — session-long timeout was a
+  regression, see plan doc P0 section) — Opus, separate change, landed; item 2 unblocked.
 - Distribution signing (plan P2 item 9) — rides the planned Phase 4 Maven Central / Marketplace
   publish (GPG mandatory there); no separate work now.
 - Any change to protocol wire format or the injection semantics themselves.

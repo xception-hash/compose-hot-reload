@@ -82,6 +82,18 @@ negative check — from the toy app, attempt a `LocalSocket` connect to the samp
 >   plugin wires by configuration name): logcat shows
 >   `W HotReload: not a debuggable build — hot reload disabled, no server started` and
 >   `/proc/net/unix` has no `hotreload` entry. Debuggable reinstall restores the socket.
+>
+> **Regression found by CI (run 29097024635) and fixed same day:** the original P0 armed
+> `soTimeout = 30s` for the WHOLE session, but the engine holds one connection per watch and
+> legitimately idles between saves — any >30s pause (CI's cold first compile; a developer
+> thinking) made the server's blocking read throw, killing the session (`session error` at
+> connect+31s on device; engine's next request → `device closed connection mid-request`).
+> Local e2e never idles 30s, so it passed while CI failed on case 1. Fix: the timeout now
+> guards only the FIRST frame (the connect-and-stall wedge window) and is cleared once a
+> valid frame arrives. Device-verified all three ways: (1) 45s idle → save →
+> `hot-swapped … in 2077ms` (the repro failed identically pre-fix); (2) a silent peer is
+> still dropped at exactly +31s (`EAGAIN` → session closed, peer reads EOF); (3) the next
+> client after a stall-drop handshakes fine (`device: … protocol=8`). Full e2e re-run green.
 
 ## P1 — defense in depth (next session after P0)
 
