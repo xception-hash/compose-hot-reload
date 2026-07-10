@@ -1,6 +1,6 @@
 name: e2e
 
-# Runs the on-device hot-reload gate (e2e/run.sh, 5 cases) on an Ubuntu KVM
+# Runs the on-device hot-reload gate (e2e/run.sh, 16 cases) on an Ubuntu KVM
 # runner with an API 36 x86_64 AVD, matching the pinned local emulator. The host
 # JDK is Temurin 21 (CI has no JBR); this is fine because all JVMTI/dex work runs
 # on-device (ART), the host JVM only orchestrates the watch loop.
@@ -25,6 +25,12 @@ concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege (T32 item 4): the job only checks out and uploads a log artifact on
+# failure. upload-artifact needs no extra scope beyond the default token, so keep the top
+# level read-only rather than the broader default GITHUB_TOKEN permissions.
+permissions:
+  contents: read
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -38,10 +44,10 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # Temurin 21 — CI has no JBR; JBR-specific behavior is not required (see header).
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
           distribution: temurin
           java-version: '21'
@@ -50,7 +56,7 @@ jobs:
       #  - build-tools;36.0.0 : the CLI resolves d8 at $ANDROID_HOME/build-tools/36.0.0/d8
       #  - ndk;28.2.13676358  : runtime-client builds the native agent .so (x86_64 in abiFilters)
       #  - cmake;3.22.1        : AGP-bundled default for the CMake build (min required 3.22)
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
       - name: Install pinned SDK components
         run: |
           sdkmanager --install \
@@ -59,7 +65,7 @@ jobs:
             "ndk;28.2.13676358" \
             "cmake;3.22.1"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
 
       # scripts/icon-pixel.sh reads a screencap centre-pixel via Pillow for the
       # drawable/bitmap cases (11-13) — every other case uses uiautomator text
@@ -73,7 +79,7 @@ jobs:
       # (run.sh deletes its mktemp watch log in its trap; on timeouts it tails that
       # log to stdout, so the tee captures it).
       - name: Run e2e gate
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
           arch: x86_64
@@ -88,7 +94,7 @@ jobs:
 
       - name: Upload e2e log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: e2e-run-log
           path: e2e-run.log

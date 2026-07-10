@@ -1,0 +1,113 @@
+name: interp-dex-repro
+
+# T32 item 3: turn the interp.dex.PROVENANCE claim into an enforced invariant. Rebuilds the
+# committed AOSP LiveEdit interpreter dex (engine/src/main/resources/dev/hotreload/interp.dex,
+# 831448 B) from its pinned inputs and compares against the blob in git, so the binary is
+# auditable and can't silently drift from source.
+
+on:
+  # Only when the dex, its build script, its generated Proxies input, or the tools-base pin
+  # change — the rebuild is otherwise wasted work.
+  push:
+    branches: [main]
+    paths: &repro-paths
+      - 'engine/src/main/resources/dev/hotreload/interp.dex'
+      - 'engine/src/main/resources/dev/hotreload/interp.dex.PROVENANCE'
+      - 'scripts/build-interp-dex.sh'
+      - 'scripts/fetch-aosp-deployer.sh'
+      - 'scripts/env.sh'
+      - 'third_party/generated/liveedit/Proxies.java'
+      - 'third_party/PINNED.txt'
+      - '.github/workflows/interp-dex-repro.yml'
+  pull_request:
+    branches: [main]
+    paths: *repro-paths
+  workflow_dispatch:
+
+# Least privilege: this job only checks out and reads the tree.
+permissions:
+  contents: read
+
+concurrency:
+  group: interp-dex-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned tools-base commit the dex was built against (third_party/PINNED.txt).
+  TOOLS_BASE_PIN: 14c65dad2cbdc26198c66375d4e0cef5269436e0
+  # Strict byte-for-byte reproducibility gate. The committed dex was built with the Android
+  # Studio JBR (javac --release 8); CI runs Temurin 21, whose javac can emit different-but-valid
+  # bytecode → cmp may drift with no tampering. If the FIRST CI run drifts for that reason
+  # (not a real change), flip this to "false" to fall back to the smoke invariant below
+  # (dex builds + dexdump class-shape check). See tasks/T32-security-hardening.md item 3.
+  STRICT_REPRO: "true"
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # Temurin 21 — CI has no JBR. This is the source of the strict-repro judgment call above.
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+      - name: Install pinned SDK components
+        run: |
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+
+      # build-interp-dex.sh puts kotlin-stdlib 2.4.0 on the compile + d8 --classpath (NOT dexed
+      # in) by grepping the Gradle module cache. Prime it by resolving a Kotlin module — the root
+      # build pins kotlin("jvm") 2.4.0, so :protocol:classes populates the exact cache path.
+      - name: Prime kotlin-stdlib 2.4.0 into the Gradle cache
+        run: ./gradlew :protocol:classes
+
+      # Sparse-clone tools-base, then pin to the exact commit the dex was built against
+      # (fetch-aosp-deployer.sh clones HEAD, which moves — reproducibility requires the pin).
+      - name: Fetch and pin tools-base
+        run: |
+          bash scripts/fetch-aosp-deployer.sh
+          git -C third_party/tools-base fetch --depth 1 origin "$TOOLS_BASE_PIN"
+          git -C third_party/tools-base checkout --detach "$TOOLS_BASE_PIN"
+          git -C third_party/tools-base sparse-checkout set deploy
+          got="$(git -C third_party/tools-base rev-parse HEAD)"
+          echo "tools-base HEAD: $got (expected $TOOLS_BASE_PIN)"
+          test "$got" = "$TOOLS_BASE_PIN"
+
+      # build-interp-dex.sh writes IN PLACE over the committed resource, so snapshot the git
+      # version first and compare the rebuild against that snapshot.
+      - name: Snapshot committed interp.dex
+        run: cp engine/src/main/resources/dev/hotreload/interp.dex "$RUNNER_TEMP/interp.committed.dex"
+
+      - name: Rebuild interp.dex from source
+        run: bash scripts/build-interp-dex.sh
+
+      # PRIMARY gate: byte-for-byte identical to the committed blob.
+      - name: Strict reproducibility gate (cmp)
+        if: env.STRICT_REPRO == 'true'
+        run: |
+          cmp "$RUNNER_TEMP/interp.committed.dex" \
+              engine/src/main/resources/dev/hotreload/interp.dex \
+            && echo "interp.dex reproduced byte-for-byte"
+
+      # FALLBACK gate (one-line switch: STRICT_REPRO=false above): the dex builds and its class
+      # shape matches the provenance — 147 Proxies$* lambda-proxy classes present, and zero
+      # kotlin/* classes DEFINED in the dex (kotlin-stdlib is classpath-only, never dexed in).
+      - name: Smoke invariant (dexdump class shape)
+        if: env.STRICT_REPRO != 'true'
+        run: |
+          DEXDUMP="$ANDROID_HOME/build-tools/36.0.0/dexdump"
+          "$DEXDUMP" -f engine/src/main/resources/dev/hotreload/interp.dex > interp-dump.txt
+          proxies=$(grep -Fc "Class descriptor  : 'Lcom/android/tools/deploy/liveedit/Proxies\$" interp-dump.txt)
+          kotlin=$(grep -Fc "Class descriptor  : 'Lkotlin/" interp-dump.txt)
+          echo "Proxies\$ classes: $proxies (expected 147); kotlin/* defined: $kotlin (expected 0)"
+          test "$proxies" -eq 147
+          test "$kotlin" -eq 0
