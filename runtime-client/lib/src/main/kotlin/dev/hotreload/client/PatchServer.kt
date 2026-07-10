@@ -47,8 +47,13 @@ class PatchServer(private val context: Context) {
      */
     private val allowedUids = intArrayOf(Process.myUid(), 2000 /* SHELL */, 0 /* ROOT */)
 
-    /** Bound the blocking frame read so a stalled/slow-loris peer can't wedge the accept loop. */
-    private val socketReadTimeoutMs = 30_000
+    /**
+     * Bound the read of the FIRST frame so a connect-and-stall peer can't wedge the serial
+     * accept loop. Cleared once a valid frame arrives: the engine holds one connection for
+     * the whole watch session and legitimately idles between saves (arbitrary think-time),
+     * so a session-long read timeout would sever every watch that pauses >30s.
+     */
+    private val firstFrameTimeoutMs = 30_000
 
     fun start() {
         Thread({ serve() }, "hotreload-server").apply { isDaemon = true }.start()
@@ -79,9 +84,9 @@ class PatchServer(private val context: Context) {
 
     /**
      * Peer-credential gate: reject any connection whose uid isn't in [allowedUids] before a
-     * single frame is read, and arm a read timeout so an authorized-but-stalled peer can't
-     * hold the serial accept loop open. This is the standard fix for the abstract-socket
-     * injection class (the old Stetho / WebView-devtools pattern).
+     * single frame is read, and arm a first-frame read timeout so an authorized-but-stalled
+     * peer can't hold the serial accept loop open. This is the standard fix for the
+     * abstract-socket injection class (the old Stetho / WebView-devtools pattern).
      */
     private fun authorize(socket: LocalSocket): Boolean {
         val creds = socket.peerCredentials // synthesized by the kernel; not attacker-forgeable
@@ -89,7 +94,7 @@ class PatchServer(private val context: Context) {
             Log.w(tag, "rejected connection from uid=${creds.uid} pid=${creds.pid} (not in allowlist)")
             return false
         }
-        socket.soTimeout = socketReadTimeoutMs
+        socket.soTimeout = firstFrameTimeoutMs
         return true
     }
 
@@ -97,8 +102,13 @@ class PatchServer(private val context: Context) {
         Log.i(tag, "engine connected")
         val input = socket.getInputStream().buffered()
         val output = socket.getOutputStream().buffered()
+        var awaitingFirstFrame = true
         while (true) {
             val request = Wire.readRequest(input) ?: break
+            if (awaitingFirstFrame) {
+                socket.soTimeout = 0 // liveness proven; idle-between-saves is normal
+                awaitingFirstFrame = false
+            }
             val response = try {
                 handle(request)
             } catch (t: Throwable) {
