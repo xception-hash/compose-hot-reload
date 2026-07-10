@@ -144,7 +144,7 @@ class WatchSession(private val config: Config) {
      */
     private var pendingResourceSwap = false
 
-    /** Whether the pending resource batch includes a bitmap (`.png`/`.webp`) — see [ResourceSwapper.swap]. */
+    /** Whether the pending resource batch includes a bitmap (`.png`/`.webp`/`.jpg`/`.jpeg`) — see [ResourceSwapper.swap]. */
     private var pendingBitmapSwap = false
 
     private fun onSave(
@@ -161,14 +161,14 @@ class WatchSession(private val config: Config) {
         println("\nchanged: ${changedSources.joinToString { it.fileName.toString() }}")
         val ignored = changedSources - ktChanges.toSet() - resChanges.toSet()
         if (ignored.isNotEmpty()) {
-            println("ignored (hot-reloads .kt and res/**/*.{xml,png,webp} only): ${ignored.joinToString { it.fileName.toString() }}")
+            println("ignored (hot-reloads .kt and res/**/*.{xml,png,webp,jpg,jpeg} only): ${ignored.joinToString { it.fileName.toString() }}")
         }
 
         var newSnapshot = snapshot
         var invalidated = false
         if (resChanges.isNotEmpty()) {
             pendingResourceSwap = true
-            if (resChanges.any { it.extension == "png" || it.extension == "webp" }) pendingBitmapSwap = true
+            if (resChanges.any { it.extension in BITMAP_EXTENSIONS }) pendingBitmapSwap = true
         }
 
         // Live-literals fast path (T24): a single .kt save that only changes one constant
@@ -338,14 +338,14 @@ class WatchSession(private val config: Config) {
     }
 
     /**
-     * A watched resource file (`.xml`, `.png`, `.webp`) under any `res/` subdirectory of any AGP module.
-     * The overlay mechanism is uniform (whole-APK resource table + the (type,name) guard), so values
-     * AND file-based resources (drawable/color/anim/...) all route to the swapper;
+     * A watched resource file (`.xml`, `.png`, `.webp`, `.jpg`, `.jpeg`) under any `res/` subdirectory
+     * of any AGP module. The overlay mechanism is uniform (whole-APK resource table + the (type,name)
+     * guard), so values AND file-based resources (drawable/color/anim/...) all route to the swapper;
      * what actually refreshes on screen is governed by the runtime's cache clearing.
      */
     private fun isResourceFile(path: Path): Boolean {
         val ext = path.extension
-        if (ext != "xml" && ext != "png" && ext != "webp") return false
+        if (ext != "xml" && ext !in BITMAP_EXTENSIONS) return false
         val parent = path.parent ?: return false
         return resDirs.any { path.startsWith(it) } && parent.parent?.let { p ->
             resDirs.any { it == p }
@@ -455,5 +455,14 @@ class WatchSession(private val config: Config) {
 
         /** InjectDex filename for the interpreter runtime (PatchServer allows `.`, `-`). */
         const val INTERP_DEX_NAME = "hotreload-interp.dex"
+
+        /**
+         * Raster image extensions that trigger [ResourceSwapper]'s bitmap-remember bash
+         * (T23, extended T30 item 4): overlaying alone can't surface these since
+         * `painterResource`'s bitmap branch remembers on the intra-APK path string, which
+         * an overlay never changes. Nine-patch (`.9.png`) files carry the plain `png`
+         * extension (`Path.extension` of `foo.9.png` is `png`), so they're covered already.
+         */
+        val BITMAP_EXTENSIONS = setOf("png", "webp", "jpg", "jpeg")
     }
 }

@@ -15,7 +15,7 @@ It leverages a custom JVMTI agent attached to debuggable apps to perform class r
 | New composable/function/field in existing class | Structural redefinition (API 30+) + recompose | <1 s |
 | New class / changed lambda | Inject new dex via `InMemoryDexClassLoader` + redefine call sites | <1 s |
 | Resource value edit (`res/values/*.xml` string/color) | `ResourcesLoader` overlay + whole-tree recompose | ~2 s |
-| Vector/bitmap drawable edit (`res/drawable*/*.xml`, `.png`, `.webp`) | `ResourcesLoader` overlay + Compose asset-cache clear + recompose | ~1–2.5 s |
+| Vector/bitmap drawable edit (`res/drawable*/*.xml`, `.png`, `.webp`, `.jpg`, `.jpeg`) | `ResourcesLoader` overlay + Compose asset-cache clear + recompose | ~1–2.5 s |
 | Member removal / class hierarchy change | AOSP LiveEdit bytecode interpreter on-device (same process, state preserved) | ~1.5 s |
 | `@Composable` signature change (params added/removed) | Interpreter + AOSP lambda proxies: regenerated restart lambda ships as support class, proxy-constructed on device | ~1–4 s |
 
@@ -124,7 +124,7 @@ Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the w
 | fix-and-save after broken edit | full UI recovers in place, no reinstall | ~1.2s |
 | resource **value** edit (`res/values/*.xml` string/color) | `ResourcesLoader` overlay + whole-tree `invalidateAll`; new value on screen, all state preserved | ~2s |
 | vector **drawable** edit (`res/drawable*/*.xml`) | `ResourcesLoader` overlay + Compose asset-cache clear + whole-tree recompose; new drawable on screen, all state preserved | ~1–2s |
-| bitmap **drawable** edit (`res/drawable*/*.{png,webp}`) | `ResourcesLoader` overlay + bashing `painterResource`'s internal remember groups (`invalidateGroupsWithKey`); new bitmap on screen, all state preserved | ~1–2.5s |
+| bitmap **drawable** edit (`res/drawable*/*.{png,webp,jpg,jpeg}`) | `ResourcesLoader` overlay + bashing `painterResource`'s internal remember groups (`invalidateGroupsWithKey`); new bitmap on screen, all state preserved | ~1–2.5s |
 | member **removal** / class hierarchy change | AOSP LiveEdit **bytecode interpreter** on-device: the class is primed (host stub-transform → structural redefine) and its edited bodies are interpreted, same process, state preserved | ~1.5s (first prime ~4.5s) |
 | `@Composable` **signature change** (params added/removed, caller updated in the same save) | interpreter + AOSP lambda **proxies**: the regenerated restart lambda ships as a *support class* and is proxy-constructed on device; whole batch interprets, same process | ~1–4s |
 
@@ -147,12 +147,22 @@ hot-reloads. Adding, removing, or renaming a resource is detected and reported a
 "reinstall required" (aapt2 renumbers IDs, which an overlay can't remap). Vector (XML)
 drawable edits under `res/drawable*/` hot-reload too — the overlay is applied and Compose's
 per-`Context` asset caches (`ImageVectorCache`/`ResourceIdCache`) are cleared before the
-recompose. Bitmap drawables (`png`/`webp`) hot-reload as well: `painterResource` remembers
-the decoded bitmap keyed on the *intra-APK* path string (identical in every overlay), so the
-engine additionally bashes exactly those remember groups via `invalidateGroupsWithKey` with
-the ui-version-specific group key it extracts from the app's own dex (`PainterKeyExtractor`).
-Only the painter groups rebuild — user state is untouched. Direct `ImageBitmap.imageResource()`
-call sites are not covered (no targetable group); `painterResource` is the standard path.
+recompose. Bitmap drawables (`png`/`webp`/`jpg`/`jpeg`, T30 item 4) hot-reload as well:
+`painterResource` remembers the decoded bitmap keyed on the *intra-APK* path string (identical
+in every overlay), so the engine additionally bashes exactly those remember groups via
+`invalidateGroupsWithKey` with the ui-version-specific group key it extracts from the app's own
+dex (`PainterKeyExtractor`). Only the painter groups rebuild — user state is untouched. Direct
+`ImageBitmap.imageResource()` call sites are not covered (no targetable group);
+`painterResource` is the standard path. Nine-patch (`.9.png`) drawables are **not** supported —
+not a hot-reload pipeline gap but a Compose framework limitation: `painterResource()`'s bitmap
+branch unconditionally casts the resolved `Drawable` to `BitmapDrawable`
+(`ImageResources_androidKt.imageResource`), and aapt2 compiles `.9.png` sources to
+`NinePatchDrawable`, which is not a `BitmapDrawable` subtype — the cast throws
+`ClassCastException` on a fresh install with no hot reload involved (verified live, T30 item 4).
+Font resources (`res/font/*.ttf`/`.otf`) are also not hot-reloaded: `SourceWatcher`'s file-system
+listener only matches `.kt`/`.xml`/`.png`/`.webp`/`.jpg`/`.jpeg`, so a font edit never reaches the
+engine at all — no "changed"/"ignored" line prints, the save is silently invisible to the watcher
+(verified live, T30 item 4).
 
 ### State-reset semantics
 The state-preservation semantics match Android Studio's Live Edit: `invalidateGroupsWithKey` discards `remember` AND `rememberSaveable` state in the **edited function's subtree** because the runtime must re-run initializers that may capture new code. Editing a leaf preserves everything else; editing a parent resets its children's counters to 0.
@@ -166,6 +176,9 @@ If you make a broken edit (like throwing an exception in a composable body), the
 - **Constructor edits** on non-lambda classes cause a full rebuild (existing object instances cannot be re-constructed).
 - **Compose group-key renumbering** (reordering composable calls) causes a full rebuild (the invalidation key map becomes stale).
 - **Field removal / field type change** causes a full rebuild (ART's structural redefinition can only add fields, not remove or retype them).
+- **`ImageBitmap.imageResource()` call sites are not covered** by bitmap drawable hot reload — unlike `painterResource`'s bitmap branch, they have no recomposition group of their own for the engine to target, so edits there stay stale until a full reinstall.
+- **Nine-patch (`.9.png`) drawables are not supported** — this is a Compose framework limitation, not a hot-reload gap: `painterResource()`'s bitmap branch casts the resolved drawable to `BitmapDrawable`, but aapt2 compiles `.9.png` to `NinePatchDrawable`, which throws `ClassCastException` even on a plain install (T30 item 4).
+- **Font resources (`res/font/*.ttf`/`.otf`) are not hot-reloaded** — `SourceWatcher`'s extension filter doesn't include font extensions, so font edits never reach the engine; use a full reinstall (T30 item 4).
 - **Debuggable builds only** — ART's JVMTI agent attachment and class redefinition require `android:debuggable="true"`.
 - **Minimum API 30** (Android 11) — structural class redefinition (`RedefineClassesStructurally`) is only available on API 30+.
 - **Compiled-callee exceptions skip interpreted try/catch** — when a class is interpreted and calls a compiled method that throws, the exception propagates through the native call boundary and cannot be caught by the interpreter's try/catch handler (see `docs/phase6-interpreter-research.md` §5).

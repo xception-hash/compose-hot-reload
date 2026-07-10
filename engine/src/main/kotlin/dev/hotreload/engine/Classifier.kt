@@ -218,6 +218,21 @@ object Classifier {
         val anyInterpret = changes.any { it.second is Verdict.Interpret || it.second is Verdict.SupportClass }
 
         if (anyInterpret) {
+            // MONITORENTER in an interpreted body is FATAL: JNI.enterMonitor returns to ART
+            // holding the monitor and CheckJNI (force-enabled on every debuggable app) SIGABRTs
+            // the process (T30 item 1, verified live). Once a class's bytes reach addClasses,
+            // ALL its methods interpret on their next run — so any class bound for the interpret
+            // or support list (i.e. everything in the batch except pure injections) must be free
+            // of synchronized BLOCKS, even in unchanged methods. Guarding here (not in classify)
+            // covers every route in one place: direct Interpret/SupportClass verdicts, pulled-in
+            // BodyOnly/Structural classes, and WatchSession's primed-class re-routes.
+            val monitorReasons = changes
+                .filter { (f, v) -> v !is Verdict.NewClass && f.monitorMethods.isNotEmpty() }
+                .map { (f, _) ->
+                    "${f.fqcn}: synchronized block in ${f.monitorMethods.first()} — " +
+                        "interpreted monitorenter aborts under CheckJNI"
+                }
+            if (monitorReasons.isNotEmpty()) return PatchPlan.Rebuild(monitorReasons)
             return PatchPlan.HotSwap(
                 inject = inject,
                 redefine = emptyList(),

@@ -22,6 +22,15 @@ data class ClassFacts(
     val interfaces: Set<String>,
     val access: Int,
     val members: Set<MemberFacts>,
+    /**
+     * Ids of methods whose Code contains MONITORENTER (`synchronized` blocks). A class with any
+     * such method may never be delivered to the on-device interpreter: `JNI.enterMonitor` returns
+     * to ART holding the monitor, which CheckJNI (force-enabled on every debuggable app — i.e.
+     * all our targets) aborts as "Still holding a locked object on JNI end" (T30 item 1, live
+     * SIGABRT). `synchronized` METHODS are fine — ART acquires their monitor on the real frame's
+     * invocation; only explicit monitor opcodes inside interpreted bodies are fatal.
+     */
+    val monitorMethods: Set<String> = emptySet(),
 ) {
     val fqcn: String get() = internalName.replace('/', '.')
 }

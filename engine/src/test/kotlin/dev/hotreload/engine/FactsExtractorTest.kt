@@ -236,4 +236,26 @@ class FactsExtractorTest {
         val changed2 = facts2.members.first { it.id == "changed()V" }
         assertNotEquals(changed1.bodyHash, changed2.bodyHash, "changed method's bodyHash should differ")
     }
+
+    @Test
+    fun `synchronized block is recorded in monitorMethods, plain methods are not (T30)`() {
+        val bytes = generateClass(
+            methods = listOf(
+                MethodSpec("lockedCompute", "()V", instructions = listOf { mv ->
+                    // synchronized (this) {} — the shape whose interpretation SIGABRTs (T30 item 1)
+                    mv.visitVarInsn(Opcodes.ALOAD, 0)
+                    mv.visitInsn(Opcodes.MONITORENTER)
+                    mv.visitVarInsn(Opcodes.ALOAD, 0)
+                    mv.visitInsn(Opcodes.MONITOREXIT)
+                }),
+                MethodSpec("plain", "()V", instructions = listOf { mv ->
+                    mv.visitLdcInsn(1)
+                    mv.visitInsn(Opcodes.POP)
+                }),
+            ),
+        )
+
+        val facts = FactsExtractor.extract(bytes)
+        assertEquals(setOf("lockedCompute()V"), facts.monitorMethods)
+    }
 }
