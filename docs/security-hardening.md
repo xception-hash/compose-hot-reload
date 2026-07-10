@@ -20,8 +20,8 @@ Trust boundaries, as built today:
 
 | Surface | Today | Verdict |
 |---|---|---|
-| `PatchServer` — `LocalServerSocket("hotreload-<pkg>")`, abstract namespace | **No peer check.** Abstract-namespace sockets need no filesystem permission; any co-installed app (zero permissions) can connect and send `InjectDex`/`Redefine`/`LiveEditClasses` → arbitrary code exec in the app's process, plus `LoadResources`/`Reset`. | **P0 gap** |
-| Server startup (`HotReloadInitializer.kt:18`) | Started unconditionally — no `FLAG_DEBUGGABLE` check. Plugin wires the AAR as `debugImplementation`, but a hand-added release dependency would run the server in production. (JVMTI attach fails on non-debuggable, but the server + resource loading still run.) | **P0 gap** |
+| `PatchServer` — `LocalServerSocket("hotreload-<pkg>")`, abstract namespace | **No peer check.** Abstract-namespace sockets need no filesystem permission; any co-installed app (zero permissions) can connect and send `InjectDex`/`Redefine`/`LiveEditClasses` → arbitrary code exec in the app's process, plus `LoadResources`/`Reset`. | **P0 — fixed, device-verified 2026-07-10** |
+| Server startup (`HotReloadInitializer.kt:18`) | Started unconditionally — no `FLAG_DEBUGGABLE` check. Plugin wires the AAR as `debugImplementation`, but a hand-added release dependency would run the server in production. (JVMTI attach fails on non-debuggable, but the server + resource loading still run.) | **P0 — fixed, device-verified 2026-07-10** |
 | Wire framing (`Wire.kt`) | Frame length and counts validated against `Protocol.MAX_FRAME_BYTES` before allocation. | OK |
 | `InjectDex` / `LoadResources` paths (`PatchServer.kt`) | Filename regex `[A-Za-z0-9._-]+` + explicit `..` reject; dex written read-only in `codeCacheDir`. | OK — lock with tests |
 | Host `adb forward tcp:0` | Any local process on the dev machine can hit the forwarded port. Same-user local attacker already has adb itself, so adb is the real boundary. | Accepted (P2 option) |
@@ -34,7 +34,7 @@ authentication is the control, not bytecode validation), the engine running the 
 own Gradle build, and anyone who already has adb access to the device (they can inject
 via adb regardless of us).
 
-## P0 — close the on-device injection hole (do before any wider release)
+## P0 — close the on-device injection hole (do before any wider release) — DONE ✅ (code 2026-07-07, device-verified 2026-07-10)
 
 **1. Peer-credential check in `PatchServer`.** On accept, read
 `LocalSocket.getPeerCredentials().uid` and require it to be one of: the app's own uid
@@ -59,6 +59,29 @@ Verification: full `e2e/run.sh` still green (adb path = shell uid, allowed); man
 negative check — from the toy app, attempt a `LocalSocket` connect to the sample app's
 `hotreload-dev.hotreload.sample` socket and assert rejection; confirm a
 `debuggable=false` build logs the bail line and opens no socket.
+
+> **P0 DONE — device-verified 2026-07-10 on the pinned emulator (API 36), all three checks:**
+>
+> - **(a) Positive path:** full `./e2e/run.sh` GREEN, 15/15 cases in 275s (live-literals =
+>   standard opt-in skip), on the reinstalled P0 AAR — shell-uid (2000) traffic authorized,
+>   engine path unbroken.
+> - **(b) Negative path — rejected one layer EARLIER than expected:** the toy app
+>   (`untrusted_app`, own uid) probing `hotreload-dev.hotreload.sample` gets
+>   `IOException: Permission denied` at *connect*: SELinux per-app MLS categories deny it in
+>   the kernel (`avc: denied { connectto } … scontext=u:r:untrusted_app:s0:c214,… tcontext=
+>   u:r:untrusted_app:s0:c221,… permissive=0`, path hex = `\0hotreload-dev.hotreload.sample`).
+>   So on API 30+ the co-installed-app hole is already platform-blocked, and `authorize()`s
+>   uid gate is defense-in-depth behind it — its reject branch is unreachable from
+>   `untrusted_app` on this image (low-targetSdk attackers land in `untrusted_app_27` with
+>   `levelFrom=user` categories, which still lack the target's per-app categories → same
+>   denial). The gate still covers non-app domains and any future/vendor policy laxity; the
+>   allow path is exercised by every e2e run. Probe vehicle: `--es probe <socket>` branch in
+>   the spike toy app's `PatchReceiver` (committed — reusable for T32 guard tests).
+> - **(c) debuggable=false bail:** sample built with `isDebuggable=false` on the debug build
+>   type (runtime-client still on the classpath — the exact misconfig scenario, since the
+>   plugin wires by configuration name): logcat shows
+>   `W HotReload: not a debuggable build — hot reload disabled, no server started` and
+>   `/proc/net/unix` has no `hotreload` entry. Debuggable reinstall restores the socket.
 
 ## P1 — defense in depth (next session after P0)
 
