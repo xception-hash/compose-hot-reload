@@ -22,6 +22,30 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
+ * Single relative path segment permitted for injected-dex filenames and overlay dir names:
+ * letters, digits, `.`, `_`, `-`. No `/` (so no nested paths) — but `.` is allowed, so `..`
+ * would slip through the regex alone; [validateDexName]/[validateOverlayDir] reject it
+ * explicitly for traversal safety.
+ */
+internal val safeNameRegex = Regex("[A-Za-z0-9._-]+")
+
+/**
+ * Throw if [name] is not a safe injected-dex filename: a single path segment (regex) with no
+ * `..` traversal component. Pure (no Context) so it is unit-testable directly.
+ */
+internal fun validateDexName(name: String) {
+    require(safeNameRegex.matches(name) && ".." !in name) { "bad dex name: $name" }
+}
+
+/**
+ * Throw if [dir] is not a safe overlay directory name: a single path segment (regex) with no
+ * `..` traversal component. Pure (no Context) so it is unit-testable directly.
+ */
+internal fun validateOverlayDir(dir: String) {
+    require(safeNameRegex.matches(dir) && ".." !in dir) { "bad overlay dir: $dir" }
+}
+
+/**
  * On-device protocol server. Listens on an abstract-namespace Unix domain socket
  * ([Protocol.deviceSocketName] — a TCP bind would need the INTERNET permission, which
  * the host app must not be forced to declare); the engine connects through
@@ -31,7 +55,6 @@ import java.util.concurrent.TimeUnit
 class PatchServer(private val context: Context) {
     private val tag = "HotReloadServer"
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val safeName = Regex("[A-Za-z0-9._-]+")
 
     private val persistentLoader = ResourcesLoader()
     private var currentProvider: ResourcesProvider? = null
@@ -146,7 +169,9 @@ class PatchServer(private val context: Context) {
         }
 
         is Request.InjectDex -> {
-            require(safeName.matches(request.name)) { "bad dex name: ${request.name}" }
+            // Reject traversal (`..`) as well as any non-single-segment name — parity with
+            // loadResources; safeNameRegex permits '.', so ".." alone would otherwise pass.
+            validateDexName(request.name)
             // The in-memory extension trips ART's writable-dex check (API 36), so
             // land the dex read-only in app-private storage and use the file variant.
             val dex = File(context.codeCacheDir, request.name)
@@ -215,9 +240,9 @@ class PatchServer(private val context: Context) {
      * Runs on the main thread (loader attach + invalidation touch composition state).
      */
     private fun loadResources(overlayDir: String): Boolean {
-        // Same containment rule as InjectDex (single relative segment), plus an explicit
-        // traversal reject — safeName permits '.', so ".." alone would otherwise pass.
-        require(safeName.matches(overlayDir) && ".." !in overlayDir) { "bad overlay dir: $overlayDir" }
+        // Same containment rule as InjectDex (single relative segment) plus explicit traversal
+        // reject — safeNameRegex permits '.', so ".." alone would otherwise pass.
+        validateOverlayDir(overlayDir)
         val dir = File(context.codeCacheDir, overlayDir)
         require(dir.isDirectory) { "overlay dir missing: ${dir.absolutePath}" }
         require(File(dir, "resources.arsc").isFile) { "overlay missing resources.arsc in ${dir.absolutePath}" }

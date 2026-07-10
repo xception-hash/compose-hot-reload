@@ -2,9 +2,12 @@ package dev.hotreload.protocol
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -165,6 +168,53 @@ class WireTest {
         val fail = roundTripResponse(Response.Failure(6, 63, "method count changed")) as Response.Failure
         assertEquals(63, fail.code)
         assertEquals("method count changed", fail.message)
+    }
+
+    // ---- guard regression tests (T32 item 2): reject before allocating ----
+
+    @Test
+    fun rejectsOversizedFrameLength() {
+        // A length prefix above MAX_FRAME_BYTES must throw before the ByteArray(length)
+        // allocation, so a hostile peer can't force an OOM with a 4-byte header.
+        val buf = ByteArrayOutputStream()
+        DataOutputStream(buf).writeInt(Protocol.MAX_FRAME_BYTES + 1)
+        val ex = assertFailsWith<IOException> {
+            Wire.readRequest(ByteArrayInputStream(buf.toByteArray()))
+        }
+        assertTrue("bad frame length" in ex.message.orEmpty(), "got: ${ex.message}")
+    }
+
+    @Test
+    fun rejectsNegativeFrameLength() {
+        val buf = ByteArrayOutputStream()
+        DataOutputStream(buf).writeInt(-1)
+        val ex = assertFailsWith<IOException> {
+            Wire.readRequest(ByteArrayInputStream(buf.toByteArray()))
+        }
+        assertTrue("bad frame length" in ex.message.orEmpty(), "got: ${ex.message}")
+    }
+
+    @Test
+    fun rejectsOversizedCountInBody() {
+        // A well-framed REDEFINE whose element count exceeds MAX_FRAME_BYTES must throw at
+        // readCount (before List(count) { ... } allocates), not desync the stream.
+        val body = ByteArrayOutputStream()
+        DataOutputStream(body).apply {
+            writeByte(Opcode.REDEFINE)
+            writeInt(1)                              // requestId
+            writeBoolean(false)                      // structural
+            writeInt(Protocol.MAX_FRAME_BYTES + 1)   // bad class count
+        }
+        val bodyBytes = body.toByteArray()
+        val frame = ByteArrayOutputStream()
+        DataOutputStream(frame).apply {
+            writeInt(bodyBytes.size)                 // valid frame length
+            write(bodyBytes)
+        }
+        val ex = assertFailsWith<IOException> {
+            Wire.readRequest(ByteArrayInputStream(frame.toByteArray()))
+        }
+        assertTrue("bad count" in ex.message.orEmpty(), "got: ${ex.message}")
     }
 
     @Test

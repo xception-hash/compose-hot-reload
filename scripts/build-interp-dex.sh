@@ -42,7 +42,10 @@ mkdir -p "$BUILD/java/com/android/tools/deploy/instrument" "$BUILD/classes" "$BU
 #    jarjar). liveedit/ includes the backported Map/List/Set shims.
 cp -R "$SRC/interpreter" "$SRC/liveedit" "$BUILD/java/com/android/tools/deploy/"
 cp "$SRC/instrument/ReflectionHelpers.java" "$BUILD/java/com/android/tools/deploy/instrument/"
-find "$BUILD/java" -name '*.java' -exec sed -i '' 's/com\.android\.deploy\.asm/org.jetbrains.org.objectweb.asm/g' {} +
+# perl -i (not `sed -i ''`) for cross-platform in-place edit: BSD sed needs `-i ''` but GNU sed
+# (Linux CI) treats the empty arg as the script and the s/// as a filename. perl -i is identical
+# on both and performs the same substitution, so the produced dex is byte-for-byte unchanged.
+find "$BUILD/java" -name '*.java' -exec perl -i -pe 's/com\.android\.deploy\.asm/org.jetbrains.org.objectweb.asm/g' {} +
 
 # 2. The sparse clone has only deploy/; stub the three tools/base/annotations used (source-retention).
 for A in NonNull Nullable VisibleForTesting; do
@@ -79,7 +82,8 @@ find "$BUILD/java" "$BUILD/gen" -name '*.java' > "$BUILD/sources.txt"
 
 mkdir -p "$(dirname "$OUT")"
 cp "$BUILD/dex/classes.dex" "$OUT"
-SIZE=$(stat -f%z "$OUT")
+# `wc -c` (not BSD `stat -f%z`, which GNU stat on Linux CI rejects) for a portable byte count.
+SIZE=$(wc -c < "$OUT" | tr -d ' ')
 
 PIN=$(grep -m1 -i 'tools-base' "$REPO_ROOT/third_party/PINNED.txt" 2>/dev/null || echo "see third_party/PINNED.txt")
 cat > "$PROVENANCE" <<EOF
