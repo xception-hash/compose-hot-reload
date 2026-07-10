@@ -48,7 +48,7 @@ is the last line; this catches the mistake at build time with a clear message.
   (`./gradlew -p samples/single-module help` and `-p samples/multi-module help` green, or the
   existing sample assemble). Verify with `source scripts/env.sh` first (REPO_ROOT/JAVA_HOME).
 
-### 2 (agy — PRECONDITION: P0 peer-cred change is on `main`) — guard-regression tests + InjectDex `..` parity (plan P1 item 4)
+### 2 (agy — PRECONDITION: P0 peer-cred change is on `main` — **SATISFIED 2026-07-10**: code committed `a74dc27`, device-verified all 3 checks, see plan doc P0 section) — guard-regression tests + InjectDex `..` parity (plan P1 item 4)
 The existing input guards work but nothing stops a refactor from dropping them. Pin them, and close
 one real inconsistency Opus found in the security review.
 

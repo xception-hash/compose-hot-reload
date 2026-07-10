@@ -52,6 +52,37 @@ class PatchReceiver : BroadcastReceiver() {
             return
         }
 
+        // Security P0 negative test: connect to another app's hot-reload socket from THIS
+        // app's uid and report what happens. The server must reject us before reading a
+        // frame (peer-uid allowlist), so the first read must see EOF with no bytes.
+        //
+        // adb shell am broadcast -n dev.hotreload.toy/.PatchReceiver -a dev.hotreload.toy.PATCH \
+        //   --es probe hotreload-dev.hotreload.sample
+        intent.getStringExtra("probe")?.let { socketName ->
+            Thread {
+                val result = try {
+                    val socket = android.net.LocalSocket()
+                    socket.use {
+                        it.connect(
+                            android.net.LocalSocketAddress(
+                                socketName,
+                                android.net.LocalSocketAddress.Namespace.ABSTRACT,
+                            )
+                        )
+                        it.outputStream.write(byteArrayOf(0, 0, 0, 1, 1)) // looks like a frame
+                        it.outputStream.flush()
+                        val first = it.inputStream.read()
+                        if (first == -1) "connected, then EOF before any response (rejected)"
+                        else "GOT A RESPONSE BYTE $first — SERVER TALKED TO US"
+                    }
+                } catch (t: Throwable) {
+                    "exception: $t"
+                }
+                Log.i(tag, "probe($socketName) -> $result")
+            }.start()
+            return
+        }
+
         val fileName = intent.getStringExtra("file")
         val className = intent.getStringExtra("cls")
         val key = intent.getIntExtra("key", 0)
