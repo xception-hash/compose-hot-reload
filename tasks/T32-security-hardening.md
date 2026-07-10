@@ -1,5 +1,5 @@
 # T32: Security hardening — P1/P2 (defense-in-depth + supply chain)
-Status: IN-REVIEW
+Status: DONE (merged to main via PR #5, 2026-07-10 — commit 55fb4ca; both judgment flags resolved: tripwire fail-hard, STRICT_REPRO=true kept after Temurin repro passed)
 Assignee: agy (all items) — with the two noted judgment flags surfaced back to Opus/Jay
 
 ## Goal
