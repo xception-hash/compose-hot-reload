@@ -19,6 +19,7 @@ everything mechanical gets delegated.** Never at the cost of quality.
 | `ui-state.sh` | PID + visible texts (standard post-swap verification) |
 | `taps.sh [n]` | tap the counter n times (finds button, layout-proof) |
 | `extract-keys.sh [fqcn]` | FunctionKeyMeta keys/offsets from compiled class |
+| `stats.sh [--csv]` | product stats snapshot: GitHub stars/releases/traffic + Marketplace downloads; `--csv` appends to `~/.hotreload-stats.csv` |
 | `spike/scripts/hotswap.sh <fqcn> <key> [--structural]` | full hot-swap loop (compile→d8→push→broadcast) |
 
 New repeated action (≥2 uses expected) → write a script first, then use it.
