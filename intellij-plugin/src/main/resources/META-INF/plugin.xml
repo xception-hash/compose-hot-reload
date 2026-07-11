@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>dev.hotreload.intellij</id>
+    <id>dev.hotreload.ide</id>
     <name>Compose Hot Reload</name>
     <vendor>Compose Hot Reload (OSS)</vendor>
 
