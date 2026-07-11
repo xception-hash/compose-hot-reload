@@ -12,7 +12,7 @@ Assignee: Opus + the maintainer (device + accounts/tokens are the maintainer's)
   - Gradle packaging (agy, spec `T31b-cli-bundle-packaging.md`): composite `includeBuild("..")` +
     `prepareSandbox` copies `:cli:installDist` into `<pluginDir>/cli/`. Opus-verified: zip carries
     `cli/bin/cli`+`.bat`, `cli/lib/engine.jar` with `interp.dex` (831448 B). Zip 6.9 MB. `test` green.
-  - **DEVICE-PROVEN ✅ (2026-07-07):** the maintainer installed the bundled zip in Android Studio, left the
+  - **DEVICE-PROVEN ✅ (2026-07-07):** The maintainer installed the bundled zip in Android Studio, left the
     CLI-path field BLANK → bundled CLI resolved + launched (JAVA_HOME=JBR) + reached `ready` + clean
     Stop on emulator-5554. Part 2 acceptance MET. (Gotcha found: the app must be RUNNING before Start
     — the plugin attaches to a live process, doesn't launch it; preamble omitted the relaunch step.)
@@ -44,7 +44,7 @@ Assignee: Opus + the maintainer (device + accounts/tokens are the maintainer's)
          PlatformType warnings left — non-blocking; platform's inherited default-method wiring.)
     - **Gotcha — first upload of a NEW plugin must go via the web UI** (plugins.jetbrains.com/plugin/add,
       to set license/repo/tags); the token-based `publishPlugin` only works for subsequent versions.
-      the maintainer did the manual 0.1.1 upload; 0.1.2 then published straight through the token.
+      The maintainer did the manual 0.1.1 upload; 0.1.2 then published straight through the token.
   - **STILL LEFT (the maintainer, after 0.1.2 is approved/live):** set Marketplace metadata (icon, tags, source
     URL); **release wrap** — `git tag 0.1.2` + refresh the GitHub Release asset with
     `hotreload-intellij-plugin-0.1.2-signed.zip` (public 0.1.0 asset is the old clone-required zip).
@@ -128,7 +128,7 @@ NEW scope (was explicitly out of scope for T29). Gated on Part 2 (don't publish 
   through 261.* — confirm against the IntelliJ Platform the plugin compiles against). Add the
   `signPlugin` + `publishPlugin` tasks (IntelliJ Platform Gradle Plugin) reading a `PUBLISH_TOKEN`
   and signing cert/private-key from env. Fill plugin description + change-notes (reuse README matrix).
-- **the maintainer-only (do NOT attempt headless):** create/confirm a JetBrains Marketplace vendor account,
+- **Maintainer-only (do NOT attempt headless):** create/confirm a JetBrains Marketplace vendor account,
   generate the Marketplace permanent token, generate a signing cert/key (`openssl`), run
   `./gradlew publishPlugin` with the secrets, then wait for JetBrains' first-upload manual review
   (a few business days). Set the plugin's marketplace metadata (icon, tags, source URL).
