@@ -1,5 +1,5 @@
 # T31: IDE plugin — release readiness (validation, CLI bundling, Marketplace)
-Status: IN-PROGRESS
+Status: IN-REVIEW (0.1.2 published to Marketplace 2026-07-11; awaiting JB first-upload moderation ~2 days)
 Assignee: Opus + the maintainer (device + accounts/tokens are the maintainer's)
 
 ## Progress
@@ -25,12 +25,30 @@ Assignee: Opus + the maintainer (device + accounts/tokens are the maintainer's)
   0.1.0). Verified: `signPlugin` + `publishPlugin` tasks resolve; `buildPlugin` green producing the
   0.1.1 zip. plugin.xml range kept (sinceBuild=242, untilBuild open — core APIs only, safe).
   **pluginVersion bumped 0.1.0 → 0.1.1** (bundled-CLI is a functional change; ships as a new tag).
-  - **STILL NEEDED (the maintainer-only, external):** JetBrains Marketplace vendor account → permanent upload
-    token → signing cert/key (`openssl`) → `./gradlew signPlugin && ./gradlew publishPlugin` with the
-    4 env vars set → JetBrains first-upload review (a few business days). Then set Marketplace
-    metadata (icon, tags, source URL).
-  - **Release:** tag `0.1.1` + refresh the GitHub Release asset with the bundled zip (the public
-    0.1.0 asset is the old clone-required zip).
+  - **Part 3 PUBLISHED ✅ (2026-07-11, Opus + the maintainer's token).** Signed with a self-signed cert and
+    published to the JetBrains Marketplace as **0.1.2** (in first-upload moderation, ~2 days).
+    - **Signing material** generated + persisted at `~/.config/jetbrains-plugin-signing/`
+      (700 dir, 600 files): `chain.crt` (self-signed 4096-bit RSA, 10yr), `private_encrypted.pem`,
+      `password.txt`, `publish_token.txt`, and `publish-env.sh` (exports the 4 env vars).
+      **Reuse across all future updates — do NOT regenerate the key.** Nothing here is in the repo.
+    - **Publish an update:** bump `pluginVersion`, then
+      `cd intellij-plugin && source ../scripts/env.sh && source ~/.config/jetbrains-plugin-signing/publish-env.sh && ./gradlew publishPlugin`.
+    - **Rotate the token:** new token at https://plugins.jetbrains.com/author/me/tokens →
+      overwrite `~/.config/jetbrains-plugin-signing/publish_token.txt` (the only file rotation changes).
+    - **Two Marketplace rejections hit + fixed (0.1.1 → 0.1.2, commit 7198e88, PR #7):**
+      1. Plugin ID may not contain "intellij" → renamed `dev.hotreload.intellij` → `dev.hotreload.ide`
+         in plugin.xml `<id>`, gradle pluginConfiguration `id`, AND the runtime `PluginId` constant
+         (all three must stay in sync or bundled-CLI path resolution breaks).
+      2. Compat check flagged internal `PluginManagerCore.getPlugin(PluginId)` → replaced with public
+         `PluginManager.getPluginByClass(javaClass)`. (Deprecated StatusBarWidget.getPresentation/
+         PlatformType warnings left — non-blocking; platform's inherited default-method wiring.)
+    - **Gotcha — first upload of a NEW plugin must go via the web UI** (plugins.jetbrains.com/plugin/add,
+      to set license/repo/tags); the token-based `publishPlugin` only works for subsequent versions.
+      the maintainer did the manual 0.1.1 upload; 0.1.2 then published straight through the token.
+  - **STILL LEFT (the maintainer, after 0.1.2 is approved/live):** set Marketplace metadata (icon, tags, source
+    URL); **release wrap** — `git tag 0.1.2` + refresh the GitHub Release asset with
+    `hotreload-intellij-plugin-0.1.2-signed.zip` (public 0.1.0 asset is the old clone-required zip).
+  - **Merge PR #7** (the ID + internal-API fix) to land 0.1.2 on `main`.
 
 ## Goal
 Take the IntelliJ/Android Studio plugin from "builds + attached to the v0.1.0 GitHub Release as a

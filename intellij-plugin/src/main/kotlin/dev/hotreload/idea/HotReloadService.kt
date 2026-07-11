@@ -4,14 +4,13 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.OSProcessHandler
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessListener
-import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.ide.plugins.PluginManager
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.SystemInfo
@@ -208,7 +207,10 @@ class HotReloadService(private val project: Project) : Disposable {
      * `cli.bat` on Windows). Null if this plugin path can't be resolved — an override must then be set.
      */
     private fun bundledLauncher(): Path? {
-        val pluginPath = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.pluginPath ?: return null
+        // Resolve THIS plugin's own install dir via the public PluginManager facade (not the
+        // internal PluginManagerCore.getPlugin) — getPluginByClass returns the descriptor of the
+        // plugin whose classloader loaded us, so no hard-coded plugin ID is needed.
+        val pluginPath = PluginManager.getPluginByClass(javaClass)?.pluginPath ?: return null
         val binName = if (SystemInfo.isWindows) "cli.bat" else "cli"
         return pluginPath.resolve("cli").resolve("bin").resolve(binName)
     }
@@ -226,8 +228,6 @@ class HotReloadService(private val project: Project) : Disposable {
 
     companion object {
         const val NOTIFICATION_GROUP = "Compose Hot Reload"
-        /** Must match `<id>` in META-INF/plugin.xml — used to find the plugin's own install dir. */
-        private const val PLUGIN_ID = "dev.hotreload.intellij"
         private val LOG = logger<HotReloadService>()
         fun getInstance(project: Project): HotReloadService = project.service()
     }
