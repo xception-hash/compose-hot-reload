@@ -1,6 +1,7 @@
 package dev.hotreload.engine
 
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Opcodes
 import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.MethodNode
 import org.objectweb.asm.util.Textifier
@@ -21,6 +22,7 @@ object FactsExtractor {
         ClassReader(classBytes).accept(node, ClassReader.SKIP_DEBUG)
 
         val members = mutableSetOf<MemberFacts>()
+        val monitorMethods = mutableSetOf<String>()
 
         // Methods
         for (method in node.methods ?: emptyList()) {
@@ -28,6 +30,9 @@ object FactsExtractor {
             val bodyHash = computeBodyHash(method)
             val composeKey = extractComposeKey(method)
             members += MemberFacts(id, method.access, bodyHash, composeKey)
+            if (method.instructions?.any { it.opcode == Opcodes.MONITORENTER } == true) {
+                monitorMethods += id
+            }
         }
 
         // Fields
@@ -42,6 +47,7 @@ object FactsExtractor {
             interfaces = node.interfaces?.toSet() ?: emptySet(),
             access = node.access,
             members = members,
+            monitorMethods = monitorMethods,
         )
     }
 

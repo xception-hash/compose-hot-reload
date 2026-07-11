@@ -31,4 +31,24 @@ public class SpikeTarget {
             return sb.toString();
         }
     }
+
+    // T30 item 1: exercises invokespecial (super-call) via the interpreter. v1 has no
+    // toString() override, so it falls back to Object's default; v2's override is only
+    // reachable by interpreting this exact bytecode, and its body must itself invoke the
+    // (compiled, non-interpreted) Object.toString() via invokespecial.
+    @Override
+    public String toString() {
+        return "v2super:" + super.toString();
+    }
+
+    // T30 item 1: exercises monitorenter/monitorexit via the interpreter. v1's version has
+    // no synchronized block at all (behaviorally distinct, same convention as fib).
+    public static int lockedCompute(int n) {
+        Object lock = new Object();
+        int result;
+        synchronized (lock) {
+            result = n * 2 + 1;
+        }
+        return result;
+    }
 }

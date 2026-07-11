@@ -13,7 +13,8 @@ import kotlin.io.path.extension
 /**
  * Watches source + resource roots for changes and delivers debounced batches of changed
  * file paths. Kotlin sources (`.kt`) drive class hot-swap; XML (`.xml`) and bitmap (`.png`,
- * `.webp`) resources drive resource hot-swap (T17, T23). The consumer routes each path by extension/location.
+ * `.webp`, `.jpg`, `.jpeg`) resources drive resource hot-swap (T17, T23, T30 item 4).
+ * The consumer routes each path by extension/location.
  */
 class SourceWatcher(
     roots: List<Path>,
@@ -32,7 +33,7 @@ class SourceWatcher(
         .listener { event ->
             val path = event.path()
             val ext = path.extension
-            if (ext == "kt" || ext == "xml" || ext == "png" || ext == "webp") {
+            if (ext == "kt" || ext == "xml" || ext == "png" || ext == "webp" || ext == "jpg" || ext == "jpeg") {
                 lock.withLock {
                     pending.add(path)
                     debounceTask?.cancel(false)

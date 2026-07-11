@@ -235,4 +235,55 @@ class ClassifierTest {
         )
         assertIs<Classifier.PatchPlan.Rebuild>(plan)
     }
+
+    /** MONITORENTER in a class bound for the interpreter: fatal under CheckJNI (T30 item 1). */
+    private fun monitorCls(name: String = "dev/hotreload/sample/MainActivityKt", vararg members: MemberFacts) =
+        cls(name, *members).copy(monitorMethods = setOf("lockedCompute(I)I"))
+
+    @Test
+    fun `interpret verdict on a monitor-bearing class rebuilds the plan (T30)`() {
+        val plan = Classifier.plan(
+            listOf(monitorCls(members = arrayOf(counter)) to Verdict.Interpret(emptySet())),
+        )
+        val rebuild = assertIs<Classifier.PatchPlan.Rebuild>(plan)
+        assertTrue(rebuild.reasons.single().contains("monitorenter"), rebuild.reasons.single())
+    }
+
+    @Test
+    fun `monitor-bearing class pulled into an interpret batch rebuilds the plan (T30)`() {
+        // The monitor class itself is only BodyOnly, but the sibling's Interpret verdict would
+        // pull its bytes through addClasses — where ALL its methods interpret on next run.
+        val plan = Classifier.plan(
+            listOf(
+                cls("a/EditedKt", greeting) to Verdict.Interpret(emptySet()),
+                monitorCls("a/HelperKt", counter) to Verdict.BodyOnly(setOf(1)),
+            ),
+        )
+        assertIs<Classifier.PatchPlan.Rebuild>(plan)
+    }
+
+    @Test
+    fun `monitor-bearing class hot-swaps normally outside interpret batches (T30)`() {
+        // Redefine/inject paths run compiled code — synchronized blocks are only fatal when the
+        // body is interpreted, so a plain batch must NOT regress to rebuild.
+        val plan = Classifier.plan(
+            listOf(monitorCls(members = arrayOf(counter)) to Verdict.BodyOnly(setOf(1))),
+        )
+        val hot = assertIs<Classifier.PatchPlan.HotSwap>(plan)
+        assertEquals(listOf("dev.hotreload.sample.MainActivityKt"), hot.redefine)
+    }
+
+    @Test
+    fun `new monitor-bearing class still injects inside an interpret batch (T30)`() {
+        // Injected classes are real loaded classes (interpreted NEW resolves them via
+        // Constructor.newInstance) — their synchronized blocks run compiled, so no rebuild.
+        val plan = Classifier.plan(
+            listOf(
+                cls("a/EditedKt", greeting) to Verdict.Interpret(emptySet()),
+                monitorCls("a/FreshKt") to Verdict.NewClass,
+            ),
+        )
+        val hot = assertIs<Classifier.PatchPlan.HotSwap>(plan)
+        assertEquals(listOf("a.FreshKt"), hot.inject)
+    }
 }

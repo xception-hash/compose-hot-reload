@@ -57,7 +57,7 @@ class ResourceSwapper(
      * pushed and the whole-tree invalidation triggered (caller then verifies recomposition);
      * false if the swap was skipped (guard tripped, or build/extract failed — session continues).
      *
-     * [bitmap]: the batch touched a `.png`/`.webp`. Overlaying alone can't surface those —
+     * [bitmap]: the batch touched a `.png`/`.webp`/`.jpg`/`.jpeg` (T30 item 4). Overlaying alone can't surface those —
      * `painterResource` remembers the decoded bitmap keyed on the intra-APK path string,
      * which is identical in every overlay — so the matching remember groups are bashed via
      * `invalidateGroupsWithKey` (see [PainterKeyExtractor]).
