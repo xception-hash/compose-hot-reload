@@ -4,10 +4,13 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.OSProcessHandler
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessListener
+import com.intellij.ide.BrowserUtil
 import com.intellij.ide.plugins.PluginManager
+import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
@@ -43,6 +46,10 @@ class HotReloadService(private val project: Project) : Disposable {
     /** Accumulates output between newlines — onTextAvailable may hand us partial lines. */
     private val lineBuffer = StringBuilder()
 
+    /** Bounded ring buffer of the last [HISTORY_LIMIT] non-blank CLI output lines, for the
+     *  "Report on GitHub" action — gives the reporter recent context without unbounded memory. */
+    private val outputHistory = ArrayDeque<String>()
+
     fun addListener(listener: Runnable) = listeners.add(listener)
 
     val isRunning: Boolean
@@ -56,6 +63,7 @@ class HotReloadService(private val project: Project) : Disposable {
     @Synchronized
     fun start() {
         if (isRunning) return
+        outputHistory.clear()
         val settings = HotReloadSettings.getInstance(project).state
         val command = try {
             buildCommand(settings)
@@ -77,12 +85,24 @@ class HotReloadService(private val project: Project) : Disposable {
                 flushBuffer()
                 // A user-initiated stop() destroys the process via signal (non-zero exit), so
                 // treat it as a clean Off; only an unexpected exit surfaces as an error.
+                val wasError = status.state == HotReloadState.ERROR
                 val ended = if (stopping || event.exitCode == 0) HotReloadStatus.OFF
                 else status.copy(state = HotReloadState.ERROR, detail = "watch exited (code ${event.exitCode})")
                 handler = null
                 stopping = false
                 lineBuffer.setLength(0)
                 setStatus(ended)
+                // A fatal CLI line has already ballooned via onStateEntered before the process
+                // exits; only balloon here when the exit itself is the first sign of trouble.
+                if (ended.state == HotReloadState.ERROR && !wasError) {
+                    val detail = ended.detail ?: "watch exited unexpectedly"
+                    balloon(
+                        "Hot reload watch exited unexpectedly",
+                        detail,
+                        NotificationType.ERROR,
+                        reportAction(detail),
+                    )
+                }
             }
         })
         handler = process
@@ -120,6 +140,7 @@ class HotReloadService(private val project: Project) : Disposable {
 
     /** Fold one CLI line, then react to state entry (balloons on Error / Rebuild-needed). */
     private fun fold(line: String) {
+        appendHistory(line)
         val before = status
         val after = CliProtocol.advance(before, line)
         if (after == before) return
@@ -127,10 +148,24 @@ class HotReloadService(private val project: Project) : Disposable {
         if (after.state != before.state) onStateEntered(after)
     }
 
+    /** Append a non-blank CLI line to the bounded ring buffer (called under the same
+     *  @Synchronized discipline as fold's callers: consumeOutput / flushBuffer). */
+    private fun appendHistory(line: String) {
+        outputHistory.addLast(line)
+        while (outputHistory.size > HISTORY_LIMIT) outputHistory.removeFirst()
+    }
+
+    /** Snapshot the ring buffer under the object monitor — safe to call from callbacks
+     *  (e.g. processTerminated) that don't otherwise hold it. */
+    @Synchronized
+    private fun historySnapshot(): List<String> = outputHistory.toList()
+
     private fun onStateEntered(s: HotReloadStatus) {
         when (s.state) {
-            HotReloadState.ERROR ->
-                balloon("Hot reload failed", s.detail ?: "see the CLI output", NotificationType.ERROR)
+            HotReloadState.ERROR -> {
+                val detail = s.detail ?: "see the CLI output"
+                balloon("Hot reload failed", detail, NotificationType.ERROR, reportAction(detail))
+            }
             HotReloadState.REBUILD_NEEDED ->
                 balloon(
                     "Rebuild required",
@@ -215,11 +250,42 @@ class HotReloadService(private val project: Project) : Disposable {
         return pluginPath.resolve("cli").resolve("bin").resolve(binName)
     }
 
-    private fun balloon(title: String, content: String, type: NotificationType) {
-        NotificationGroupManager.getInstance()
+    private fun balloon(title: String, content: String, type: NotificationType, action: NotificationAction? = null) {
+        val notification = NotificationGroupManager.getInstance()
             .getNotificationGroup(NOTIFICATION_GROUP)
             .createNotification(title, content, type)
-            .notify(project)
+        if (action != null) notification.addAction(action)
+        notification.notify(project)
+    }
+
+    /** Build the "Report on GitHub" balloon action: prefills a GitHub issue with the error
+     *  detail, the last 30 lines of CLI output, plugin/IDE/OS info, and opens it in the browser. */
+    private fun reportAction(errorDetail: String): NotificationAction {
+        val history = historySnapshot().takeLast(30)
+        return NotificationAction.createSimple("Report on GitHub") {
+            BrowserUtil.browse(GitHubIssueUrl.build(reportTitle(errorDetail), reportBody(errorDetail, history)))
+        }
+    }
+
+    private fun reportTitle(errorDetail: String): String {
+        val firstLine = errorDetail.lineSequence().firstOrNull()?.takeIf { it.isNotBlank() }
+            ?: "hot reload watch failed"
+        return "[crash] $firstLine"
+    }
+
+    private fun reportBody(errorDetail: String, history: List<String>): String {
+        val pluginVersion = PluginManager.getPluginByClass(javaClass)?.version ?: "unknown"
+        val ideBuild = runCatching { ApplicationInfo.getInstance().build.asString() }.getOrDefault("unknown")
+        return buildString {
+            append("### Error\n\n").append(errorDetail).append("\n\n")
+            append("### Last CLI output (up to 30 lines)\n\n")
+            append("```\n").append(history.joinToString("\n")).append("\n```\n\n")
+            append("### Environment\n\n")
+            append("- Plugin version: `$pluginVersion`\n")
+            append("- IDE build: `$ideBuild`\n")
+            append("- OS: `${SystemInfo.OS_NAME} ${SystemInfo.OS_VERSION}`\n\n")
+            append("Please run `hotreload doctor` and paste its output here.\n")
+        }
     }
 
     override fun dispose() {
@@ -228,6 +294,7 @@ class HotReloadService(private val project: Project) : Disposable {
 
     companion object {
         const val NOTIFICATION_GROUP = "Compose Hot Reload"
+        private const val HISTORY_LIMIT = 100
         private val LOG = logger<HotReloadService>()
         fun getInstance(project: Project): HotReloadService = project.service()
     }

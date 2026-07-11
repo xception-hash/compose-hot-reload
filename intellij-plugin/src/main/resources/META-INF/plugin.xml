@@ -29,6 +29,8 @@
             implementation="dev.hotreload.idea.HotReloadStatusWidgetFactory"/>
 
         <notificationGroup id="Compose Hot Reload" displayType="BALLOON"/>
+
+        <errorHandler implementation="dev.hotreload.idea.HotReloadErrorReportSubmitter"/>
     </extensions>
 
     <actions>

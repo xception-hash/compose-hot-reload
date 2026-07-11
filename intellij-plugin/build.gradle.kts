@@ -83,6 +83,15 @@ intellijPlatform {
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
     }
+
+    // Plugin Verifier gate: internal-API / compat errors here are exactly what the Marketplace
+    // compat check rejects (it bounced 0.1.2 twice) — run `./gradlew verifyPlugin` before any
+    // upload. Verifies against the same IC release we build with (downloads it on first run).
+    pluginVerification {
+        ides {
+            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, providers.gradleProperty("platformVersion").get())
+        }
+    }
 }
 
 tasks.test {
