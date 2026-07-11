@@ -213,22 +213,30 @@ assert_pid
 PASSED=$((PASSED + 1))
 echo "PASS: multi-feature-composable"
 
-# Case 3: multi-abi-rebuild
-# Edit CoreLabel.kt signature (add a param) → expect "cannot hot-swap" and
-# "signatures changed". Then revert → expect "no bytecode changes".
-echo "Running case: multi-abi-rebuild"
-cannot_count=$(grep -c "cannot hot-swap" "$WATCH_LOG" || true)
+# Case 3: multi-abi-interpret (T28 — was multi-abi-rebuild pre-T28)
+# Edit CoreLabel.kt signature (add a default param). Pre-T28 this was a hard
+# "cannot hot-swap / signatures changed" refusal; since T28 the whole-batch rule
+# primes + interprets the changed classes across modules (this exact edit was
+# T28 Checkpoint B) — expect "primed:" + "interpreted:", same PID, UI intact.
+# Then revert: the class is primed now, so the revert ALSO routes through the
+# interpreter (another "interpreted:", not "no bytecode changes").
+echo "Running case: multi-abi-interpret"
+interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
 perl -pi -e 's/fun coreLabel\(n: Int\)/fun coreLabel(n: Int, suffix: String = "")/' "$CORE_LABEL"
-wait_for_log "cannot hot-swap" "$cannot_count"
-grep -q "signatures changed" "$WATCH_LOG" \
-    || { echo "FAIL: expected 'signatures changed' in watch log"; tail -n 20 "$WATCH_LOG"; exit 1; }
-no_changes_count=$(grep -c "no bytecode changes" "$WATCH_LOG" || true)
+wait_for_log "interpreted:" "$interp_count"
+grep -q "primed:.*CoreLabelKt" "$WATCH_LOG" \
+    || { echo "FAIL: expected a 'primed:' line naming CoreLabelKt"; tail -n 20 "$WATCH_LOG"; exit 1; }
+# UI still renders through the interpreted classes (case 1's edited text).
+assert_ui 'core edit:'
+assert_pid
+interp_count=$(grep -c "interpreted:" "$WATCH_LOG" || true)
 # Revert: restore to the edited state from case 1 (core edit:), NOT the original.
 perl -pi -e 's/fun coreLabel\(n: Int, suffix: String = ""\)/fun coreLabel(n: Int)/' "$CORE_LABEL"
-wait_for_log "no bytecode changes" "$no_changes_count"
+wait_for_log "interpreted:" "$interp_count"
+assert_ui 'core edit:'
 assert_pid
 PASSED=$((PASSED + 1))
-echo "PASS: multi-abi-rebuild"
+echo "PASS: multi-abi-interpret"
 
 # Case 4: multi-resource-edit
 # Edit the feature module's strings.xml value → expect "resource-swapped:" in
