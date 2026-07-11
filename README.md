@@ -114,6 +114,10 @@ For multi-module projects, pass `--module` with a comma-separated list of Gradle
 ```
 Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the whole tree with state preserved.
 
+> **Using an AI coding agent?** Point it at [`AGENTS.md`](AGENTS.md) — preflight checks,
+> how to run the (blocking) watcher in the background, and the exact log lines that signal
+> success or failure at each step.
+
 ## 4. What hot-reloads today
 | Case | Mechanics | Time |
 |---|---|---|
