@@ -38,13 +38,16 @@ kotlin {
 
 intellijPlatform {
     pluginConfiguration {
-        id = "dev.hotreload.intellij"
+        id = "dev.hotreload.ide"
         name = "Compose Hot Reload"
         version = providers.gradleProperty("pluginVersion").get()
         description = "Flutter-style hot reload for Jetpack Compose on Android, driven from the IDE. " +
             "Spawns the hotreload CLI and shows live reload status in the status bar."
         changeNotes = """
             <ul>
+              <li><b>0.1.2</b> — Replaced an internal-platform API (<code>PluginManagerCore.getPlugin</code>)
+                  with the public <code>PluginManager.getPluginByClass</code> for resolving the bundled
+                  CLI; no behavior change. Plugin ID is now <code>dev.hotreload.ide</code>.</li>
               <li><b>0.1.1</b> — The <code>hotreload</code> CLI is now bundled inside the plugin.
                   Install from disk (or the Marketplace) and hot-reload with no repo clone: leave the
                   Settings ▸ Tools ▸ Compose Hot Reload ▸ CLI launcher field blank to use it. Requires
