@@ -26,4 +26,10 @@ object HotSwap {
     external fun nativeHasStructural(): Boolean
     external fun nativeInjectDex(loader: ClassLoader, dexBytes: ByteArray): Int
     external fun nativeInjectDexFile(loader: ClassLoader, path: String): Int
+
+    // T30 item 1: RegisterNatives for interpreter.JNI (invokespecial*/enter-exitMonitor), bound
+    // via interp_bridge.cpp -> runtime-client's interpreter_jni.cpp (compiled verbatim into this
+    // app's .so). Call AFTER interp.dex is injected, with the JNI class resolved through the app
+    // classloader — mirrors production LiveEditInterp.ensureInitialized. Idempotent; 0 = OK.
+    external fun nativeRegisterInterpreterJni(jniClass: Class<*>): Int
 }

@@ -9,7 +9,7 @@ import java.util.zip.ZipFile
  * `startReplaceGroup(<key>)` in `androidx.compose.ui.res.PainterResources_androidKt`
  * that wraps `remember(path, id, theme) { loadImageBitmapResource(...) }`.
  *
- * Why: a bitmap (png/webp) overlay swap leaves that `remember` stale. Its keys are the
+ * Why: a bitmap (png/webp/jpg/jpeg) overlay swap leaves that `remember` stale. Its keys are the
  * *intra-APK* file path string (identical in every overlay we build), the resource id,
  * and the theme — none change when an overlay lands, so no amount of recomposition ever
  * re-decodes the bitmap. `invalidateGroupsWithKey(<key>)` "bashes" exactly the matching
