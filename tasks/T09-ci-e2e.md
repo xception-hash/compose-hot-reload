@@ -18,7 +18,7 @@ Assignee: Opus (interactive — needs iteration against real CI runs)
 ### Gotchas hit (for future CI work)
 - New private repos need Actions billing set up; symptom is an account-wide lock
   ("job was not started because your account is locked due to a billing issue") that even a
-  public flip does NOT bypass. the maintainer cleared it in github.com/settings/billing.
+  public flip does NOT bypass. The maintainer cleared it in github.com/settings/billing.
 - Runner is ~13 min/run (emulator boot + NDK). Well within the 2000 free Linux-min/month.
 - Harmless annotation: Node 20 deprecation for the marketplace actions (forced to Node 24).
 

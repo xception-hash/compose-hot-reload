@@ -31,7 +31,7 @@ Three executors:
 - **Antigravity CLI ("agy", run by the maintainer):** well-specced mechanical work — module scaffolding,
   Gradle boilerplate, porting code to a written spec, sample apps, README/docs formatting,
   test harness plumbing, CI configs.
-- **the maintainer:** provide starter projects/scaffolds when a phase needs one, run agy tasks, GUI-only
+- **The maintainer:** provide starter projects/scaffolds when a phase needs one, run agy tasks, GUI-only
   actions (Android Studio), long installs, on-device manual testing.
 
 Mechanics:

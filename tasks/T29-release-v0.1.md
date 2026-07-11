@@ -63,7 +63,7 @@ a product bug found along the way goes into a new task file, not fixed inline he
   - README quickstart references the REAL JitPack coordinates:
     repo `maven { url "https://jitpack.io" }` +
     `com.github.xception-hash.compose-hot-reload:<module>:v0.1.0`.
-- **the maintainer-only (do NOT attempt headless):** tag `v0.1.0`, push tag, create the GitHub Release,
+- **Maintainer-only (do NOT attempt headless):** tag `v0.1.0`, push tag, create the GitHub Release,
   attach `hotreload-intellij-plugin-0.1.0.zip` (built by `cd intellij-plugin && ./gradlew
   buildPlugin`), verify the JitPack build resolves from a scratch project. Marketplace publishing
   is OUT of scope. Release notes = README feature matrix + limitations.
@@ -83,7 +83,7 @@ Fixed during review (verified):
   id to the JitPack module. `jitpack.yml` jdk 21 confirmed correct (JBR = openjdk 21).
 
 ### RESOLVED 2026-07-07 — runtime-client coordinate fix applied (tag naming DECIDED: `0.1.0`, no `v`)
-the maintainer picked tag `0.1.0`. The recommended fix below was applied in full (Fable session 2026-07-07):
+The maintainer picked tag `0.1.0`. The recommended fix below was applied in full (Fable session 2026-07-07):
 - `runtime-client` group → `com.github.xception-hash.compose-hot-reload` (build.gradle.kts, both
   the project `group` and the publication `groupId`).
 - `HotReloadPlugin.kt` now injects `com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0`.

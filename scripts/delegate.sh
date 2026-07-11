@@ -9,7 +9,7 @@ cd "$REPO_ROOT"
 [ -f "$SPEC" ] || { echo "no such spec: $SPEC"; exit 1; }
 
 # Runs inside agy's sandbox. If the sandbox blocks the task (e.g. Gradle needs network),
-# the maintainer runs the spec interactively instead: agy -i "implement tasks/T01-... exactly"
+# The maintainer runs the spec interactively instead: agy -i "implement tasks/T01-... exactly"
 exec agy --print "You are executing a delegated task in this git repository ($REPO_ROOT).
 Read the spec file '$SPEC' and implement it EXACTLY as written — no extra features,
 no touching anything listed under 'Out of scope'. When implementation is done, run the
