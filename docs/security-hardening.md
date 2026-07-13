@@ -95,6 +95,17 @@ negative check — from the toy app, attempt a `LocalSocket` connect to the samp
 > still dropped at exactly +31s (`EAGAIN` → session closed, peer reads EOF); (3) the next
 > client after a stall-drop handshakes fine (`device: … protocol=8`). Full e2e re-run green.
 
+> **Related open finding (2026-07-13, portability session):** the inverse wedge exists
+> POST-handshake — once a valid frame clears the first-frame timeout, session reads block
+> forever, and when a watcher is killed (pkill) its dead peer's EOF did not propagate
+> through the stale adb forward: the serial accept loop stayed blocked in read, so every
+> subsequent client's ping() hung in SILENCE (CLI prints nothing before the device line —
+> looks like a hang). Observed live on emulator API 36 after repeated e2e watcher kills;
+> recovery = force-stop + relaunch the app. Not a security hole (requires shell-authorized
+> peers anyway) but a real dev-loop trap. Candidate fixes for a robustness pass: re-arm a
+> generous soTimeout BETWEEN requests (not mid-idle-session — see the CI regression above
+> for why a blanket timeout is wrong), or a keepalive/health probe in the accept loop.
+
 ## P1 — defense in depth (next session after P0)
 
 **3. Release-variant tripwire in `gradle-plugin`.** Fail (or at minimum warn loudly at)
