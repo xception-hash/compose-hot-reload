@@ -1,7 +1,6 @@
 package dev.hotreload.idea
 
 import com.intellij.ide.BrowserUtil
-import com.intellij.ide.plugins.PluginManager
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.ErrorReportSubmitter
 import com.intellij.openapi.diagnostic.IdeaLoggingEvent
@@ -68,7 +67,7 @@ class HotReloadErrorReportSubmitter : ErrorReportSubmitter() {
             }
         }
 
-        val pluginVersion = PluginManager.getPluginByClass(javaClass)?.version ?: "unknown"
+        val pluginVersion = PluginInfo.version
         val ideBuild = runCatching { ApplicationInfo.getInstance().build.asString() }.getOrDefault("unknown")
         sb.append("### Environment\n\n")
         sb.append("- Plugin version: `$pluginVersion`\n")

@@ -36,6 +36,23 @@ kotlin {
     jvmToolchain(21)
 }
 
+// Bake the plugin version into a bundled resource so PluginInfo can report it at runtime WITHOUT
+// any IntelliJ plugin-descriptor API (all PluginManager descriptor lookups are @ApiStatus.Internal
+// on 2026.2 and the Marketplace compat check rejects them).
+val generatePluginProperties = tasks.register("generatePluginProperties") {
+    val pluginVersion = providers.gradleProperty("pluginVersion")
+    val outDir = layout.buildDirectory.dir("generated/pluginProperties")
+    inputs.property("version", pluginVersion)
+    outputs.dir(outDir)
+    doLast {
+        val pkgDir = outDir.get().dir("dev/hotreload/idea").asFile
+        pkgDir.mkdirs()
+        pkgDir.resolve("plugin.properties").writeText("version=${pluginVersion.get()}\n")
+    }
+}
+
+sourceSets["main"].resources.srcDir(generatePluginProperties)
+
 intellijPlatform {
     pluginConfiguration {
         id = "dev.hotreload.ide"
@@ -45,8 +62,13 @@ intellijPlatform {
             "Spawns the hotreload CLI and shows live reload status in the status bar."
         changeNotes = """
             <ul>
+              <li><b>0.1.4</b> — Removed all use of internal IntelliJ plugin-descriptor APIs
+                  (every <code>PluginManager</code> descriptor lookup became
+                  <code>@ApiStatus.Internal</code> on 2026.2). The plugin version is now baked in at
+                  build time and the bundled CLI is located from the plugin's own jar; no behavior
+                  change. Fixes the Marketplace compatibility rejection.</li>
               <li><b>0.1.2</b> — Replaced an internal-platform API (<code>PluginManagerCore.getPlugin</code>)
-                  with the public <code>PluginManager.getPluginByClass</code> for resolving the bundled
+                  with <code>PluginManager.getPluginByClass</code> for resolving the bundled
                   CLI; no behavior change. Plugin ID is now <code>dev.hotreload.ide</code>.</li>
               <li><b>0.1.1</b> — The <code>hotreload</code> CLI is now bundled inside the plugin.
                   Install from disk (or the Marketplace) and hot-reload with no repo clone: leave the
@@ -84,9 +106,19 @@ intellijPlatform {
         token = providers.environmentVariable("PUBLISH_TOKEN")
     }
 
-    // Plugin Verifier gate: internal-API / compat errors here are exactly what the Marketplace
-    // compat check rejects (it bounced 0.1.2 twice) — run `./gradlew verifyPlugin` before any
-    // upload. Verifies against the same IC release we build with (downloads it on first run).
+    // Plugin Verifier gate: internal-API / compat errors here are what the Marketplace compat
+    // check rejects — run `./gradlew verifyPlugin` before any upload.
+    //
+    // KNOWN BLIND SPOT (do NOT trust a green verifyPlugin for internal-API): the verifier can only
+    // download IDEs published to the public IntelliJ maven repo, which currently tops out at the
+    // 2025.x line. Several `PluginManager` descriptor lookups (e.g. getPluginByClass) were only
+    // annotated `@ApiStatus.Internal` in the platform's 262 branch (2026.2) — verified in
+    // intellij-community: NOT @Internal on 251/252/253, @Internal on 262. The Marketplace runs its
+    // verifier against 2026.2 RC (build 262.8665.176), so it flagged getPluginByClass while a local
+    // verifyPlugin against 2025.x stayed green — that is exactly how 0.1.2/0.1.3 shipped broken.
+    // Mitigation used for 0.1.4: we removed ALL platform plugin-descriptor APIs (see PluginInfo.kt)
+    // rather than relying on this gate. TODO: once IC 2026.2 is in the public maven repo, add it
+    // here (`ide(IntellijIdeaCommunity, "2026.2")`) so this class of drift is caught locally.
     pluginVerification {
         ides {
             ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, providers.gradleProperty("platformVersion").get())
