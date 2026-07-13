@@ -233,7 +233,7 @@ already landed.
 Remaining: formalize the typed `ProjectConfig` model, wire precedence chain, accept
 `--app-module` and `--app-module-dir`.
 
-Assignee: agy
+Assignee: agy — **executable spec ready: `tasks/T33a-config-model.md`**
 
 ### Phase 2 — `inspect` and Gradle metadata discovery
 Add the Gradle-side discovery component and `hotreload inspect` command. Report
@@ -270,7 +270,10 @@ Fix `debugImplementation` to follow the selected debuggable variant. Handle all 
 layouts consistently. Version-lock runtime artifact to tool version. Doctor validates
 via Gradle metadata.
 
-Assignee: maintainer
+Assignee: maintainer — **the core wiring fix is agy-delegable and specced:
+`tasks/T33b-plugin-variant-wiring.md`** (version-locking + doctor metadata checks stay
+maintainer/coordinator work). Phase 7 has no ordering dependency — it can land before
+phases 2–6.
 
 ### Phase 8 — Zero-touch bootstrap / init-script mode
 Bundle bootstrap plugin + runtime AAR. Generate init script. No target-project
@@ -289,6 +292,46 @@ Run the full fixture matrix. Convert the case-study guide into a generic advance
 configuration example. AGP 8 + flavored-variant sample for CI.
 
 Assignee: maintainer
+
+## Agent execution guide
+
+How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks up T33
+work without a human in the loop:
+
+**Order.** Two specs are dispatch-ready NOW and independent of each other:
+`tasks/T33a-config-model.md` (phase 1 remainder) and `tasks/T33b-plugin-variant-wiring.md`
+(phase 7 core). After T33a lands, phases 2→3→4→5→6 must go in order (each builds on the
+previous one's types); each needs its spec written by a coordinator session first —
+they contain real design decisions (Tooling-API-vs-init-script discovery, TOML schema)
+that must NOT be improvised by the executing agent. Phases 8–10 are maintainer-led.
+
+**Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
+1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed
+   design decision = stop and surface it, don't guess.
+2. Done = the spec's Acceptance commands pass, run for real, output captured. Never
+   weaken, skip, or reinterpret an acceptance check to make it pass.
+3. Environment gotchas that have bitten every agent here: source `scripts/env.sh` by
+   ABSOLUTE path and `export REPO_ROOT` explicitly BEFORE relying on it (its
+   `BASH_SOURCE` derivation breaks under zsh and silently points one directory up);
+   a `./gradlew` run without JAVA_HOME can exit 0 having done nothing — verify by output
+   or artifact mtime, not exit code alone.
+4. Device gates: e2e needs the pinned emulator (`scripts/emulator-up.sh`). Kill watchers
+   ONLY with `pkill -9 -f dev.hotreload.cli.MainKt` (killing the Gradle wrapper leaks the
+   CLI JVM). Known trap: a killed watcher can wedge the app's accept loop — if a later
+   watch start hangs printing NOTHING, force-stop + relaunch the app and retry (see
+   docs/security-hardening.md, post-handshake wedge note). If no device is available,
+   finish the host-side acceptance and mark the device gate for the coordinator.
+5. Confidentiality gate before ANY commit: no employer names, no maintainer personal
+   names, no `/Users/<name>` paths may appear in any tracked file. The exact grep
+   pattern is deliberately NOT in this public repo — on the maintainer's machine run
+   `git grep -iE -f external/confidential-grep.txt -- ':!third_party'` (local-only,
+   gitignored file) and require empty output. Never read `external/` except where a
+   spec directs, and never commit it.
+6. Do not `git commit` unless your spec says to; flip your spec's `Status: TODO` →
+   `IN-REVIEW` when acceptance passes and stop. The coordinator reviews, runs device
+   gates, and commits.
+7. Default `--variant debug` behavior is sacred: any change here must keep e2e
+   `run.sh` + `run-multi.sh` green unmodified — those suites ARE the regression contract.
 
 ## Out of scope
 - JVMTI agent semantics (`hotreload_agent.cpp`), ComposeBridge reflection, classifier
