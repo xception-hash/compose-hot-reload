@@ -13,7 +13,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        minSdk = 30
+        // Host apps may support older devices; the initializer disables itself below API 30.
+        minSdk = 24
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }

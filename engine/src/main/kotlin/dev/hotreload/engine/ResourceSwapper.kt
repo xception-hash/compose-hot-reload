@@ -13,7 +13,7 @@ import kotlin.io.path.name
 
 /**
  * Resource hot-swap for value edits (string/color/dimen/...): rebuild the app's resource
- * table with `assembleDebug`, extract `resources.arsc` + `res/` from the APK, push it into
+ * table with the selected variant's assemble task, extract `resources.arsc` + `res/` from the APK, push it into
  * the app's code_cache, and have the runtime-client overlay it via `ResourcesLoader` +
  * whole-tree `invalidateAll` (state preserved — T16 docs/resource-invalidation-experiment.md).
  *
@@ -33,8 +33,7 @@ class ResourceSwapper(
     /** `dexdump` from build-tools (sibling of d8); null degrades bitmap edits to overlay-only. */
     private val dexdump: Path?,
 ) {
-    private val assembleTask = "${appModule.gradlePath}:assembleDebug"
-    private val apkDir = appModule.dir.resolve("build/outputs/apk/debug")
+    private val assembleTask = appModule.assembleTask
     private val seq = AtomicInteger(0)
 
     /**
@@ -75,7 +74,7 @@ class ResourceSwapper(
                     append(" — value-only hot reload can't remap resource IDs")
                 },
             )
-            println("run a full install (e.g. ./gradlew ${appModule.gradlePath}:installDebug), relaunch, then restart watch")
+            println("run a full install (e.g. ./gradlew ${appModule.installTask}), relaunch, then restart watch")
             // Keep the old baseline: the message persists until they reinstall (or revert).
             return false
         }
@@ -89,7 +88,7 @@ class ResourceSwapper(
 
         val apk = findApk()
         if (apk == null) {
-            println("no debug APK under $apkDir — cannot overlay resources")
+            println("no APK under ${appModule.apkOutputDirs.joinToString()} — cannot overlay resources")
             return false
         }
 
@@ -126,14 +125,22 @@ class ResourceSwapper(
         }
     }
 
-    /** Newest `*.apk` in the debug output dir (assembleDebug produces exactly one for the sample). */
+    /**
+     * Newest APK below the selected app module's output tree. apkOutputDirs is ordered
+     * most-specific-first, but the recursive newest-mtime fallback can still pick a stale
+     * other-variant APK when several variants were assembled — acceptable v1 tradeoff.
+     */
     private fun findApk(): Path? {
-        if (!apkDir.isDirectory()) return null
-        return Files.list(apkDir).use { stream ->
-            stream.filter { it.isRegularFile() && it.extension == "apk" }
-                .max(Comparator.comparingLong { Files.getLastModifiedTime(it).toMillis() })
-                .orElse(null)
+        for (dir in appModule.apkOutputDirs) {
+            if (!dir.isDirectory()) continue
+            val apk = Files.walk(dir).use { stream ->
+                stream.filter { it.isRegularFile() && it.extension == "apk" }
+                    .max(Comparator.comparingLong { Files.getLastModifiedTime(it).toMillis() })
+                    .orElse(null)
+            }
+            if (apk != null) return apk
         }
+        return null
     }
 
     /** Copy just `resources.arsc` + `res/` from [apk] into a fresh temp dir named [overlayName]. */

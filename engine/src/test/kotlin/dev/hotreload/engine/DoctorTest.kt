@@ -14,7 +14,7 @@ class DoctorTest {
             val doctor = Doctor(
                 projectDir = tempDir.resolve("nonexistent"),
                 applicationId = "dev.hotreload.test",
-                moduleNames = listOf("app"),
+                modules = listOf(ModuleSpec.Request.parse("app")),
                 sdkDir = tempDir.resolve("sdk"),
             )
             val ok = doctor.run()
@@ -39,7 +39,7 @@ class DoctorTest {
             val doctor = Doctor(
                 projectDir = projectDir,
                 applicationId = "dev.hotreload.test",
-                moduleNames = listOf("app"),
+                modules = listOf(ModuleSpec.Request.parse("app")),
                 sdkDir = tempDir.resolve("nonexistent_sdk"),
             )
             val ok = doctor.run()

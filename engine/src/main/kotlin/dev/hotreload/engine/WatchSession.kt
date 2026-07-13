@@ -22,10 +22,13 @@ class WatchSession(private val config: Config) {
     class Config(
         val projectDir: Path,
         /** Watched Gradle modules; the FIRST holds the app (applicationId, APK, resources). */
-        val moduleNames: List<String>,
+        val modules: List<ModuleSpec.Request>,
         val applicationId: String,
         val d8: Path,
         val adb: Path,
+        val variant: String = "debug",
+        val projectJavaHome: Path? = null,
+        val gradleArgs: List<String> = emptyList(),
         /**
          * Live-literals fast path (T24, `--literals`): literal-only edits are pushed in
          * place through Compose live literals before the normal compile+swap runs. Requires
@@ -34,17 +37,20 @@ class WatchSession(private val config: Config) {
         val literals: Boolean = false,
     ) {
         init {
-            require(moduleNames.isNotEmpty()) { "at least one module (the app module) is required" }
+            require(modules.isNotEmpty()) { "at least one module (the app module) is required" }
+            require(variant.isNotBlank()) { "variant must not be blank" }
         }
     }
 
     /** The app module is AGP by definition, so its compile task is known before probing. */
-    private val compileTask = ":${config.moduleNames.first().replace('/', ':')}:compileDebugKotlin"
+    private val compileTask = config.modules.first().let { app ->
+        "${app.gradlePath}:compile${(app.variant ?: config.variant).taskSegment()}Kotlin"
+    }
 
     /** Resolved after the initial build (layout probing needs compiled output). */
     private lateinit var modules: List<ModuleSpec>
     private val classesDirs get() = modules.map { it.classesDir }
-    private val resDirs get() = modules.mapNotNull { it.resDir }
+    private val resDirs get() = modules.flatMap { it.resDirs }.filter { Files.isDirectory(it) }
 
     /** Live-literals state (T24); populated only when [Config.literals]. */
     private var sourceRoots: List<Path> = emptyList()
@@ -93,16 +99,21 @@ class WatchSession(private val config: Config) {
                 "device is not hot-swappable — is the app a debuggable build with the runtime-client?"
             }
 
-            val gradleArgs = if (config.literals) listOf("-Photreload.liveLiterals=true") else emptyList()
-            GradleCompiler(config.projectDir.toFile(), gradleArgs).use { gradle ->
+            val gradleArgs = config.gradleArgs +
+                if (config.literals) listOf("-Photreload.liveLiterals=true") else emptyList()
+            GradleCompiler(
+                config.projectDir.toFile(),
+                gradleArgs,
+                config.projectJavaHome?.toFile(),
+            ).use { gradle ->
                 print("initial build... ")
                 val initial = gradle.compile(compileTask)
                 check(initial.success) { "initial compile failed:\n${initial.output}" }
                 println("ok (${initial.durationMs}ms)")
 
-                modules = config.moduleNames.map { ModuleSpec.probe(config.projectDir, it) }
-                check(modules.first().layout == ModuleSpec.Layout.AGP) {
-                    "app module '${modules.first().name}' is not an AGP module (no built-in-kotlinc output)"
+                modules = config.modules.map { ModuleSpec.probe(config.projectDir, it, config.variant) }
+                check(modules.first().layout != ModuleSpec.Layout.JVM) {
+                    "app module '${modules.first().name}' is not an AGP module"
                 }
                 println("modules: " + modules.joinToString { "${it.gradlePath}: ${it.layout} (${it.classesDir})" })
 
@@ -250,7 +261,7 @@ class WatchSession(private val config: Config) {
         return when (val plan = Classifier.plan(verdicts)) {
             is Classifier.PatchPlan.Rebuild -> {
                 plan.reasons.forEach { println("cannot hot-swap: $it") }
-                println("run a full install (e.g. ./gradlew ${modules.first().gradlePath}:installDebug), relaunch, then restart watch")
+                println("run a full install (e.g. ./gradlew ${modules.first().installTask}), relaunch, then restart watch")
                 null // keep the old baseline: these changes were NOT applied
             }
             is Classifier.PatchPlan.HotSwap -> {
