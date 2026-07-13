@@ -17,16 +17,22 @@ platform accessor exists for a plugin's own descriptor. So the fix must NOT use 
   → up two dirs). Pure JVM/URL, no platform API. Settings CLI-path override stays as escape hatch.
 - New file `PluginInfo.kt` centralizes both. Removes `import ...PluginManager` from both files.
 
-**Done-condition:** `cd intellij-plugin && source ../scripts/env.sh && ./gradlew test buildPlugin`
-green; no source references `getPluginByClass`/`PluginManager`/`PluginManagerCore`; the built
-zip's `<pluginDir>/cli/bin/cli` still resolves at runtime (bundled-CLI Start works on device).
-NOTE: local `verifyPlugin` pins 2025.1 where these APIs are NOT yet @Internal — it will pass
-even on the OLD code, so it can't catch this. Real gate = Marketplace 2026.2 verifier. Consider
-adding a 2026.1+ IDE to `pluginVerification.ides` (heavy download) to catch future drift.
-Then bump pluginVersion → 0.1.4 + changeNotes and publish.
+**STATUS: DONE + committed.** Branch `fix/internal-api-plugindescriptor` off `main`,
+commit **2c32f77** (pluginVersion 0.1.4). Verified: no source refs to
+`getPluginByClass`/`PluginManager`/`PluginManagerCore`; `./gradlew test buildPlugin` green;
+`version=0.1.4` resource in the plugin jar; path-derivation EXERCISED against the real built
+zip layout (Probe.java) → resolves `cli/bin/cli` exists=true; verifyPlugin (2025.1) Compatible,
+zero internal API.
 
-Branch: made off `feat/project-portability` current tree — REBASE onto main before PR (this
-fix is release-critical and independent of the T33 portability work).
+WHY local verifyPlugin can't catch this (root cause of the repeated rejections): getPluginByClass
+became `@ApiStatus.Internal` only in the platform **262 branch (2026.2)** — NOT in 251/252/253.
+The public IntelliJ maven repo has no 2026.x build, so the verifier physically can't download a
+262 IDE to reproduce it. Fix works by REMOVING the API, not by trusting the gate. Documented in
+build.gradle.kts pluginVerification comment.
+
+REMAINING (Jay-only — guard blocks Opus push): push branch → PR → merge; then publish 0.1.4
+(`source scripts/env.sh && source ~/.config/jetbrains-plugin-signing/publish-env.sh && ./gradlew publishPlugin`).
+Plugin files are identical to feat/project-portability, so they de-dup when both land.
 
 ---
 
