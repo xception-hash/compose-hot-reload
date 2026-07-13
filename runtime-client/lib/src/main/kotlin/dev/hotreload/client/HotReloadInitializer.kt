@@ -2,6 +2,7 @@ package dev.hotreload.client
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import android.util.Log
 import androidx.startup.Initializer
 
@@ -12,6 +13,11 @@ import androidx.startup.Initializer
  */
 class HotReloadInitializer : Initializer<Unit> {
     override fun create(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            Log.w("HotReload", "API ${Build.VERSION.SDK_INT} is unsupported — hot reload disabled")
+            return
+        }
+
         // Belt-and-braces on top of the plugin's `debugImplementation` wiring: never expose
         // the injection surface on a release/non-debuggable build, even if the dependency is
         // hand-added to a release classpath or a whitelabel build flips `debuggable`.

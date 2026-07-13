@@ -17,8 +17,14 @@ class CompileResult(val success: Boolean, val durationMs: Long, val output: Stri
  * [extraArgs] are appended to every build (e.g. `-Photreload.liveLiterals=true` for the
  * T24 fast path): the class output the watch compiles must match how the installed APK was
  * built, or the generated `LiveLiterals$*Kt` helpers would be absent/mismatched.
+ * [javaHome] lets the CLI run on its pinned JBR while an older target build stays on its
+ * required JDK. JAVA_HOME is aligned with the selected Tooling API daemon for build checks.
  */
-class GradleCompiler(projectDir: File, private val extraArgs: List<String> = emptyList()) : AutoCloseable {
+class GradleCompiler(
+    projectDir: File,
+    private val extraArgs: List<String> = emptyList(),
+    private val javaHome: File? = null,
+) : AutoCloseable {
 
     private val connection: ProjectConnection = GradleConnector.newConnector()
         .forProjectDirectory(projectDir)
@@ -36,6 +42,12 @@ class GradleCompiler(projectDir: File, private val extraArgs: List<String> = emp
             connection.newBuild()
                 .forTasks(task)
                 .apply { if (extraArgs.isNotEmpty()) withArguments(extraArgs) }
+                .apply {
+                    if (javaHome != null) {
+                        setJavaHome(javaHome)
+                        setEnvironmentVariables(System.getenv() + ("JAVA_HOME" to javaHome.absolutePath))
+                    }
+                }
                 .setStandardOutput(out)
                 .setStandardError(out)
                 .run()

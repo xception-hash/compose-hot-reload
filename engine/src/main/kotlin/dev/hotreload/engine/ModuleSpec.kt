@@ -4,51 +4,149 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * One watched Gradle module. Everything the session needs per module derives from
- * (name, layout): the ground truth (docs/multi-module-ground-truth.md §2–3) is that
- * AGP modules (application AND library — same layout) and pure kotlin-jvm modules
- * differ in exactly two things: the compiled-classes dir and the compile task name.
+ * A watched Gradle module. [gradlePath] identifies the project in Gradle while
+ * [relativeDir] identifies its physical directory, since large builds commonly
+ * map logical project names to layered source directories.
  */
-class ModuleSpec(
-    /** Module path relative to the project dir, '/'-separated (e.g. "app", "libs/core"). */
-    val name: String,
+class ModuleSpec private constructor(
+    val request: Request,
     val layout: Layout,
+    val variant: String,
     projectDir: Path,
+    val classesDir: Path,
 ) {
-    enum class Layout { AGP, JVM }
+    data class Request(
+        val gradlePath: String,
+        val relativeDir: String,
+        val variant: String? = null,
+    ) {
+        val displayName: String get() = gradlePath.removePrefix(":")
 
-    val dir: Path = projectDir.resolve(name)
-    val gradlePath: String = ":" + name.replace('/', ':')
-    val sourceRoots: List<Path> = listOf(dir.resolve("src/main/kotlin"), dir.resolve("src/main/java"))
-    val classesDir: Path = dir.resolve(classesSubdir(layout))
-    val compileTask: String = when (layout) {
-        Layout.AGP -> "$gradlePath:compileDebugKotlin"
-        Layout.JVM -> "$gradlePath:compileKotlin" // kotlin-jvm has no variants
+        companion object {
+            /**
+             * Accepted forms:
+             * - `app`
+             * - `libs/core`
+             * - `:feature:core=features/core`
+             */
+            fun parse(value: String): Request {
+                val parts = value.split('=', limit = 2)
+                val rawGradlePath = parts[0].trim()
+                require(rawGradlePath.isNotEmpty()) { "module Gradle path must not be empty" }
+
+                val gradlePath = ":" + rawGradlePath
+                    .removePrefix(":")
+                    .replace('/', ':')
+                    .trim(':')
+                val relativeDir = if (parts.size == 2) {
+                    parts[1].trim()
+                } else {
+                    rawGradlePath.removePrefix(":").replace(':', '/')
+                }
+                require(relativeDir.isNotEmpty()) { "module directory must not be empty" }
+                require(!Path.of(relativeDir).isAbsolute) {
+                    "module directory must be relative to the project root: $relativeDir"
+                }
+                return Request(gradlePath, relativeDir)
+            }
+
+            fun applyVariantOverrides(
+                requests: List<Request>,
+                values: List<String>,
+            ): List<Request> {
+                val overrides = values.associate { value ->
+                    val parts = value.split('=', limit = 2)
+                    require(parts.size == 2) {
+                        "module variant must use GradlePath=variant: $value"
+                    }
+                    val gradlePath = parse(parts[0]).gradlePath
+                    val variant = parts[1].trim()
+                    require(variant.isNotEmpty()) { "module variant must not be empty: $value" }
+                    gradlePath to variant
+                }
+                val knownPaths = requests.mapTo(mutableSetOf()) { it.gradlePath }
+                val unknownPaths = overrides.keys - knownPaths
+                require(unknownPaths.isEmpty()) {
+                    "module variant specified for unwatched module(s): ${unknownPaths.joinToString()}"
+                }
+                return requests.map { request ->
+                    request.copy(variant = overrides[request.gradlePath])
+                }
+            }
+        }
     }
 
-    /** Resource root; only AGP modules contribute resources to the merged table. */
-    val resDir: Path? = if (layout == Layout.AGP) dir.resolve("src/main/res") else null
+    enum class Layout { AGP_BUILT_IN, AGP_KGP, JVM }
+
+    val name: String = request.displayName
+    val dir: Path = projectDir.resolve(request.relativeDir)
+    val gradlePath: String = request.gradlePath
+    val compileTask: String = when (layout) {
+        Layout.AGP_BUILT_IN, Layout.AGP_KGP -> "$gradlePath:compile${variant.taskSegment()}Kotlin"
+        Layout.JVM -> "$gradlePath:compileKotlin"
+    }
+
+    val sourceRoots: List<Path> = sourceSetNames(variant).flatMap { sourceSet ->
+        listOf(dir.resolve("src/$sourceSet/kotlin"), dir.resolve("src/$sourceSet/java"))
+    }
+
+    /** Resource roots ordered from general to variant-specific. */
+    val resDirs: List<Path> = if (layout == Layout.JVM) {
+        emptyList()
+    } else {
+        sourceSetNames(variant).map { dir.resolve("src/$it/res") }
+    }
+
+    val assembleTask: String = "$gradlePath:assemble${variant.taskSegment()}"
+    val installTask: String = "$gradlePath:install${variant.taskSegment()}"
+    val apkOutputDirs: List<Path> = run {
+        val buildType = listOf("debug", "release").firstOrNull {
+            variant.endsWith(it, ignoreCase = true)
+        }
+        val flavor = buildType?.let { variant.dropLast(it.length) }
+            ?.takeIf { it.isNotEmpty() }
+            ?.replaceFirstChar(Char::lowercaseChar)
+        listOfNotNull(
+            flavor?.let { dir.resolve("build/outputs/apk/$it/$buildType") },
+            dir.resolve("build/outputs/apk/$variant"),
+            dir.resolve("build/outputs/apk"),
+        ).distinct()
+    }
 
     companion object {
-        private fun classesSubdir(layout: Layout) = when (layout) {
-            Layout.AGP -> "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"
-            Layout.JVM -> "build/classes/kotlin/main"
+        /**
+         * Probe both AGP 9 built-in Kotlin output and the standalone KGP output used by
+         * AGP 8 projects. Must run after the initial compilation.
+         */
+        fun probe(projectDir: Path, request: Request, variant: String): ModuleSpec {
+            val moduleVariant = request.variant ?: variant
+            val moduleDir = projectDir.resolve(request.relativeDir)
+            val taskSegment = moduleVariant.taskSegment()
+            val candidates = listOf(
+                Layout.AGP_BUILT_IN to moduleDir.resolve(
+                    "build/intermediates/built_in_kotlinc/$moduleVariant/compile${taskSegment}Kotlin/classes",
+                ),
+                Layout.AGP_KGP to moduleDir.resolve("build/tmp/kotlin-classes/$moduleVariant"),
+                Layout.JVM to moduleDir.resolve("build/classes/kotlin/main"),
+            )
+            val (layout, classesDir) = candidates.firstOrNull { Files.isDirectory(it.second) }
+                ?: throw IllegalStateException(
+                    "module '${request.gradlePath}' (${request.relativeDir}) has no compiled classes under " +
+                        candidates.joinToString { it.second.toString() } +
+                        " — is it in the app's dependency graph and does it contain Kotlin sources?",
+                )
+            return ModuleSpec(request, layout, moduleVariant, projectDir, classesDir)
         }
 
-        /**
-         * Resolve a module's layout by probing which classes dir the initial build
-         * produced. AGP wins when both exist (a stale build/classes can survive a
-         * kotlin-jvm → AGP migration). Must run AFTER the initial compile.
-         */
-        fun probe(projectDir: Path, name: String): ModuleSpec {
-            val layout = Layout.entries.firstOrNull {
-                Files.isDirectory(projectDir.resolve(name).resolve(classesSubdir(it)))
-            } ?: throw IllegalStateException(
-                "module '$name' has no compiled classes under either known layout " +
-                    "(${Layout.entries.joinToString { classesSubdir(it) }}) — " +
-                    "is it in the app's dependency graph and does it contain Kotlin sources?",
-            )
-            return ModuleSpec(name, layout, projectDir)
+        internal fun sourceSetNames(variant: String): List<String> {
+            val buildType = listOf("debug", "release").firstOrNull {
+                variant.endsWith(it, ignoreCase = true)
+            }
+            val flavor = buildType?.let { variant.dropLast(it.length) }?.takeIf { it.isNotEmpty() }
+            return listOfNotNull("main", flavor?.replaceFirstChar(Char::lowercaseChar), buildType, variant)
+                .distinct()
         }
     }
 }
+
+internal fun String.taskSegment(): String = replaceFirstChar(Char::uppercaseChar)
