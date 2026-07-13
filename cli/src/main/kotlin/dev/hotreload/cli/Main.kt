@@ -1,6 +1,7 @@
 package dev.hotreload.cli
 
 import dev.hotreload.engine.Doctor
+import dev.hotreload.engine.ModuleSpec
 import dev.hotreload.engine.WatchSession
 import java.nio.file.Files
 import java.nio.file.Path
@@ -16,7 +17,14 @@ Options:
   --project <dir>     Gradle project of the app (required)
   --app-id <id>       applicationId of the debug build on the device (required)
   --module <names>    Comma-separated Gradle modules to watch; the FIRST is the app
-                      module (default: app). Nested paths use '/', e.g. app,libs/core
+                      module (default: app). Map a Gradle path to a physical directory
+                      with '=', e.g. :app=applications/main,libs/core
+  --module-variant <GradlePath=variant>
+                      Variant override for a watched module; may be repeated
+  --variant <name>    Android variant to compile (default: debug)
+  --project-java-home <dir>
+                      JDK used by the target project's Gradle build (default: CLI JVM)
+  --gradle-arg <arg>  Extra target Gradle argument; may be repeated
   --sdk <dir>         Android SDK root (default: ${'$'}ANDROID_HOME)
   --build-tools <v>   build-tools version for d8 (default: 36.0.0)
   --literals          Enable the live-literals fast path (T24); requires the app built
@@ -41,16 +49,30 @@ fun main(args: Array<String>) {
     val opts = parseOptions(rest.filter { it != "--literals" })
     val project = Path.of(opts.required("--project")).toAbsolutePath().normalize()
     val appId = opts.required("--app-id")
-    val modules = (opts["--module"] ?: "app").split(',').map { it.trim() }.filter { it.isNotEmpty() }
-    if (modules.isEmpty()) fail("--module needs at least one module name")
+    val moduleRequests = (opts.single("--module") ?: "app").split(',')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .map(ModuleSpec.Request::parse)
+    if (moduleRequests.isEmpty()) fail("--module needs at least one module name")
+    val modules = try {
+        ModuleSpec.Request.applyVariantOverrides(
+            moduleRequests,
+            opts["--module-variant"].orEmpty(),
+        )
+    } catch (e: IllegalArgumentException) {
+        fail(e.message ?: "invalid --module-variant")
+    }
     val sdk = Path.of(
-        opts["--sdk"] ?: System.getenv("ANDROID_HOME")
+        opts.single("--sdk") ?: System.getenv("ANDROID_HOME")
             ?: fail("--sdk not given and ANDROID_HOME not set"),
     )
-    val buildTools = opts["--build-tools"] ?: "36.0.0"
+    val buildTools = opts.single("--build-tools") ?: "36.0.0"
+    val variant = opts.single("--variant") ?: "debug"
+    val projectJavaHome = opts.single("--project-java-home")?.let(Path::of)
+    val gradleArgs = opts["--gradle-arg"].orEmpty()
 
     if (command == "doctor") {
-        val ok = Doctor(project, appId, modules, sdk, buildTools).run()
+        val ok = Doctor(project, appId, modules, sdk, buildTools, variant, projectJavaHome).run()
         exitProcess(if (ok) 0 else 1)
     }
 
@@ -61,25 +83,44 @@ fun main(args: Array<String>) {
     }
 
     try {
-        WatchSession(WatchSession.Config(project, modules, appId, d8, adb, literals)).run()
+        WatchSession(
+            WatchSession.Config(
+                projectDir = project,
+                modules = modules,
+                applicationId = appId,
+                d8 = d8,
+                adb = adb,
+                variant = variant,
+                projectJavaHome = projectJavaHome,
+                gradleArgs = gradleArgs,
+                literals = literals,
+            ),
+        ).run()
     } catch (t: Throwable) {
         fail(t.message ?: t.toString())
     }
 }
 
-private fun parseOptions(args: List<String>): Map<String, String> {
-    val opts = mutableMapOf<String, String>()
+private fun parseOptions(args: List<String>): Map<String, List<String>> {
+    val opts = mutableMapOf<String, MutableList<String>>()
     var i = 0
     while (i < args.size) {
         val key = args[i]
         if (!key.startsWith("--") || i + 1 >= args.size) fail("bad or valueless option: $key\n\n$USAGE")
-        opts[key] = args[i + 1]
+        opts.getOrPut(key) { mutableListOf() }.add(args[i + 1])
         i += 2
     }
     return opts
 }
 
-private fun Map<String, String>.required(key: String) = this[key] ?: fail("$key is required\n\n$USAGE")
+private fun Map<String, List<String>>.single(key: String): String? {
+    val values = this[key] ?: return null
+    if (values.size != 1) fail("$key may only be specified once")
+    return values.single()
+}
+
+private fun Map<String, List<String>>.required(key: String) =
+    single(key) ?: fail("$key is required\n\n$USAGE")
 
 private fun fail(message: String): Nothing {
     System.err.println("hotreload: $message")

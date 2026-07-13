@@ -8,9 +8,11 @@ import java.nio.file.Path
 class Doctor(
     private val projectDir: Path,
     private val applicationId: String,
-    private val moduleNames: List<String>,
+    private val modules: List<ModuleSpec.Request>,
     private val sdkDir: Path,
     private val buildTools: String = "36.0.0",
+    private val variant: String = "debug",
+    private val projectJavaHome: Path? = null,
 ) {
     fun run(): Boolean {
         var hasFail = false
@@ -50,6 +52,15 @@ class Doctor(
                 } else {
                     ok("Java environment (JAVA_HOME set, Java $feature ≥ 17)")
                 }
+            }
+        }
+
+        projectJavaHome?.let { home ->
+            val javac = home.resolve("bin/javac" + if (isWindows) ".exe" else "")
+            if (!Files.isDirectory(home) || !Files.isRegularFile(javac)) {
+                fail("Target project Java home: full JDK not found at $home")
+            } else {
+                ok("Target project Java home ($home)")
             }
         }
 
@@ -124,8 +135,8 @@ class Doctor(
 
                 var allModulesHavePlugin = true
                 var missingModuleName: String? = null
-                for (mod in moduleNames) {
-                    val modDir = projectDir.resolve(mod)
+                for (module in modules) {
+                    val modDir = projectDir.resolve(module.relativeDir)
                     val buildKts = modDir.resolve("build.gradle.kts")
                     val buildGroovy = modDir.resolve("build.gradle")
                     val buildFile = when {
@@ -135,13 +146,13 @@ class Doctor(
                     }
                     if (buildFile == null) {
                         allModulesHavePlugin = false
-                        missingModuleName = mod
+                        missingModuleName = module.gradlePath
                         break
                     } else {
                         val buildText = try { Files.readString(buildFile) } catch (_: Throwable) { "" }
                         if (!buildText.contains("dev.hotreload")) {
                             allModulesHavePlugin = false
-                            missingModuleName = mod
+                            missingModuleName = module.gradlePath
                             break
                         }
                     }
@@ -163,7 +174,9 @@ class Doctor(
         } else {
             val (pmExit, pmOutput) = adbRef.safeShell("pm", "path", applicationId)
             if (pmExit != 0 || pmOutput.trim().isEmpty() || !pmOutput.contains("package:")) {
-                fail("App installed: package '$applicationId' is not installed (fix: install the app on device via ./gradlew :${moduleNames.first()}:installDebug)")
+                val app = modules.first()
+                val installTask = "${app.gradlePath}:install${(app.variant ?: variant).taskSegment()}"
+                fail("App installed: package '$applicationId' is not installed (fix: install the app on device via ./gradlew $installTask)")
             } else {
                 val (runAsExit, runAsOutput) = adbRef.safeShell("run-as", applicationId, "id")
                 if (runAsExit != 0 || runAsOutput.contains("not debuggable") || runAsOutput.contains("unknown package")) {

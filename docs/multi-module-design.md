@@ -1,5 +1,13 @@
 # Multi-module watching & diffing — design (v1)
 
+> **2026-07-13 update (portability PR #9):** the module model described here was generalized —
+> `ModuleSpec.Request(gradlePath, relativeDir, variant?)` now allows `--module :path=physical/dir`
+> mapping, per-module `--module-variant` overrides, a global `--variant`, and a third layout
+> `AGP_KGP` (AGP 8 standalone Kotlin output `build/tmp/kotlin-classes/<variant>`; the AGP 9
+> layout is now called `AGP_BUILT_IN`). Every decision below still holds; for the default
+> `debug` variant all task names and probe paths are unchanged strings. See `engine/ModuleSpec.kt`
+> and `tasks/T33-project-agnostic.md` for where this is headed.
+
 Inputs: `docs/multi-module-ground-truth.md` (T10 — every fact referenced here was measured there),
 T15 (plugin supports app/library/jvm), T16/T17 (whole-tree `invalidateAll` mechanism).
 Testbed: `samples/multi-module/` (`:app → :feature → :core`).

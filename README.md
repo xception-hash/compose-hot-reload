@@ -31,6 +31,10 @@ It leverages a custom JVMTI agent attached to debuggable apps to perform class r
   - Build-tools 36.0.0
   - JBR (JetBrains Runtime from Android Studio) as `JAVA_HOME`
 
+The pinned toolchain above is for building and running this repository and its sample.
+The watcher can drive an older target project with a different JDK by passing
+`--project-java-home`; the CLI remains on JBR while the target Gradle daemon uses that JDK.
+
 ## 3. Quickstart
 
 ### Try it on the bundled sample (fastest way to see it work)
@@ -113,6 +117,37 @@ For multi-module projects, pass `--module` with a comma-separated list of Gradle
 ./gradlew -q :cli:run --args="watch --project /path/to/your/project --app-id <your.app.id> --module app,feature,core"
 ```
 Pure-Kotlin (`kotlin-jvm`) modules are supported — edits there recompose the whole tree with state preserved.
+
+For custom variants, modules whose Gradle path differs from their physical directory, or
+target builds pinned to another JDK, use:
+```bash
+./gradlew -q :cli:run --args="watch \
+  --project /path/to/project \
+  --app-id com.example.app.debug \
+  --variant stageDebug \
+  --project-java-home /path/to/jdk-17 \
+  --module :app=applications/main,:feature=features/feature \
+  --module-variant :feature=vendorProductionDebug \
+  --gradle-arg -PdevelopmentMode=true"
+```
+
+`--module-variant` overrides the global app variant for modules where Gradle variant
+matching selects a differently named library variant; it and `--gradle-arg` are repeatable.
+The watcher supports both AGP 9 built-in Kotlin output and the standalone Kotlin Gradle
+plugin output used by AGP 8 projects. Known limitation: variant names are split into
+source sets assuming a single flavor dimension ending in `debug`/`release`
+(`<flavor><BuildType>`); multi-dimension flavors get one combined source-set name.
+Proper per-dimension discovery via Gradle metadata is on the roadmap (T33).
+
+When testing an AGP 8 target from a local checkout, do not include the AGP 9
+`runtime-client` build directly. Publish its prebuilt AAR first:
+```bash
+(cd runtime-client && JAVA_HOME="/path/to/android-studio/jbr" ./gradlew \
+  :runtime-client:publishReleasePublicationToMavenLocal)
+```
+Then add `mavenLocal()` to the target's dependency repositories, include the local
+`gradle-plugin` build from `pluginManagement`, and apply `id("dev.hotreload")` to the app
+and every watched Kotlin module.
 
 > **Using an AI coding agent?** Point it at [`AGENTS.md`](AGENTS.md) — preflight checks,
 > how to run the (blocking) watcher in the background, and the exact log lines that signal
