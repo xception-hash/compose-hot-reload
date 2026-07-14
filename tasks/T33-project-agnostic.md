@@ -266,7 +266,13 @@ re-trigger discovery)
 Obtain compile output dirs, APK paths, and resource directories from Gradle task
 inputs/outputs and AGP built-artifacts API rather than hardcoded directory conventions.
 
-Assignee: agy
+Assignee: agy — **spec ready (`tasks/T33f-output-metadata.md`)**
+(design fixed: schema v1 already carries the metadata — T33f consumes it host-side;
+per-field metadata-first/convention-fallback in ModuleSpec via a `ModuleMetadata`
+map on ProjectConfig; profiles get a machine-managed `<name>.discovery.json`
+sidecar written by `configure` — the TOML schema is untouched; the stale-APK
+heuristic is fixed always-on by parsing AGP's `output-metadata.json` with
+variant/applicationId checks before any newest-mtime fallback)
 
 ### Phase 6 — `prepare` and `start` orchestration with build fingerprints
 End-to-end `hotreload start`: doctor → build → install → launch → watch. Record and
@@ -307,11 +313,12 @@ How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks
 work without a human in the loop:
 
 **Order.** Phases 1, 2, 3, 4, and 7 are DONE (T33a/T33c/T33b merged; T33d in PR #14;
-T33e in PR #15). No spec is dispatch-ready right now: phases 5→6 must follow in order
-(each builds on the previous one's types); each needs its spec written by a coordinator
-session first — they contain real design decisions (metadata-vs-probe precedence,
-fingerprint format) that must NOT be improvised by the executing agent. Phases 8–10
-are maintainer-led.
+T33e in PR #15). **Phase 5 is the one dispatch-ready spec: `tasks/T33f-output-metadata.md`**
+(all design decisions fixed by the coordinator — implement it exactly). Phase 6 must
+follow phase 5 (it builds on its types) and still needs its spec written by a
+coordinator session first — it contains real design decisions (fingerprint format,
+prepare/start orchestration) that must NOT be improvised by the executing agent.
+Phases 8–10 are maintainer-led.
 
 **Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
 1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed
