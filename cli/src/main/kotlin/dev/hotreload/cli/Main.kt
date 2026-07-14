@@ -8,6 +8,8 @@ import dev.hotreload.engine.ProjectConfig
 import dev.hotreload.engine.WatchSession
 import dev.hotreload.engine.resolveWatchPlan
 import dev.hotreload.engine.watchCommandFor
+import dev.hotreload.engine.Profile
+import dev.hotreload.engine.ProfileStore
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.system.exitProcess
@@ -18,12 +20,16 @@ Usage:
   hotreload watch --project <dir> [options]
   hotreload doctor --project <dir> [options]
   hotreload inspect --project <dir> [options]
+  hotreload configure --project <dir> --save-as <name> [options]
+  hotreload config show --profile <name>
 
 When --app-id and --module are omitted, the app module, variant, applicationId, and
 watched-module closure are discovered automatically via Gradle inspection.
 
 Options:
   --project <dir>     Gradle project of the app (required)
+  --profile <name>    Load defaults from ~/.config/compose-hot-reload/projects/<name>.toml
+                      (written by 'hotreload configure'); any explicit flag overrides it
   --app-id <id>       applicationId of the debug build on the device (discovered when
                       omitted with --module also absent)
   --app-module <gradlePath>
@@ -64,7 +70,7 @@ fun main(args: Array<String>) {
     }
 
     val command = args[0]
-    if (command != "watch" && command != "doctor" && command != "inspect") {
+    if (command != "watch" && command != "doctor" && command != "inspect" && command != "configure" && command != "config") {
         println(USAGE)
         exitProcess(1)
     }
@@ -74,134 +80,194 @@ fun main(args: Array<String>) {
         return
     }
 
+    if (command == "config") {
+        if (args.size < 2 || args[1] != "show") {
+            fail("invalid subcommand for config: expected 'show'\n\n$USAGE")
+        }
+        val rest = args.drop(2)
+        val opts = parseOptions(rest)
+        val profileName = opts.single("--profile") ?: fail("--profile <name> is required")
+        val store = ProfileStore.default()
+        val profile = try {
+            store.load(profileName)
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "failed to load profile")
+        }
+        val path = store.path(profileName)
+        println("profile: $profileName ($path)")
+        val content = Files.readString(path)
+        print(content)
+
+        val parts = mutableListOf<String>()
+        parts.add("hotreload")
+        parts.add("watch")
+        parts.add("--project")
+        parts.add(profile.project)
+        if (profile.appId != null) {
+            parts.add("--app-id")
+            parts.add(profile.appId!!)
+        }
+        if (profile.modules.isNotEmpty()) {
+            parts.add("--module")
+            parts.add(profile.modules.joinToString(","))
+        }
+        if (profile.variant != null && profile.variant != "debug") {
+            parts.add("--variant")
+            parts.add(profile.variant!!)
+        }
+        for (mv in profile.moduleVariants) {
+            parts.add("--module-variant")
+            parts.add(mv)
+        }
+        for (ga in profile.gradleArgs) {
+            parts.add("--gradle-arg")
+            parts.add(ga)
+        }
+        if (profile.projectJavaHome != null) {
+            parts.add("--project-java-home")
+            parts.add(profile.projectJavaHome!!)
+        }
+        if (profile.launchActivity != null) {
+            parts.add("--launch-activity")
+            parts.add(profile.launchActivity!!)
+        }
+        if (profile.literals) {
+            parts.add("--literals")
+        }
+        println("expanded: ${parts.joinToString(" ")}")
+        return
+    }
+
+    if (command == "configure") {
+        val rest = args.drop(1)
+        val literalsFlag = "--literals" in rest
+        val opts = parseOptions(rest.filter { it != "--literals" })
+
+        if (opts.keys.any { it in setOf("--profile", "--device", "--sdk", "--build-tools") }) {
+            val badKey = opts.keys.first { it in setOf("--profile", "--device", "--sdk", "--build-tools") }
+            fail("option $badKey is not allowed for configure")
+        }
+
+        val saveAs = opts.single("--save-as") ?: fail("--save-as <name> is required")
+        if (!saveAs.matches(Regex("^[A-Za-z0-9._-]+$")) || ".." in saveAs) {
+            fail("invalid profile name '$saveAs' (allowed: [A-Za-z0-9._-], no '..')")
+        }
+
+        val projectStr = opts.required("--project")
+        val project = Path.of(projectStr).toAbsolutePath().normalize()
+
+        val appIdOpt = opts.single("--app-id")
+        val moduleOpt = opts.single("--module")
+        val variantOpt = opts.single("--variant")
+        val moduleVariantList = opts["--module-variant"].orEmpty()
+        val gradleArgs = opts["--gradle-arg"].orEmpty()
+        val projectJavaHomeStr = opts.single("--project-java-home")
+        val projectJavaHome = projectJavaHomeStr?.let(Path::of)
+        val launchActivity = opts.single("--launch-activity")
+        val literals = literalsFlag
+
+        val includeModules = opts["--include-module"].orEmpty()
+        val excludeModules = opts["--exclude-module"].orEmpty()
+        val appModuleOpt = opts.single("--app-module")
+        val appModuleDirOpt = opts.single("--app-module-dir")
+
+        val config = resolveConfig(
+            project = project,
+            appIdOpt = appIdOpt,
+            moduleOpt = moduleOpt,
+            variantOpt = variantOpt,
+            moduleVariantList = moduleVariantList,
+            gradleArgs = gradleArgs,
+            projectJavaHome = projectJavaHome,
+            launchActivity = launchActivity,
+            literals = literals,
+            deviceSerial = null,
+            includeModules = includeModules,
+            excludeModules = excludeModules,
+            appModuleOpt = appModuleOpt,
+            appModuleDirOpt = appModuleDirOpt
+        )
+
+        val profile = Profile(
+            project = config.projectDir.toString(),
+            appId = config.applicationId,
+            variant = config.variant,
+            modules = config.modules.map { "${it.gradlePath}=${it.relativeDir}" },
+            moduleVariants = config.modules.filter { it.variant != null }.map { "${it.gradlePath}=${it.variant}" },
+            gradleArgs = config.gradleArgs,
+            projectJavaHome = config.projectJavaHome?.toString(),
+            launchActivity = config.launchActivity,
+            literals = config.literals,
+        )
+
+        val store = ProfileStore.default()
+        val path = store.save(saveAs, profile)
+        println("saved: $saveAs -> $path")
+        println("run: hotreload watch --profile $saveAs")
+        return
+    }
+
     // Valueless boolean flags: pull them out before the key/value option parser.
     val rest = args.drop(1)
-    val literals = "--literals" in rest
+    val literalsFlag = "--literals" in rest
     val opts = parseOptions(rest.filter { it != "--literals" })
-    val project = Path.of(opts.required("--project")).toAbsolutePath().normalize()
+
+    val profileName = opts.single("--profile")
+    val profile = if (profileName != null) {
+        try {
+            ProfileStore.default().load(profileName)
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "failed to load profile")
+        }
+    } else {
+        null
+    }
+
+    if (profile != null) {
+        val path = ProfileStore.default().path(profileName!!)
+        println("profile: $profileName ($path)")
+    }
+
+    val projectStr = opts.single("--project") ?: profile?.project ?: fail("--project is required (or provide it via --profile)")
+    val project = Path.of(projectStr).toAbsolutePath().normalize()
     val sdk = Path.of(
         opts.single("--sdk") ?: System.getenv("ANDROID_HOME")
             ?: fail("--sdk not given and ANDROID_HOME not set"),
     )
     val buildTools = opts.single("--build-tools") ?: "36.0.0"
-    val variant = opts.single("--variant") ?: "debug"
-    val projectJavaHome = opts.single("--project-java-home")?.let(Path::of)
-    val gradleArgs = opts["--gradle-arg"].orEmpty()
-    val deviceSerial = opts.single("--device")
-    val launchActivity = opts.single("--launch-activity")
 
-    val moduleOpt = opts.single("--module")
-    val appIdOpt = opts.single("--app-id")
+    val appIdOpt = opts.single("--app-id") ?: profile?.appId
+    val moduleOpt = opts.single("--module") ?: profile?.modules?.takeIf { it.isNotEmpty() }?.joinToString(",")
+    val variantOpt = opts.single("--variant") ?: profile?.variant
+    val moduleVariantList = opts["--module-variant"].let { if (!it.isNullOrEmpty()) it else profile?.moduleVariants.orEmpty() }
+    val gradleArgs = opts["--gradle-arg"].let { if (!it.isNullOrEmpty()) it else profile?.gradleArgs.orEmpty() }
+    val projectJavaHomeStr = opts.single("--project-java-home") ?: profile?.projectJavaHome
+    val projectJavaHome = projectJavaHomeStr?.let(Path::of)
+    val deviceSerial = opts.single("--device")
+    val launchActivity = opts.single("--launch-activity") ?: profile?.launchActivity
+    val literals = literalsFlag || (profile?.literals ?: false)
+
     val includeModules = opts["--include-module"].orEmpty()
     val excludeModules = opts["--exclude-module"].orEmpty()
     val appModuleOpt = opts.single("--app-module")
     val appModuleDirOpt = opts.single("--app-module-dir")
 
-    // Trigger rule: discovery runs iff --module is ABSENT and (--app-id is absent OR
-    // any --include-module/--exclude-module is given).
-    val hasModuleFlag = moduleOpt != null
-    val hasFilters = includeModules.isNotEmpty() || excludeModules.isNotEmpty()
-
-    if (hasModuleFlag && hasFilters) {
-        fail("--include-module/--exclude-module filter the discovered module set; with --module, edit the list directly")
-    }
-
-    val useDiscovery = !hasModuleFlag && (appIdOpt == null || hasFilters)
-
-    val config: ProjectConfig
-    if (useDiscovery) {
-        // --- Discovery path ---
-        val report = try {
-            GradleDiscovery.run(project, projectJavaHome, gradleArgs)
-        } catch (t: Throwable) {
-            fail(t.message ?: t.toString())
-        }
-
-        val normalizedIncludes = includeModules.map { ModuleSpec.Request.parse(it).gradlePath }
-        val normalizedExcludes = excludeModules.map { ModuleSpec.Request.parse(it).gradlePath }
-
-        val plan = try {
-            report.resolveWatchPlan(appModuleOpt, opts.single("--variant"), normalizedIncludes, normalizedExcludes)
-        } catch (e: IllegalArgumentException) {
-            fail(e.message ?: "discovery resolution failed")
-        }
-
-        val applicationId = appIdOpt
-            ?: plan.applicationId
-            ?: fail("discovery found no applicationId for variant '${plan.variantName}' — pass --app-id")
-
-        val modulesWithVariants = try {
-            ModuleSpec.Request.applyVariantOverrides(
-                plan.modules,
-                opts["--module-variant"].orEmpty(),
-            )
-        } catch (e: IllegalArgumentException) {
-            fail(e.message ?: "invalid --module-variant")
-        }
-
-        val modules = try {
-            ProjectConfig.selectAppModule(modulesWithVariants, null, appModuleDirOpt)
-        } catch (e: IllegalArgumentException) {
-            fail(e.message ?: "invalid --app-module/--app-module-dir")
-        }
-
-        // Print discovery lines.
-        val appModule = plan.modules.first()
-        println("discovered: app=${appModule.gradlePath} dir=${appModule.relativeDir} variant=${plan.variantName} appId=$applicationId")
-        // "modules", not "watching": the bare "watching " prefix is the session-ready
-        // contract line (e2e/IDE plugin grep for it) and must never appear earlier.
-        println("discovered: modules ${plan.modules.joinToString { it.gradlePath }}")
-        println("resolved: ${report.watchCommandFor(plan, project.toString())}")
-
-        config = ProjectConfig(
-            projectDir = project,
-            modules = modules,
-            applicationId = applicationId,
-            variant = plan.variantName,
-            projectJavaHome = projectJavaHome,
-            gradleArgs = gradleArgs,
-            literals = literals,
-            deviceSerial = deviceSerial,
-            launchActivity = launchActivity,
-        )
-    } else {
-        // --- Legacy path (--module present, or --app-id present with no filters) ---
-        val appId = appIdOpt ?: fail("--app-id is required\n\n$USAGE")
-        val moduleRequests = (moduleOpt ?: "app").split(',')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .map(ModuleSpec.Request::parse)
-        if (moduleRequests.isEmpty()) fail("--module needs at least one module name")
-        val modulesWithVariants = try {
-            ModuleSpec.Request.applyVariantOverrides(
-                moduleRequests,
-                opts["--module-variant"].orEmpty(),
-            )
-        } catch (e: IllegalArgumentException) {
-            fail(e.message ?: "invalid --module-variant")
-        }
-        val modules = try {
-            ProjectConfig.selectAppModule(
-                modulesWithVariants,
-                appModuleOpt,
-                appModuleDirOpt,
-            )
-        } catch (e: IllegalArgumentException) {
-            fail(e.message ?: "invalid --app-module/--app-module-dir")
-        }
-
-        config = ProjectConfig(
-            projectDir = project,
-            modules = modules,
-            applicationId = appId,
-            variant = variant,
-            projectJavaHome = projectJavaHome,
-            gradleArgs = gradleArgs,
-            literals = literals,
-            deviceSerial = deviceSerial,
-            launchActivity = launchActivity,
-        )
-    }
+    val config = resolveConfig(
+        project = project,
+        appIdOpt = appIdOpt,
+        moduleOpt = moduleOpt,
+        variantOpt = variantOpt,
+        moduleVariantList = moduleVariantList,
+        gradleArgs = gradleArgs,
+        projectJavaHome = projectJavaHome,
+        launchActivity = launchActivity,
+        literals = literals,
+        deviceSerial = deviceSerial,
+        includeModules = includeModules,
+        excludeModules = excludeModules,
+        appModuleOpt = appModuleOpt,
+        appModuleDirOpt = appModuleDirOpt
+    )
 
     if (command == "doctor") {
         val ok = Doctor(config, sdk, buildTools).run()
@@ -224,6 +290,134 @@ fun main(args: Array<String>) {
         ).run()
     } catch (t: Throwable) {
         fail(t.message ?: t.toString())
+    }
+}
+
+private fun resolveConfig(
+    project: Path,
+    appIdOpt: String?,
+    moduleOpt: String?,
+    variantOpt: String?,
+    moduleVariantList: List<String>,
+    gradleArgs: List<String>,
+    projectJavaHome: Path?,
+    launchActivity: String?,
+    literals: Boolean,
+    deviceSerial: String?,
+    includeModules: List<String>,
+    excludeModules: List<String>,
+    appModuleOpt: String?,
+    appModuleDirOpt: String?
+): ProjectConfig {
+    val hasModule = moduleOpt != null
+    val hasFilters = includeModules.isNotEmpty() || excludeModules.isNotEmpty()
+
+    if (hasModule && hasFilters) {
+        fail("--include-module/--exclude-module filter the discovered module set; with --module or a profile that pins modules, edit the list directly")
+    }
+
+    val useDiscovery = !hasModule && (appIdOpt == null || hasFilters)
+
+    if (useDiscovery) {
+        // --- Discovery path ---
+        val report = try {
+            GradleDiscovery.run(project, projectJavaHome, gradleArgs)
+        } catch (t: Throwable) {
+            fail(t.message ?: t.toString())
+        }
+
+        val normalizedIncludes = includeModules.map { ModuleSpec.Request.parse(it).gradlePath }
+        val normalizedExcludes = excludeModules.map { ModuleSpec.Request.parse(it).gradlePath }
+
+        val plan = try {
+            report.resolveWatchPlan(appModuleOpt, variantOpt, normalizedIncludes, normalizedExcludes)
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "discovery resolution failed")
+        }
+
+        val applicationId = appIdOpt
+            ?: plan.applicationId
+            ?: fail("discovery found no applicationId for variant '${plan.variantName}' — pass --app-id")
+
+        val modulesWithVariants = try {
+            ModuleSpec.Request.applyVariantOverrides(
+                plan.modules,
+                moduleVariantList,
+            )
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid --module-variant")
+        }
+
+        val modules = try {
+            ProjectConfig.selectAppModule(modulesWithVariants, null, appModuleDirOpt)
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid --app-module/--app-module-dir")
+        }
+
+        // Print discovery lines.
+        val appModule = plan.modules.first()
+        println("discovered: app=${appModule.gradlePath} dir=${appModule.relativeDir} variant=${plan.variantName} appId=$applicationId")
+        // "modules", not "watching": the bare "watching " prefix is the session-ready
+        // contract line (e2e/IDE plugin grep for it) and must never appear earlier.
+        println("discovered: modules ${plan.modules.joinToString { it.gradlePath }}")
+        println("resolved: ${report.watchCommandFor(plan, project.toString())}")
+
+        return try {
+            ProjectConfig(
+                projectDir = project,
+                modules = modules,
+                applicationId = applicationId,
+                variant = plan.variantName,
+                projectJavaHome = projectJavaHome,
+                gradleArgs = gradleArgs,
+                literals = literals,
+                deviceSerial = deviceSerial,
+                launchActivity = launchActivity,
+            )
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid configuration")
+        }
+    } else {
+        // --- Legacy path (--module present, or --app-id present with no filters) ---
+        val appId = appIdOpt ?: fail("--app-id is required\n\n$USAGE")
+        val moduleRequests = (moduleOpt ?: "app").split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .map(ModuleSpec.Request::parse)
+        if (moduleRequests.isEmpty()) fail("--module needs at least one module name")
+        val modulesWithVariants = try {
+            ModuleSpec.Request.applyVariantOverrides(
+                moduleRequests,
+                moduleVariantList,
+            )
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid --module-variant")
+        }
+        val modules = try {
+            ProjectConfig.selectAppModule(
+                modulesWithVariants,
+                appModuleOpt,
+                appModuleDirOpt,
+            )
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid --app-module/--app-module-dir")
+        }
+
+        return try {
+            ProjectConfig(
+                projectDir = project,
+                modules = modules,
+                applicationId = appId,
+                variant = variantOpt ?: "debug",
+                projectJavaHome = projectJavaHome,
+                gradleArgs = gradleArgs,
+                literals = literals,
+                deviceSerial = deviceSerial,
+                launchActivity = launchActivity,
+            )
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid configuration")
+        }
     }
 }
 

@@ -1,6 +1,30 @@
 # T33e: external project profiles + `configure` / `config show` (T33 phase 4)
-Status: TODO
+Status: DONE (2026-07-14, agy headless Gemini 3.5 Flash High + coordinator review)
 Assignee: agy
+
+## Outcome (2026-07-14)
+Implemented by headless agy (`scripts/delegate.sh`, Gemini 3.5 Flash (High) — first
+delegation on this model) faithfully to spec: every load-bearing diff reviewed, nothing
+out of scope touched, no improvised design decisions. Coordinator re-verified everything
+independently (not trusted from the agent):
+- Fresh `--rerun-tasks`: engine+protocol suites green incl. the 22 new tests
+  (TomlTest 12, ProfileTest 5, ProfileStoreTest 5); existing suites unmodified.
+- All 12 host acceptance markers re-run green by the coordinator.
+- Device gate on emulator-5554: `./e2e/run.sh` all PASS (272s, literals SKIP
+  local-by-design) + `./e2e/run-multi.sh` 4/4 (50s), both UNMODIFIED. Live profile
+  session: `configure --project samples/multi-module --save-as t33e-live` (discovery ran,
+  profile file byte-exact to the schema) → `watch --profile t33e-live` → `profile:` line
+  first, NO `discovered:` lines (profile pins modules), T33d auto-launch fired through
+  the profile path (`launched: … (pid …)` via monkey), cross-module CoreLabel edit
+  `hot-swapped: 1 redefined … 827ms` + revert swap, UI verified both ways.
+
+Coordinator gotcha worth keeping (bit this validation, NOT a T33e bug): a live smoke
+started against an app process left over from a previous watch session can hit
+`FAILURE TO REDEFINE … Field '$liveEditBytecode' is missing` — T27/T28 priming is
+per-session state, so a class primed by an EARLIER session (e.g. run-multi's T28 case)
+rejects a fresh session's unprimed redefine. Always force-stop the target app between
+watch sessions before judging a smoke; on-screen text can also be stale from the
+previous session's swaps.
 
 **Precondition:** T33d (PR #14, branch `t33d/device-modules-launch`) merged — this spec
 builds directly on its `ProjectConfig.launchActivity`, `resolveWatchPlan`, and the
