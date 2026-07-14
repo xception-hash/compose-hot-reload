@@ -112,6 +112,8 @@ source scripts/env.sh   # JAVA_HOME etc.
 
 Edit a composable, save the file, and watch the UI update on the device instantly.
 
+**Zero-config mode:** `hotreload watch --project <dir>` discovers the app module, variant, applicationId, and watched-module closure automatically — no `--app-id` or `--module` needed.
+
 For multi-module projects, pass `--module` with a comma-separated list of Gradle module names (first entry = app module; nested paths use `/`):
 ```bash
 ./gradlew -q :cli:run --args="watch --project /path/to/your/project --app-id <your.app.id> --module app,feature,core"
@@ -135,6 +137,16 @@ custom debuggable build type like `stage` above needs no hand-added dependency.
 
 `--module-variant` overrides the global app variant for modules where Gradle variant
 matching selects a differently named library variant; it and `--gradle-arg` are repeatable.
+
+Additional flags:
+
+| Flag | Description |
+|---|---|
+| `--device <serial>` | Target device serial when several are connected (`adb -s`; overrides `$ANDROID_SERIAL`) |
+| `--launch-activity <name>` | Activity to launch when the app is not running (default: the device's LAUNCHER intent for `--app-id`) |
+| `--include-module <gradlePath>` | Restrict the discovered watched modules to these (+ the app module); may be repeated. Only valid without `--module` |
+| `--exclude-module <gradlePath>` | Drop a discovered watched module; may be repeated. Only valid without `--module` |
+
 The watcher supports both AGP 9 built-in Kotlin output and the standalone Kotlin Gradle
 plugin output used by AGP 8 projects. Known limitation: variant names are split into
 source sets assuming a single flavor dimension ending in `debug`/`release`

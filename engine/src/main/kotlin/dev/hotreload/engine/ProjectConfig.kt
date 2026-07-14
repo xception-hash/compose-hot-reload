@@ -21,10 +21,22 @@ data class ProjectConfig(
      * the app built with `-Photreload.liveLiterals=true` (verified at startup).
      */
     val literals: Boolean = false,
+    /** `--device`; null = adb's default-device behavior. */
+    val deviceSerial: String? = null,
+    /** `--launch-activity`; null = monkey LAUNCHER fallback. */
+    val launchActivity: String? = null,
 ) {
     init {
         require(modules.isNotEmpty()) { "at least one module (the app module) is required" }
         require(variant.isNotBlank()) { "variant must not be blank" }
+        require(applicationId.matches(Regex("^[A-Za-z0-9._]+$"))) {
+            "applicationId contains characters outside [A-Za-z0-9._]: $applicationId"
+        }
+        launchActivity?.let {
+            require(it.matches(Regex("^[A-Za-z0-9._\$]+$"))) {
+                "launchActivity contains characters outside [A-Za-z0-9._\$]: $it"
+            }
+        }
     }
 
     val appModule: ModuleSpec.Request get() = modules.first()

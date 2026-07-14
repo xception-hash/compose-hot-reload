@@ -86,32 +86,49 @@ class Doctor(
             ok("Android SDK root exists ($sdkDir) and tools present (adb, d8 $buildTools)")
         }
 
-        // c. Exactly one device/emulator online (`adb devices`); device API >= 30 (`getprop ro.build.version.sdk`)
+        // c. Device check — serial-aware (T33d)
         var deviceSerial: String? = null
         var adb: Adb? = null
         if (!sdkOk) {
             fail("Device check: skipped due to missing Android SDK/adb")
         } else {
-            val adbInst = Adb(adbPath)
+            val adbInst = Adb(adbPath, config.deviceSerial)
             adb = adbInst
             val serials = try {
                 adbInst.devices()
             } catch (t: Throwable) {
                 emptyList()
             }
-            if (serials.isEmpty()) {
-                fail("Device connected: no online devices found (fix: start an emulator or connect a device via adb)")
-            } else if (serials.size > 1) {
-                fail("Device connected: expected 1 device, found ${serials.size} (${serials.joinToString()}) (fix: disconnect extra devices or target a single device)")
-            } else {
-                val serial = serials.first()
-                val (exitCode, apiStr) = adbInst.safeShell("getprop", "ro.build.version.sdk")
-                val api = if (exitCode == 0) apiStr.trim().toIntOrNull() else null
-                if (api == null || api < 30) {
-                    fail("Device connected: device API level is ${apiStr.trim().ifEmpty { "unknown" }} (≥ 30 required) (fix: use an emulator or device running Android 11 / API 30 or higher)")
+            if (config.deviceSerial != null) {
+                // Explicit --device: the serial must appear among online devices.
+                if (config.deviceSerial !in serials) {
+                    fail("Device connected: '${config.deviceSerial}' not found among online devices (${serials.joinToString()})")
                 } else {
-                    deviceSerial = serial
-                    ok("Device connected: $serial (API $api ≥ 30)")
+                    val (exitCode, apiStr) = adbInst.safeShell("getprop", "ro.build.version.sdk")
+                    val api = if (exitCode == 0) apiStr.trim().toIntOrNull() else null
+                    if (api == null || api < 30) {
+                        fail("Device connected: device API level is ${apiStr.trim().ifEmpty { "unknown" }} (≥ 30 required) (fix: use an emulator or device running Android 11 / API 30 or higher)")
+                    } else {
+                        deviceSerial = config.deviceSerial
+                        ok("Device connected: ${config.deviceSerial} (API $api ≥ 30)")
+                    }
+                }
+            } else {
+                // No --device: exactly one online device required.
+                if (serials.isEmpty()) {
+                    fail("Device connected: no online devices found (fix: start an emulator or connect a device via adb)")
+                } else if (serials.size > 1) {
+                    fail("Device connected: expected 1 device, found ${serials.size} (${serials.joinToString()}) (fix: disconnect extra devices or pass --device <serial>)")
+                } else {
+                    val serial = serials.first()
+                    val (exitCode, apiStr) = adbInst.safeShell("getprop", "ro.build.version.sdk")
+                    val api = if (exitCode == 0) apiStr.trim().toIntOrNull() else null
+                    if (api == null || api < 30) {
+                        fail("Device connected: device API level is ${apiStr.trim().ifEmpty { "unknown" }} (≥ 30 required) (fix: use an emulator or device running Android 11 / API 30 or higher)")
+                    } else {
+                        deviceSerial = serial
+                        ok("Device connected: $serial (API $api ≥ 30)")
+                    }
                 }
             }
         }
@@ -199,7 +216,7 @@ class Doctor(
             val (pidExit, pidOutput) = adbRef.safeShell("pidof", applicationId)
             val pid = if (pidExit == 0) pidOutput.trim().split(Regex("\\s+")).firstOrNull() else null
             if (pid.isNullOrEmpty() || pid.toIntOrNull() == null) {
-                warn("Runtime handshake: app not running — start it and re-run for the handshake check")
+                warn("Runtime handshake: app not running — hotreload watch will auto-launch it; start it manually and re-run doctor for the handshake check")
             } else {
                 val localPort = try {
                     adbRef.forward(Protocol.deviceSocketName(applicationId))

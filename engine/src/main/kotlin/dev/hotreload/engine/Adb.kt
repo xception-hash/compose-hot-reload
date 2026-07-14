@@ -9,7 +9,10 @@ import java.nio.file.Path
  * device side, but the actual protocol uses abstract Unix sockets
  * (`localabstract:<name>`), so the parameter is a String socket name instead.
  */
-class Adb(private val adb: Path) {
+class Adb(private val adb: Path, serial: String? = null) {
+
+    internal val commandPrefix: List<String> =
+        listOf(adb.toString()) + (serial?.let { listOf("-s", it) } ?: emptyList())
 
     /**
      * `adb forward tcp:0 localabstract:<socketName>` — returns the allocated local port.
@@ -17,7 +20,7 @@ class Adb(private val adb: Path) {
      */
     fun forward(socketName: String): Int {
         val process = ProcessBuilder(
-            adb.toString(), "forward", "tcp:0", "localabstract:$socketName",
+            commandPrefix + listOf("forward", "tcp:0", "localabstract:$socketName"),
         )
             .redirectErrorStream(false)
             .start()
@@ -56,7 +59,7 @@ class Adb(private val adb: Path) {
 
     /** `adb shell <args...>` — returns (exitCode, output). Does not throw. */
     fun safeShell(vararg args: String): Pair<Int, String> {
-        val process = ProcessBuilder(listOf(adb.toString(), "shell") + args)
+        val process = ProcessBuilder(commandPrefix + listOf("shell") + args)
             .redirectErrorStream(true)
             .start()
         val output = process.inputStream.bufferedReader().readText().trim()
@@ -79,7 +82,7 @@ class Adb(private val adb: Path) {
     fun runAs(pkg: String, vararg args: String): String = run("shell", "run-as", pkg, *args)
 
     private fun run(vararg args: String): String {
-        val process = ProcessBuilder(listOf(adb.toString()) + args)
+        val process = ProcessBuilder(commandPrefix + args)
             .redirectErrorStream(false)
             .start()
         val stdout = process.inputStream.bufferedReader().readText()
@@ -96,7 +99,7 @@ class Adb(private val adb: Path) {
      */
     fun removeForward(localPort: Int) {
         val process = ProcessBuilder(
-            adb.toString(), "forward", "--remove", "tcp:$localPort",
+            commandPrefix + listOf("forward", "--remove", "tcp:$localPort"),
         )
             .redirectErrorStream(false)
             .start()
