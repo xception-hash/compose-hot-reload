@@ -133,6 +133,13 @@ gradle.rootProject { root ->
             def sourceSetTiers = { List<String> flavors, String buildType, String variantName ->
                 def tiers = ['main']
                 tiers.addAll(flavors)
+                if (flavors.size() > 1) {
+                    def combined = flavors[0]
+                    for (int i = 1; i < flavors.size(); i++) {
+                        combined += flavors[i].capitalize()
+                    }
+                    tiers << combined
+                }
                 if (buildType != null) tiers << buildType
                 tiers << variantName
                 tiers.unique()

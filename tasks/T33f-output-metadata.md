@@ -1,5 +1,5 @@
 # T33f: build/APK/resource paths from Gradle metadata (T33 phase 5)
-Status: TODO
+Status: IN-REVIEW
 Assignee: agy
 
 **Precondition:** T33e (PR #15) merged — this spec builds on its `ProfileStore`,

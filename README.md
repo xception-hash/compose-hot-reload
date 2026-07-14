@@ -164,6 +164,8 @@ Profiles live outside the target repository, allowing zero-flag runs after confi
 Precedence order: CLI flag > profile > discovery > default.
 Note: A profile's `literals = true` setting cannot be disabled via CLI flags; edit the profile directly to change it.
 
+`configure` also caches Gradle discovery metadata next to the profile (`<name>.discovery.json`) and watch uses it for build/APK/resource paths; delete or re-run `configure` to refresh.
+
 The watcher supports both AGP 9 built-in Kotlin output and the standalone Kotlin Gradle
 plugin output used by AGP 8 projects. Known limitation: variant names are split into
 source sets assuming a single flavor dimension ending in `debug`/`release`
@@ -295,6 +297,8 @@ If hot reload fails to connect or experience issues on device, run `hotreload do
 ```bash
 ./gradlew -q :cli:run --args="doctor --project $PWD/samples/single-module --app-id dev.hotreload.sample"
 ```
+
+* **APK Selection**: The swapper locates the active APK using AGP's `output-metadata.json` (logged as `apk: … (output-metadata.json)`). If the metadata is absent or unreadable, it logs a warning (`apk: no matching output-metadata.json — newest-APK fallback may pick a stale variant`) and falls back to recursive newest-mtime search, which can pick a stale variant APK.
 
 ## 10. Live-literals fast path (experimental, opt-in)
 Editing only a constant inside a composable — a plain string, number, boolean, or char — can skip Gradle + d8 + class redefinition entirely and push the new value straight into Compose's live-literals mechanism, for a sub-100ms update. It is **off by default** because the Compose compiler's live-literals instrumentation adds overhead to debug builds.

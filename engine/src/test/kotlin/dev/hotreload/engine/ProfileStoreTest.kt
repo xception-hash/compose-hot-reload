@@ -70,4 +70,43 @@ class ProfileStoreTest {
         val path = store.path("my-app.v2")
         assertEquals(tempDir.resolve("projects/my-app.v2.toml"), path)
     }
+
+    @Test
+    fun saveLoadDiscoveryRoundTrip() {
+        val store = ProfileStore(tempDir)
+        val json = "{\"schemaVersion\":1}"
+        val savedPath = store.saveDiscovery("my-app", json)
+        assertEquals(tempDir.resolve("projects/my-app.discovery.json"), savedPath)
+
+        val loaded = store.loadDiscovery("my-app")
+        assertEquals(json, loaded)
+    }
+
+    @Test
+    fun loadDiscoveryAbsentReturnsNull() {
+        val store = ProfileStore(tempDir)
+        assertNull(store.loadDiscovery("missing-discovery"))
+    }
+
+    @Test
+    fun nameGuardRejectionsDiscovery() {
+        val store = ProfileStore(tempDir)
+        val badNames = listOf("../evil", "a/b", "a;b", "")
+        for (badName in badNames) {
+            val e1 = assertFailsWith<IllegalArgumentException> {
+                store.loadDiscovery(badName)
+            }
+            assertTrue(e1.message!!.contains("invalid profile name"))
+
+            val e2 = assertFailsWith<IllegalArgumentException> {
+                store.saveDiscovery(badName, "{}")
+            }
+            assertTrue(e2.message!!.contains("invalid profile name"))
+
+            val e3 = assertFailsWith<IllegalArgumentException> {
+                store.discoveryPath(badName)
+            }
+            assertTrue(e3.message!!.contains("invalid profile name"))
+        }
+    }
 }
