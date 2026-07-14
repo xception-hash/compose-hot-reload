@@ -255,12 +255,12 @@ discovery path; auto-launch via pidof gate + am/monkey; serial-aware Adb)
 Support `~/.config/compose-hot-reload/projects/<name>.toml` profiles.
 `hotreload configure --save-as` and `hotreload config show --profile`.
 
-Assignee: agy — **executable spec ready: `tasks/T33e-profiles-configure.md`**
-(design fixed: hand-rolled strict-subset TOML in the engine — no TOML lib exists in the
+Assignee: agy — **DONE (`tasks/T33e-profiles-configure.md`, merged in PR #15)**
+(design: hand-rolled strict-subset TOML in the engine — no TOML lib exists in the
 pinned offline caches; profiles persist the RESOLVED plan, include/exclude consumed at
 configure time; merge at the flag-string level so CLI > profile > discovery > default
 rides the existing parse path; configure-written profiles pin modules+appId and never
-re-trigger discovery; e2e stays byte-identical — it never passes `--profile`)
+re-trigger discovery)
 
 ### Phase 5 — Replace output-directory guesses with Gradle task/output metadata
 Obtain compile output dirs, APK paths, and resource directories from Gradle task
@@ -306,12 +306,12 @@ Assignee: maintainer
 How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks up T33
 work without a human in the loop:
 
-**Order.** Phases 1, 2, 3, and 7 are DONE (T33a + T33c merged; T33b merged; T33d in
-PR #14). Dispatch-ready NOW: `tasks/T33e-profiles-configure.md` (phase 4; precondition:
-PR #14 merged). Phases 5→6 must follow in order (each builds on the previous one's
-types); each needs its spec written by a coordinator session first — they contain real
-design decisions (metadata-vs-probe precedence, fingerprint format) that must NOT be
-improvised by the executing agent. Phases 8–10 are maintainer-led.
+**Order.** Phases 1, 2, 3, 4, and 7 are DONE (T33a/T33c/T33b merged; T33d in PR #14;
+T33e in PR #15). No spec is dispatch-ready right now: phases 5→6 must follow in order
+(each builds on the previous one's types); each needs its spec written by a coordinator
+session first — they contain real design decisions (metadata-vs-probe precedence,
+fingerprint format) that must NOT be improvised by the executing agent. Phases 8–10
+are maintainer-led.
 
 **Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
 1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed
