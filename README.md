@@ -142,10 +142,27 @@ Additional flags:
 
 | Flag | Description |
 |---|---|
+| `--profile <name>` | Load defaults from `~/.config/compose-hot-reload/projects/<name>.toml` (written by `configure`); any explicit flag overrides it |
 | `--device <serial>` | Target device serial when several are connected (`adb -s`; overrides `$ANDROID_SERIAL`) |
 | `--launch-activity <name>` | Activity to launch when the app is not running (default: the device's LAUNCHER intent for `--app-id`) |
 | `--include-module <gradlePath>` | Restrict the discovered watched modules to these (+ the app module); may be repeated. Only valid without `--module` |
 | `--exclude-module <gradlePath>` | Drop a discovered watched module; may be repeated. Only valid without `--module` |
+
+### Profiles
+Profiles live outside the target repository, allowing zero-flag runs after configuration. Profiles are stored in:
+```text
+~/.config/compose-hot-reload/projects/<name>.toml
+```
+
+- **Configure**: `hotreload configure --project <dir> --save-as <name> [options]`
+  Resolves the full watch plan (discovery included) and persists it as a profile.
+- **Watch/Doctor**: `hotreload watch|doctor --profile <name>`
+  Loads defaults from the profile; any explicit CLI flag overrides the profile value.
+- **Config Show**: `hotreload config show --profile <name>`
+  Prints the profile file verbatim and its equivalent expanded command line.
+
+Precedence order: CLI flag > profile > discovery > default.
+Note: A profile's `literals = true` setting cannot be disabled via CLI flags; edit the profile directly to change it.
 
 The watcher supports both AGP 9 built-in Kotlin output and the standalone Kotlin Gradle
 plugin output used by AGP 8 projects. Known limitation: variant names are split into
