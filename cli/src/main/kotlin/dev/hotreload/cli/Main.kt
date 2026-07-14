@@ -6,6 +6,8 @@ import dev.hotreload.engine.GradleDiscovery
 import dev.hotreload.engine.ModuleSpec
 import dev.hotreload.engine.ProjectConfig
 import dev.hotreload.engine.WatchSession
+import dev.hotreload.engine.resolveWatchPlan
+import dev.hotreload.engine.watchCommandFor
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.system.exitProcess
@@ -13,32 +15,46 @@ import kotlin.system.exitProcess
 private const val USAGE = """hotreload — Flutter-style hot reload for Jetpack Compose on Android
 
 Usage:
-  hotreload watch --project <dir> --app-id <applicationId> [options]
-  hotreload doctor --project <dir> --app-id <applicationId> [options]
+  hotreload watch --project <dir> [options]
+  hotreload doctor --project <dir> [options]
   hotreload inspect --project <dir> [options]
+
+When --app-id and --module are omitted, the app module, variant, applicationId, and
+watched-module closure are discovered automatically via Gradle inspection.
 
 Options:
   --project <dir>     Gradle project of the app (required)
-  --app-id <id>       applicationId of the debug build on the device (required for
-                      watch/doctor; not used by inspect)
+  --app-id <id>       applicationId of the debug build on the device (discovered when
+                      omitted with --module also absent)
+  --app-module <gradlePath>
+                      Which watched module is the app (default: first --module)
+  --app-module-dir <dir>
+                      Physical directory override for the app module
+  --build-tools <v>   build-tools version for d8 (default: 36.0.0)
+  --device <serial>   Target device serial when several are connected (adb -s;
+                      overrides ${'$'}ANDROID_SERIAL)
+  --exclude-module <gradlePath>
+                      Drop a DISCOVERED watched module; may be repeated. Only valid
+                      without --module
+  --gradle-arg <arg>  Extra target Gradle argument; may be repeated
+  --include-module <gradlePath>
+                      Restrict the DISCOVERED watched modules to these (+ the app
+                      module); may be repeated. Only valid without --module
+  --json              (inspect only) print the raw discovery report JSON, nothing else
+  --launch-activity <name>
+                      Activity to launch when the app is not running (default: the
+                      device's LAUNCHER intent for --app-id)
+  --literals          Enable the live-literals fast path (T24); requires the app built
+                      with -Photreload.liveLiterals=true
   --module <names>    Comma-separated Gradle modules to watch; the FIRST is the app
                       module (default: app). Map a Gradle path to a physical directory
                       with '=', e.g. :app=applications/main,libs/core
   --module-variant <GradlePath=variant>
                       Variant override for a watched module; may be repeated
-  --app-module <gradlePath>
-                      Which watched module is the app (default: first --module)
-  --app-module-dir <dir>
-                      Physical directory override for the app module
-  --variant <name>    Android variant to compile (default: debug)
   --project-java-home <dir>
                       JDK used by the target project's Gradle build (default: CLI JVM)
-  --gradle-arg <arg>  Extra target Gradle argument; may be repeated
   --sdk <dir>         Android SDK root (default: ${'$'}ANDROID_HOME)
-  --build-tools <v>   build-tools version for d8 (default: 36.0.0)
-  --literals          Enable the live-literals fast path (T24); requires the app built
-                      with -Photreload.liveLiterals=true
-  --json              (inspect only) print the raw discovery report JSON, nothing else
+  --variant <name>    Android variant to compile (default: debug)
 """
 
 fun main(args: Array<String>) {
@@ -63,20 +79,6 @@ fun main(args: Array<String>) {
     val literals = "--literals" in rest
     val opts = parseOptions(rest.filter { it != "--literals" })
     val project = Path.of(opts.required("--project")).toAbsolutePath().normalize()
-    val appId = opts.required("--app-id")
-    val moduleRequests = (opts.single("--module") ?: "app").split(',')
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .map(ModuleSpec.Request::parse)
-    if (moduleRequests.isEmpty()) fail("--module needs at least one module name")
-    val modulesWithVariants = try {
-        ModuleSpec.Request.applyVariantOverrides(
-            moduleRequests,
-            opts["--module-variant"].orEmpty(),
-        )
-    } catch (e: IllegalArgumentException) {
-        fail(e.message ?: "invalid --module-variant")
-    }
     val sdk = Path.of(
         opts.single("--sdk") ?: System.getenv("ANDROID_HOME")
             ?: fail("--sdk not given and ANDROID_HOME not set"),
@@ -85,25 +87,121 @@ fun main(args: Array<String>) {
     val variant = opts.single("--variant") ?: "debug"
     val projectJavaHome = opts.single("--project-java-home")?.let(Path::of)
     val gradleArgs = opts["--gradle-arg"].orEmpty()
-    val modules = try {
-        ProjectConfig.selectAppModule(
-            modulesWithVariants,
-            opts.single("--app-module"),
-            opts.single("--app-module-dir"),
-        )
-    } catch (e: IllegalArgumentException) {
-        fail(e.message ?: "invalid --app-module/--app-module-dir")
+    val deviceSerial = opts.single("--device")
+    val launchActivity = opts.single("--launch-activity")
+
+    val moduleOpt = opts.single("--module")
+    val appIdOpt = opts.single("--app-id")
+    val includeModules = opts["--include-module"].orEmpty()
+    val excludeModules = opts["--exclude-module"].orEmpty()
+    val appModuleOpt = opts.single("--app-module")
+    val appModuleDirOpt = opts.single("--app-module-dir")
+
+    // Trigger rule: discovery runs iff --module is ABSENT and (--app-id is absent OR
+    // any --include-module/--exclude-module is given).
+    val hasModuleFlag = moduleOpt != null
+    val hasFilters = includeModules.isNotEmpty() || excludeModules.isNotEmpty()
+
+    if (hasModuleFlag && hasFilters) {
+        fail("--include-module/--exclude-module filter the discovered module set; with --module, edit the list directly")
     }
 
-    val config = ProjectConfig(
-        projectDir = project,
-        modules = modules,
-        applicationId = appId,
-        variant = variant,
-        projectJavaHome = projectJavaHome,
-        gradleArgs = gradleArgs,
-        literals = literals,
-    )
+    val useDiscovery = !hasModuleFlag && (appIdOpt == null || hasFilters)
+
+    val config: ProjectConfig
+    if (useDiscovery) {
+        // --- Discovery path ---
+        val report = try {
+            GradleDiscovery.run(project, projectJavaHome, gradleArgs)
+        } catch (t: Throwable) {
+            fail(t.message ?: t.toString())
+        }
+
+        val normalizedIncludes = includeModules.map { ModuleSpec.Request.parse(it).gradlePath }
+        val normalizedExcludes = excludeModules.map { ModuleSpec.Request.parse(it).gradlePath }
+
+        val plan = try {
+            report.resolveWatchPlan(appModuleOpt, opts.single("--variant"), normalizedIncludes, normalizedExcludes)
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "discovery resolution failed")
+        }
+
+        val applicationId = appIdOpt
+            ?: plan.applicationId
+            ?: fail("discovery found no applicationId for variant '${plan.variantName}' — pass --app-id")
+
+        val modulesWithVariants = try {
+            ModuleSpec.Request.applyVariantOverrides(
+                plan.modules,
+                opts["--module-variant"].orEmpty(),
+            )
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid --module-variant")
+        }
+
+        val modules = try {
+            ProjectConfig.selectAppModule(modulesWithVariants, null, appModuleDirOpt)
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid --app-module/--app-module-dir")
+        }
+
+        // Print discovery lines.
+        val appModule = plan.modules.first()
+        println("discovered: app=${appModule.gradlePath} dir=${appModule.relativeDir} variant=${plan.variantName} appId=$applicationId")
+        // "modules", not "watching": the bare "watching " prefix is the session-ready
+        // contract line (e2e/IDE plugin grep for it) and must never appear earlier.
+        println("discovered: modules ${plan.modules.joinToString { it.gradlePath }}")
+        println("resolved: ${report.watchCommandFor(plan, project.toString())}")
+
+        config = ProjectConfig(
+            projectDir = project,
+            modules = modules,
+            applicationId = applicationId,
+            variant = plan.variantName,
+            projectJavaHome = projectJavaHome,
+            gradleArgs = gradleArgs,
+            literals = literals,
+            deviceSerial = deviceSerial,
+            launchActivity = launchActivity,
+        )
+    } else {
+        // --- Legacy path (--module present, or --app-id present with no filters) ---
+        val appId = appIdOpt ?: fail("--app-id is required\n\n$USAGE")
+        val moduleRequests = (moduleOpt ?: "app").split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .map(ModuleSpec.Request::parse)
+        if (moduleRequests.isEmpty()) fail("--module needs at least one module name")
+        val modulesWithVariants = try {
+            ModuleSpec.Request.applyVariantOverrides(
+                moduleRequests,
+                opts["--module-variant"].orEmpty(),
+            )
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid --module-variant")
+        }
+        val modules = try {
+            ProjectConfig.selectAppModule(
+                modulesWithVariants,
+                appModuleOpt,
+                appModuleDirOpt,
+            )
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "invalid --app-module/--app-module-dir")
+        }
+
+        config = ProjectConfig(
+            projectDir = project,
+            modules = modules,
+            applicationId = appId,
+            variant = variant,
+            projectJavaHome = projectJavaHome,
+            gradleArgs = gradleArgs,
+            literals = literals,
+            deviceSerial = deviceSerial,
+            launchActivity = launchActivity,
+        )
+    }
 
     if (command == "doctor") {
         val ok = Doctor(config, sdk, buildTools).run()

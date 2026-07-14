@@ -3,6 +3,7 @@ package dev.hotreload.engine
 import com.google.gson.Gson
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -16,6 +17,13 @@ class GradleDiscoveryTest {
         val text = requireNotNull(
             javaClass.getResourceAsStream("/dev/hotreload/inspect-fixture.json"),
         ) { "inspect-fixture.json missing from test resources" }.use { it.readBytes().toString(Charsets.UTF_8) }
+        return Gson().fromJson(text, DiscoveryReport::class.java)
+    }
+
+    private fun loadMultiAppFixture(): DiscoveryReport {
+        val text = requireNotNull(
+            javaClass.getResourceAsStream("/dev/hotreload/inspect-fixture-multiapp.json"),
+        ) { "inspect-fixture-multiapp.json missing from test resources" }.use { it.readBytes().toString(Charsets.UTF_8) }
         return Gson().fromJson(text, DiscoveryReport::class.java)
     }
 
@@ -166,5 +174,146 @@ class GradleDiscoveryTest {
             ),
         )
         assertNull(report.suggestedWatchCommand())
+    }
+
+    // ---- resolveWatchPlan tests (T33d) ----
+
+    @Test
+    fun `resolveWatchPlan defaults on fixture — app first, closure order, stageDebug, fixture appId`() {
+        val report = loadFixture()
+        // Fixture has only stageDebug as debuggable (no "debug" variant), so it's the sole one picked.
+        val plan = report.resolveWatchPlan(null, null, emptyList(), emptyList())
+        assertEquals("stageDebug", plan.variantName)
+        assertEquals("dev.hotreload.fixture.stage", plan.applicationId)
+        assertEquals(listOf(":app", ":feature", ":core"), plan.modules.map { it.gradlePath })
+        assertEquals(":app", plan.modules.first().gradlePath)
+    }
+
+    @Test
+    fun `resolveWatchPlan explicit variant picked`() {
+        val report = loadFixture()
+        val plan = report.resolveWatchPlan(null, "stageDebug", emptyList(), emptyList())
+        assertEquals("stageDebug", plan.variantName)
+    }
+
+    @Test
+    fun `resolveWatchPlan unknown variant throws IAE listing debuggables`() {
+        val report = loadFixture()
+        val e = assertFailsWith<IllegalArgumentException> {
+            report.resolveWatchPlan(null, "fooBar", emptyList(), emptyList())
+        }
+        assertTrue("fooBar" in (e.message ?: ""))
+        assertTrue("stageDebug" in (e.message ?: ""))
+    }
+
+    @Test
+    fun `resolveWatchPlan non-debuggable variant throws IAE`() {
+        val report = loadFixture()
+        val e = assertFailsWith<IllegalArgumentException> {
+            report.resolveWatchPlan(null, "release", emptyList(), emptyList())
+        }
+        assertTrue("release" in (e.message ?: ""))
+        assertTrue("not found or not debuggable" in (e.message ?: ""))
+    }
+
+    @Test
+    fun `resolveWatchPlan no debug + sole debuggable picked`() {
+        // Fixture has only stageDebug as debuggable — picking it automatically.
+        val report = loadFixture()
+        val plan = report.resolveWatchPlan(null, null, emptyList(), emptyList())
+        assertEquals("stageDebug", plan.variantName)
+    }
+
+    @Test
+    fun `resolveWatchPlan multiple debuggables without --variant throws`() {
+        val report = DiscoveryReport(
+            schemaVersion = 1,
+            projects = listOf(
+                DiscoveredProject(
+                    gradlePath = ":app",
+                    projectDir = "app",
+                    type = "androidApp",
+                    variants = listOf(
+                        DiscoveredVariant(name = "freeDebug", debuggable = true, applicationId = "a"),
+                        DiscoveredVariant(name = "paidDebug", debuggable = true, applicationId = "b"),
+                    ),
+                ),
+            ),
+        )
+        val e = assertFailsWith<IllegalArgumentException> {
+            report.resolveWatchPlan(null, null, emptyList(), emptyList())
+        }
+        assertTrue("multiple debuggable variants" in (e.message ?: ""))
+        assertTrue("freeDebug" in (e.message ?: ""))
+        assertTrue("paidDebug" in (e.message ?: ""))
+    }
+
+    @Test
+    fun `resolveWatchPlan two androidApp projects throws IAE listing paths`() {
+        val report = loadMultiAppFixture()
+        val e = assertFailsWith<IllegalArgumentException> {
+            report.resolveWatchPlan(null, null, emptyList(), emptyList())
+        }
+        assertTrue("multiple application modules" in (e.message ?: ""))
+        assertTrue(":app1" in (e.message ?: ""))
+        assertTrue(":app2" in (e.message ?: ""))
+    }
+
+    @Test
+    fun `resolveWatchPlan with appModulePath selects that app`() {
+        val report = loadMultiAppFixture()
+        val plan = report.resolveWatchPlan(":app1", null, emptyList(), emptyList())
+        assertEquals(":app1", plan.modules.first().gradlePath)
+        assertEquals("dev.hotreload.app1", plan.applicationId)
+    }
+
+    @Test
+    fun `resolveWatchPlan appModulePath naming a library throws IAE`() {
+        val report = loadMultiAppFixture()
+        val e = assertFailsWith<IllegalArgumentException> {
+            report.resolveWatchPlan(":shared", null, emptyList(), emptyList())
+        }
+        assertTrue("not an Android application module" in (e.message ?: ""))
+    }
+
+    @Test
+    fun `resolveWatchPlan exclude removes a module`() {
+        val report = loadFixture()
+        val plan = report.resolveWatchPlan(null, null, emptyList(), listOf(":core"))
+        assertEquals(listOf(":app", ":feature"), plan.modules.map { it.gradlePath })
+    }
+
+    @Test
+    fun `resolveWatchPlan exclude app throws IAE`() {
+        val report = loadFixture()
+        val e = assertFailsWith<IllegalArgumentException> {
+            report.resolveWatchPlan(null, null, emptyList(), listOf(":app"))
+        }
+        assertTrue("cannot exclude the app module" in (e.message ?: ""))
+    }
+
+    @Test
+    fun `resolveWatchPlan exclude unknown throws IAE`() {
+        val report = loadFixture()
+        val e = assertFailsWith<IllegalArgumentException> {
+            report.resolveWatchPlan(null, null, emptyList(), listOf(":nope"))
+        }
+        assertTrue("not a watched module" in (e.message ?: ""))
+    }
+
+    @Test
+    fun `resolveWatchPlan include whitelists, app kept implicitly`() {
+        val report = loadFixture()
+        val plan = report.resolveWatchPlan(null, null, listOf(":feature"), emptyList())
+        assertEquals(listOf(":app", ":feature"), plan.modules.map { it.gradlePath })
+    }
+
+    @Test
+    fun `resolveWatchPlan include unknown throws IAE`() {
+        val report = loadFixture()
+        val e = assertFailsWith<IllegalArgumentException> {
+            report.resolveWatchPlan(null, null, listOf(":nope"), emptyList())
+        }
+        assertTrue("not a watched module" in (e.message ?: ""))
     }
 }

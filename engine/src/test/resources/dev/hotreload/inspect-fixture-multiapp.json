@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "gradleVersion": "9.6.1",
+  "rootProjectName": "multiapp-project",
+  "rootDir": "/abs/path/multiapp-project",
+  "javaHome": "/abs/path/jdk-21",
+  "projects": [
+    {
+      "gradlePath": ":app1",
+      "projectDir": "app1",
+      "type": "androidApp",
+      "pluginIds": ["com.android.application"],
+      "variants": [
+        {
+          "name": "debug",
+          "buildType": "debug",
+          "debuggable": true,
+          "applicationId": "dev.hotreload.app1",
+          "tasks": {
+            "compileKotlin": ":app1:compileDebugKotlin",
+            "assemble": ":app1:assembleDebug",
+            "install": ":app1:installDebug"
+          },
+          "projectDependencies": [":shared"]
+        }
+      ]
+    },
+    {
+      "gradlePath": ":app2",
+      "projectDir": "app2",
+      "type": "androidApp",
+      "pluginIds": ["com.android.application"],
+      "variants": [
+        {
+          "name": "debug",
+          "buildType": "debug",
+          "debuggable": true,
+          "applicationId": "dev.hotreload.app2",
+          "tasks": {
+            "compileKotlin": ":app2:compileDebugKotlin",
+            "assemble": ":app2:assembleDebug",
+            "install": ":app2:installDebug"
+          },
+          "projectDependencies": [":shared"]
+        }
+      ]
+    },
+    {
+      "gradlePath": ":shared",
+      "projectDir": "shared",
+      "type": "androidLib",
+      "pluginIds": ["com.android.library"],
+      "variants": [
+        {
+          "name": "debug",
+          "buildType": "debug",
+          "tasks": {
+            "compileKotlin": ":shared:compileDebugKotlin",
+            "assemble": ":shared:assembleDebug"
+          },
+          "projectDependencies": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,33 @@
 # T33d: --device, discovery-defaulted modules, include/exclude, --launch-activity (T33 phase 3)
-Status: TODO
+Status: DONE (2026-07-14, agy headless + coordinator review/fixes; branch t33d/device-modules-launch)
 Assignee: agy
+
+## Outcome (2026-07-14)
+Implemented by headless agy (`scripts/delegate.sh`, Opus 4.6) faithfully to spec — every
+load-bearing diff reviewed, nothing out of scope touched. agy hit its 45-min print-timeout
+before finishing its own acceptance sweep (its doctor runs hung on the runtime handshake
+against a wedged app socket — the PRE-EXISTING PatchServer accept-loop wedge, not this
+diff; force-stopping the apps clears it), so the coordinator re-ran everything.
+
+Two coordinator fixes applied after live smokes (spec text amended in place to match):
+1. **Launch readiness race:** pidof alone signalled ready before HotReloadInitializer
+   bound the PatchServer socket → first ping got `device closed connection mid-request`.
+   Fix: poll for BOTH pid and `@hotreload-<appId>` in `/proc/net/unix` (15 s budget);
+   pid-without-socket proceeds and lets the handshake fail with its established message.
+2. **`discovered: watching …` → `discovered: modules …`:** the bare `watching ` prefix is
+   the session-ready contract line (e2e/IDE plugin grep) and the discovery line contained
+   it as a substring — live-caught fooling a readiness grep.
+
+Verification (all coordinator-run, not trusted from the agent):
+- Fresh `--rerun-tasks`: GradleDiscoveryTest 20, ProjectConfigTest 13, AdbTest 2 — 35/35.
+- All 8 host markers green (LEGACY-REQ, LEGACY, DISCOVER, RESOLVED, DISCOVER-MULTI,
+  EXCLUDE, EXCLUDE-GUARD, FILTER-GUARD), re-run after the rename.
+- Device gate on emulator-5554: `./e2e/run.sh` all PASS (298s, literals SKIP local-by-
+  design) + `./e2e/run-multi.sh` 4/4 (54s), both UNMODIFIED; `--device` doctor smoke
+  (valid serial OK + bogus serial fails with the new message); `--launch-activity
+  .MainActivity` auto-launch → `launched:` → v8 handshake → ready; zero-config
+  `watch --project samples/multi-module` → discovery + monkey auto-launch + cross-module
+  CoreLabel edit `hot-swapped: 1 redefined … 1158ms` (ZEROCONF-SWAP-OK).
 
 ## Goal
 Finish T33 phase 3: stop assuming the app module is `:app` under `app/`, that only one
@@ -53,8 +80,14 @@ and build EVERY ProcessBuilder in the class from `commandPrefix + args` — EXCE
      output are unreliable; success is judged only by the pidof poll below):
      - `launchActivity != null` → `am start -n <appId>/<launchActivity>`
      - else → `monkey -p <appId> -c android.intent.category.LAUNCHER 1`
-  3. Poll `pidof` every 250 ms, up to 40 attempts (10 s). On success print exactly
-     `launched: <appId> (pid <pid>)`. On timeout throw
+  3. Poll every 250 ms, up to 60 attempts (15 s), for BOTH a live pid AND the
+     PatchServer abstract socket (`@hotreload-<appId>` in `/proc/net/unix`) — a pid
+     alone is NOT readiness: the process forks well before HotReloadInitializer binds
+     the socket, and pinging in that window gets an EOF (live-reproduced during
+     acceptance: `device closed connection mid-request`). On success print exactly
+     `launched: <appId> (pid <pid>)`. Pid up but socket never appears (e.g.
+     runtime-client missing) → print `launched:` anyway and proceed; the handshake
+     fails with its established message. No pid at all → throw
      `IllegalStateException("app <appId> is not running and could not be launched" +
      " — start it on the device, or pass --launch-activity <activity>")`.
 
@@ -160,9 +193,12 @@ includes, excludes)` with include/exclude values normalized through
 - Print exactly (before Doctor/WatchSession run; `<app>` = plan's first module):
   ```
   discovered: app=<gradlePath> dir=<relativeDir> variant=<variantName> appId=<applicationId>
-  discovered: watching <gradlePath, gradlePath, ...>
+  discovered: modules <gradlePath, gradlePath, ...>
   resolved: <watchCommandFor(plan, projectDir)>
   ```
+  ("modules", NOT "watching" — the bare `watching ` prefix is the session-ready
+  contract line greped by e2e and the IDE plugin, and must never appear earlier
+  in the stream; live-caught during acceptance.)
   The `resolved:` line is the reproducibility contract: pasting it must yield the same
   session without discovery.
 - Discovery/resolution failures → `fail(...)` with the underlying message (never fall
@@ -217,9 +253,9 @@ OUT=$($CLI doctor --project samples/single-module 2>&1) || true
 echo "$OUT" | grep -q "discovered: app=:app dir=app variant=debug appId=dev.hotreload.sample" && echo DISCOVER-OK
 echo "$OUT" | grep -Eq "resolved: hotreload watch --project .* --app-id dev.hotreload.sample --module :app=app" && echo RESOLVED-OK
 OUT=$($CLI doctor --project samples/multi-module 2>&1) || true
-echo "$OUT" | grep -q "discovered: watching :app, :feature, :core" && echo DISCOVER-MULTI-OK
+echo "$OUT" | grep -q "discovered: modules :app, :feature, :core" && echo DISCOVER-MULTI-OK
 OUT=$($CLI doctor --project samples/multi-module --exclude-module :core 2>&1) || true
-echo "$OUT" | grep -q "discovered: watching :app, :feature$" && echo EXCLUDE-OK
+echo "$OUT" | grep -q "discovered: modules :app, :feature$" && echo EXCLUDE-OK
 
 # Guards:
 $CLI doctor --project samples/multi-module --exclude-module :app 2>&1 | grep -q "cannot exclude the app module" && echo EXCLUDE-GUARD-OK

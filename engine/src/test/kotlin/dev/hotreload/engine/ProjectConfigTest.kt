@@ -77,4 +77,74 @@ class ProjectConfigTest {
             )
         }
     }
+
+    // ---- T33d: applicationId / launchActivity / deviceSerial validation ----
+
+    @Test
+    fun applicationIdWithShellMetacharacterRejected() {
+        val e = assertFailsWith<IllegalArgumentException> {
+            ProjectConfig(
+                projectDir = Path.of("."),
+                modules = listOf(ModuleSpec.Request.parse("app")),
+                applicationId = "foo;id",
+            )
+        }
+        assertTrue("applicationId" in (e.message ?: ""))
+    }
+
+    @Test
+    fun normalApplicationIdAccepted() {
+        val config = ProjectConfig(
+            projectDir = Path.of("."),
+            modules = listOf(ModuleSpec.Request.parse("app")),
+            applicationId = "com.example.app.debug",
+        )
+        assertEquals("com.example.app.debug", config.applicationId)
+    }
+
+    @Test
+    fun launchActivityMainActivityAccepted() {
+        val config = ProjectConfig(
+            projectDir = Path.of("."),
+            modules = listOf(ModuleSpec.Request.parse("app")),
+            applicationId = "com.example.app",
+            launchActivity = ".MainActivity",
+        )
+        assertEquals(".MainActivity", config.launchActivity)
+    }
+
+    @Test
+    fun launchActivityOuterDollarInnerAccepted() {
+        val config = ProjectConfig(
+            projectDir = Path.of("."),
+            modules = listOf(ModuleSpec.Request.parse("app")),
+            applicationId = "com.example.app",
+            launchActivity = "Outer\$Inner",
+        )
+        assertEquals("Outer\$Inner", config.launchActivity)
+    }
+
+    @Test
+    fun launchActivityWithSpaceRejected() {
+        val e = assertFailsWith<IllegalArgumentException> {
+            ProjectConfig(
+                projectDir = Path.of("."),
+                modules = listOf(ModuleSpec.Request.parse("app")),
+                applicationId = "com.example.app",
+                launchActivity = "foo bar",
+            )
+        }
+        assertTrue("launchActivity" in (e.message ?: ""))
+    }
+
+    @Test
+    fun defaultsDeviceSerialAndLaunchActivityNull() {
+        val config = ProjectConfig(
+            projectDir = Path.of("."),
+            modules = listOf(ModuleSpec.Request.parse("app")),
+            applicationId = "com.example.app",
+        )
+        assertEquals(null, config.deviceSerial)
+        assertEquals(null, config.launchActivity)
+    }
 }
