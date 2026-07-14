@@ -5,7 +5,6 @@ import com.intellij.execution.process.OSProcessHandler
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessListener
 import com.intellij.ide.BrowserUtil
-import com.intellij.ide.plugins.PluginManager
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -242,10 +241,10 @@ class HotReloadService(private val project: Project) : Disposable {
      * `cli.bat` on Windows). Null if this plugin path can't be resolved — an override must then be set.
      */
     private fun bundledLauncher(): Path? {
-        // Resolve THIS plugin's own install dir via the public PluginManager facade (not the
-        // internal PluginManagerCore.getPlugin) — getPluginByClass returns the descriptor of the
-        // plugin whose classloader loaded us, so no hard-coded plugin ID is needed.
-        val pluginPath = PluginManager.getPluginByClass(javaClass)?.pluginPath ?: return null
+        // Resolve THIS plugin's own install dir WITHOUT any IntelliJ plugin-descriptor API — every
+        // PluginManager descriptor lookup is @ApiStatus.Internal on 2026.2 and the Marketplace
+        // compat check rejects them. PluginInfo derives the dir from our jar's on-disk location.
+        val pluginPath = PluginInfo.installDir ?: return null
         val binName = if (SystemInfo.isWindows) "cli.bat" else "cli"
         return pluginPath.resolve("cli").resolve("bin").resolve(binName)
     }
@@ -274,7 +273,7 @@ class HotReloadService(private val project: Project) : Disposable {
     }
 
     private fun reportBody(errorDetail: String, history: List<String>): String {
-        val pluginVersion = PluginManager.getPluginByClass(javaClass)?.version ?: "unknown"
+        val pluginVersion = PluginInfo.version
         val ideBuild = runCatching { ApplicationInfo.getInstance().build.asString() }.getOrDefault("unknown")
         return buildString {
             append("### Error\n\n").append(errorDetail).append("\n\n")
