@@ -2,6 +2,7 @@ package dev.hotreload.cli
 
 import dev.hotreload.engine.Doctor
 import dev.hotreload.engine.ModuleSpec
+import dev.hotreload.engine.ProjectConfig
 import dev.hotreload.engine.WatchSession
 import java.nio.file.Files
 import java.nio.file.Path
@@ -21,6 +22,10 @@ Options:
                       with '=', e.g. :app=applications/main,libs/core
   --module-variant <GradlePath=variant>
                       Variant override for a watched module; may be repeated
+  --app-module <gradlePath>
+                      Which watched module is the app (default: first --module)
+  --app-module-dir <dir>
+                      Physical directory override for the app module
   --variant <name>    Android variant to compile (default: debug)
   --project-java-home <dir>
                       JDK used by the target project's Gradle build (default: CLI JVM)
@@ -54,7 +59,7 @@ fun main(args: Array<String>) {
         .filter { it.isNotEmpty() }
         .map(ModuleSpec.Request::parse)
     if (moduleRequests.isEmpty()) fail("--module needs at least one module name")
-    val modules = try {
+    val modulesWithVariants = try {
         ModuleSpec.Request.applyVariantOverrides(
             moduleRequests,
             opts["--module-variant"].orEmpty(),
@@ -70,9 +75,28 @@ fun main(args: Array<String>) {
     val variant = opts.single("--variant") ?: "debug"
     val projectJavaHome = opts.single("--project-java-home")?.let(Path::of)
     val gradleArgs = opts["--gradle-arg"].orEmpty()
+    val modules = try {
+        ProjectConfig.selectAppModule(
+            modulesWithVariants,
+            opts.single("--app-module"),
+            opts.single("--app-module-dir"),
+        )
+    } catch (e: IllegalArgumentException) {
+        fail(e.message ?: "invalid --app-module/--app-module-dir")
+    }
+
+    val config = ProjectConfig(
+        projectDir = project,
+        modules = modules,
+        applicationId = appId,
+        variant = variant,
+        projectJavaHome = projectJavaHome,
+        gradleArgs = gradleArgs,
+        literals = literals,
+    )
 
     if (command == "doctor") {
-        val ok = Doctor(project, appId, modules, sdk, buildTools, variant, projectJavaHome).run()
+        val ok = Doctor(config, sdk, buildTools).run()
         exitProcess(if (ok) 0 else 1)
     }
 
@@ -85,15 +109,9 @@ fun main(args: Array<String>) {
     try {
         WatchSession(
             WatchSession.Config(
-                projectDir = project,
-                modules = modules,
-                applicationId = appId,
+                project = config,
                 d8 = d8,
                 adb = adb,
-                variant = variant,
-                projectJavaHome = projectJavaHome,
-                gradleArgs = gradleArgs,
-                literals = literals,
             ),
         ).run()
     } catch (t: Throwable) {

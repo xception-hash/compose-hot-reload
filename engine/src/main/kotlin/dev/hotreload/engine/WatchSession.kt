@@ -20,31 +20,14 @@ import kotlin.io.path.extension
 class WatchSession(private val config: Config) {
 
     class Config(
-        val projectDir: Path,
-        /** Watched Gradle modules; the FIRST holds the app (applicationId, APK, resources). */
-        val modules: List<ModuleSpec.Request>,
-        val applicationId: String,
+        val project: ProjectConfig,
         val d8: Path,
         val adb: Path,
-        val variant: String = "debug",
-        val projectJavaHome: Path? = null,
-        val gradleArgs: List<String> = emptyList(),
-        /**
-         * Live-literals fast path (T24, `--literals`): literal-only edits are pushed in
-         * place through Compose live literals before the normal compile+swap runs. Requires
-         * the app built with `-Photreload.liveLiterals=true` (verified at startup).
-         */
-        val literals: Boolean = false,
-    ) {
-        init {
-            require(modules.isNotEmpty()) { "at least one module (the app module) is required" }
-            require(variant.isNotBlank()) { "variant must not be blank" }
-        }
-    }
+    )
 
     /** The app module is AGP by definition, so its compile task is known before probing. */
-    private val compileTask = config.modules.first().let { app ->
-        "${app.gradlePath}:compile${(app.variant ?: config.variant).taskSegment()}Kotlin"
+    private val compileTask = config.project.modules.first().let { app ->
+        "${app.gradlePath}:compile${(app.variant ?: config.project.variant).taskSegment()}Kotlin"
     }
 
     /** Resolved after the initial build (layout probing needs compiled output). */
@@ -81,7 +64,7 @@ class WatchSession(private val config: Config) {
     /** Blocks until the process is killed. */
     fun run() {
         val adb = Adb(config.adb)
-        val localPort = adb.forward(Protocol.deviceSocketName(config.applicationId))
+        val localPort = adb.forward(Protocol.deviceSocketName(config.project.applicationId))
         val dexer = DexCompiler(config.d8)
 
         DeviceClient(port = localPort).use { device ->
@@ -99,19 +82,19 @@ class WatchSession(private val config: Config) {
                 "device is not hot-swappable — is the app a debuggable build with the runtime-client?"
             }
 
-            val gradleArgs = config.gradleArgs +
-                if (config.literals) listOf("-Photreload.liveLiterals=true") else emptyList()
+            val gradleArgs = config.project.gradleArgs +
+                if (config.project.literals) listOf("-Photreload.liveLiterals=true") else emptyList()
             GradleCompiler(
-                config.projectDir.toFile(),
+                config.project.projectDir.toFile(),
                 gradleArgs,
-                config.projectJavaHome?.toFile(),
+                config.project.projectJavaHome?.toFile(),
             ).use { gradle ->
                 print("initial build... ")
                 val initial = gradle.compile(compileTask)
                 check(initial.success) { "initial compile failed:\n${initial.output}" }
                 println("ok (${initial.durationMs}ms)")
 
-                modules = config.modules.map { ModuleSpec.probe(config.projectDir, it, config.variant) }
+                modules = config.project.modules.map { ModuleSpec.probe(config.project.projectDir, it, config.project.variant) }
                 check(modules.first().layout != ModuleSpec.Layout.JVM) {
                     "app module '${modules.first().name}' is not an AGP module"
                 }
@@ -122,13 +105,13 @@ class WatchSession(private val config: Config) {
 
                 val dexdump = config.d8.resolveSibling("dexdump").takeIf { Files.isRegularFile(it) }
                 if (dexdump == null) println("warning: no dexdump next to ${config.d8} — bitmap edits will overlay without invalidating")
-                val resources = ResourceSwapper(modules.first(), resDirs, config.applicationId, gradle, adb, device, dexdump)
+                val resources = ResourceSwapper(modules.first(), resDirs, config.project.applicationId, gradle, adb, device, dexdump)
 
                 // Registering a nonexistent root makes DirectoryWatcher fail (asynchronously).
                 sourceRoots = modules.flatMap { it.sourceRoots }.filter { Files.isDirectory(it) }
                 check(sourceRoots.isNotEmpty()) { "no source roots exist among ${modules.flatMap { it.sourceRoots }.joinToString()}" }
 
-                if (config.literals) initLiterals()
+                if (config.project.literals) initLiterals()
                 // res/values value edits are hot-swapped too, but only if the dir exists.
                 val roots = sourceRoots + resDirs.filter { Files.isDirectory(it) }
 
@@ -185,7 +168,7 @@ class WatchSession(private val config: Config) {
         // Live-literals fast path (T24): a single .kt save that only changes one constant
         // is pushed in place NOW — it wins the latency race. The normal compile+swap below
         // still runs and re-applies it idempotently (keeping the baseline/table truthful).
-        if (config.literals && ktChanges.size == 1 && resChanges.isEmpty()) {
+        if (config.project.literals && ktChanges.size == 1 && resChanges.isEmpty()) {
             tryLiteralFastPath(ktChanges.single(), device, snapshot, t0)
         }
 
@@ -199,7 +182,7 @@ class WatchSession(private val config: Config) {
                 ?: return snapshot
             newSnapshot = result.snapshot
             invalidated = invalidated || result.invalidated
-            if (config.literals) refreshLiterals(ktChanges)
+            if (config.project.literals) refreshLiterals(ktChanges)
         }
 
         if (pendingResourceSwap && resources.swap(t0, pendingBitmapSwap)) {

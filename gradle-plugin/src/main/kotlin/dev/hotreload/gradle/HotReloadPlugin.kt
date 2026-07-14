@@ -10,10 +10,10 @@ import org.gradle.api.GradleException
  * Zero-config Gradle plugin for Compose Hot Reload.
  *
  * Applicable to three module types, keyed off whichever plugin is applied:
- * - `com.android.application`: the device runtime lives here — adds a
- *   `debugImplementation` on runtime-client, sets `jniLibs.useLegacyPackaging = true`
- *   (needed for JVMTI agent loading), and the deterministic-class-shape compiler flags
- *   (plus FunctionKeyMeta emission).
+ * - `com.android.application`: the device runtime lives here — wires runtime-client into
+ *   every debuggable build type's `<name>Implementation` configuration, sets
+ *   `jniLibs.useLegacyPackaging = true` (needed for JVMTI agent loading), and the
+ *   deterministic-class-shape compiler flags (plus FunctionKeyMeta emission).
  * - `com.android.library` and `org.jetbrains.kotlin.jvm`: the SAME class-shape compiler
  *   flags only — no runtime-client dependency (the on-device runtime belongs to the app
  *   module alone).
@@ -55,16 +55,31 @@ class HotReloadPlugin : Plugin<Project> {
 
         // Application module: device runtime + packaging + flags (incl. FunctionKeyMeta).
         project.pluginManager.withPlugin("com.android.application") {
-            project.dependencies.add(
-                "debugImplementation",
-                // Group matches what JitPack serves (com.github.<user>.<repo>) AND what the
-                // samples' composite build substitutes on — one coordinate for both paths.
-                // Version must equal the release git tag verbatim (JitPack version == tag).
-                "com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0"
-            )
+            // Group matches what JitPack serves (com.github.<user>.<repo>) AND what the
+            // samples' composite build substitutes on — one coordinate for both paths.
+            // Version must equal the release git tag verbatim (JitPack version == tag).
+            // Shared by the build-type wiring below and the release tripwire's group/name
+            // check so the coordinate is never duplicated.
+            val runtimeCoord = "com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0"
+            val (runtimeGroup, runtimeName) = runtimeCoord.split(":")
 
             val android = project.extensions.getByType(ApplicationExtension::class.java)
             android.packaging.jniLibs.useLegacyPackaging = true
+
+            // Shared by the finalizeDsl wiring below and the onVariants tripwire.
+            val androidComponents =
+                project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
+
+            // Wire runtime-client into every debuggable build type's `<name>Implementation`
+            // configuration (AGP creates one per build type). Must run in finalizeDsl:
+            // build types are final there, whereas `onVariants` fires too late to add to
+            // `<name>Implementation` configurations. Flavored variants inherit build-type
+            // configs, so flavors need nothing extra.
+            androidComponents.finalizeDsl { ext ->
+                ext.buildTypes.filter { it.isDebuggable }.forEach { bt ->
+                    project.dependencies.add("${bt.name}Implementation", runtimeCoord)
+                }
+            }
 
             if (addFreeCompilerArgs(
                     project,
@@ -76,24 +91,22 @@ class HotReloadPlugin : Plugin<Project> {
             ) flagsApplied = true
 
             // Release-variant tripwire (T32 item 1): defense-in-depth on top of the
-            // debugImplementation wiring above and the AAR's own runtime debuggable-guard
-            // (the last line). If runtime-client ever lands on a NON-debuggable variant's
-            // runtime classpath — a hand-added `implementation`/`releaseImplementation` is
-            // exactly the mistake this catches — fail configuration with a clear message
-            // rather than ship the arbitrary-code injection surface in a release build.
+            // per-debuggable-build-type wiring above and the AAR's own runtime
+            // debuggable-guard (the last line). If runtime-client ever lands on a
+            // NON-debuggable variant's runtime classpath — a hand-added
+            // `implementation`/`releaseImplementation` is exactly the mistake this catches
+            // — fail configuration with a clear message rather than ship the
+            // arbitrary-code injection surface in a release build.
             //
             // Uses the AGP variant API: `onVariants` (configureEach-style — sees late
             // variants, unlike a `configurations.forEach` at afterEvaluate) and the
             // variant-API `debuggable` boolean (NOT a name-based `!debug` match, which
             // false-positives on custom debuggable build types). Inspects the variant's
             // declared runtime dependencies (no resolution) by group + name.
-            val androidComponents =
-                project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
             androidComponents.onVariants { variant ->
                 if (variant.debuggable) return@onVariants
                 val onReleaseClasspath = variant.runtimeConfiguration.allDependencies.any {
-                    it.group == "com.github.xception-hash.compose-hot-reload" &&
-                        it.name == "runtime-client"
+                    it.group == runtimeGroup && it.name == runtimeName
                 }
                 if (onReleaseClasspath) {
                     throw GradleException(
@@ -102,8 +115,8 @@ class HotReloadPlugin : Plugin<Project> {
                             "runtime classpath of the non-debuggable variant '${variant.name}'. " +
                             "The hot-reload runtime opens an on-device code-injection surface and " +
                             "must never ship in a release/non-debuggable build. Remove the " +
-                            "runtime-client dependency from this variant — the plugin already adds " +
-                            "it as `debugImplementation` for debuggable variants only."
+                            "runtime-client dependency from this variant — the plugin already wires " +
+                            "it into every debuggable build type automatically."
                     )
                 }
             }

@@ -1,6 +1,15 @@
 # T33b: Gradle plugin — runtime-client on every debuggable build type (T33 phase 7 core)
-Status: TODO
+Status: DONE (2026-07-14, Sonnet background agent + coordinator review; branch t33/phase1-wiring)
 Assignee: agy
+
+## Outcome (2026-07-14)
+Implemented per spec by a Sonnet background agent in an isolated worktree. `finalizeDsl`
+wiring reaches the new `qa` fixture build type (QA-WIRED + DEBUG-WIRED greps pass); tripwire
+negative test still fails configuration on a hand-added releaseImplementation. Coordinator
+fix-up on merge: the tripwire exception message's last sentence still said "adds it as
+`debugImplementation`" — updated to "wires it into every debuggable build type automatically"
+(spec mandated keeping tripwire logic untouched, which the agent did; only the message text
+was stale). README one-liner added after the `--variant stageDebug` example.
 
 ## Goal
 Close the configured-mode gap found on a large layered app: `HotReloadPlugin` adds the
