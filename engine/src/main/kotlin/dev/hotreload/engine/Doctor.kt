@@ -6,14 +6,16 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 class Doctor(
-    private val projectDir: Path,
-    private val applicationId: String,
-    private val modules: List<ModuleSpec.Request>,
+    private val config: ProjectConfig,
     private val sdkDir: Path,
     private val buildTools: String = "36.0.0",
-    private val variant: String = "debug",
-    private val projectJavaHome: Path? = null,
 ) {
+    private val projectDir: Path get() = config.projectDir
+    private val applicationId: String get() = config.applicationId
+    private val modules: List<ModuleSpec.Request> get() = config.modules
+    private val variant: String get() = config.variant
+    private val projectJavaHome: Path? get() = config.projectJavaHome
+
     fun run(): Boolean {
         var hasFail = false
 

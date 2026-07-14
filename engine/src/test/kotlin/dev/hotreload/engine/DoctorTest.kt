@@ -12,9 +12,11 @@ class DoctorTest {
         val tempDir = Files.createTempDirectory("doctor_test")
         try {
             val doctor = Doctor(
-                projectDir = tempDir.resolve("nonexistent"),
-                applicationId = "dev.hotreload.test",
-                modules = listOf(ModuleSpec.Request.parse("app")),
+                config = ProjectConfig(
+                    projectDir = tempDir.resolve("nonexistent"),
+                    applicationId = "dev.hotreload.test",
+                    modules = listOf(ModuleSpec.Request.parse("app")),
+                ),
                 sdkDir = tempDir.resolve("sdk"),
             )
             val ok = doctor.run()
@@ -37,9 +39,11 @@ class DoctorTest {
             Files.writeString(appDir.resolve("build.gradle.kts"), "plugins { id(\"dev.hotreload\") }")
 
             val doctor = Doctor(
-                projectDir = projectDir,
-                applicationId = "dev.hotreload.test",
-                modules = listOf(ModuleSpec.Request.parse("app")),
+                config = ProjectConfig(
+                    projectDir = projectDir,
+                    applicationId = "dev.hotreload.test",
+                    modules = listOf(ModuleSpec.Request.parse("app")),
+                ),
                 sdkDir = tempDir.resolve("nonexistent_sdk"),
             )
             val ok = doctor.run()
