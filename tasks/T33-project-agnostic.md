@@ -233,21 +233,23 @@ already landed.
 Remaining: formalize the typed `ProjectConfig` model, wire precedence chain, accept
 `--app-module` and `--app-module-dir`.
 
-Assignee: agy — **executable spec ready: `tasks/T33a-config-model.md`**
+Assignee: agy — **DONE (`tasks/T33a-config-model.md`, merged in PR #11)**
 
 ### Phase 2 — `inspect` and Gradle metadata discovery
 Add the Gradle-side discovery component and `hotreload inspect` command. Report
 machine-readable metadata (modules, variants, tasks, outputs, dependency graph).
 
-Assignee: agy — **executable spec ready: `tasks/T33c-inspect-discovery.md`**
-(design fixed: init-script task over the Tooling API, schema v1, gson 2.11.0;
-mechanism smoke-proven 2026-07-14)
+Assignee: agy — **DONE (`tasks/T33c-inspect-discovery.md`, merged in PR #12)**
+(design: init-script task over the Tooling API, schema v1, gson 2.11.0)
 
 ### Phase 3 — Explicit app-module, device, include/exclude-module, and launch options
 Replace assumptions that the app is `:app`, lives under `app/`, or uses `debug`.
 Dedicated `--app-module`, `--device`, module include/exclude, `--launch-activity`.
 
-Assignee: agy
+Assignee: agy — **executable spec ready: `tasks/T33d-device-modules-launch.md`**
+(design fixed: discovery-defaulted modules/appId reusing T33c's GradleDiscovery, with a
+trigger rule that keeps e2e's explicit `--app-id`/`--module` invocations off the
+discovery path; auto-launch via pidof gate + am/monkey; serial-aware Adb)
 
 ### Phase 4 — External project profiles and `configure`
 Support `~/.config/compose-hot-reload/projects/<name>.toml` profiles.
@@ -272,10 +274,9 @@ Fix `debugImplementation` to follow the selected debuggable variant. Handle all 
 layouts consistently. Version-lock runtime artifact to tool version. Doctor validates
 via Gradle metadata.
 
-Assignee: maintainer — **the core wiring fix is agy-delegable and specced:
-`tasks/T33b-plugin-variant-wiring.md`** (version-locking + doctor metadata checks stay
-maintainer/coordinator work). Phase 7 has no ordering dependency — it can land before
-phases 2–6.
+Assignee: maintainer — **core wiring fix DONE (`tasks/T33b-plugin-variant-wiring.md`,
+merged in PR #11)**; version-locking + doctor metadata checks remain
+maintainer/coordinator work.
 
 ### Phase 8 — Zero-touch bootstrap / init-script mode
 Bundle bootstrap plugin + runtime AAR. Generate init script. No target-project
@@ -300,12 +301,12 @@ Assignee: maintainer
 How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks up T33
 work without a human in the loop:
 
-**Order.** Two specs are dispatch-ready NOW and independent of each other:
-`tasks/T33a-config-model.md` (phase 1 remainder) and `tasks/T33b-plugin-variant-wiring.md`
-(phase 7 core). After T33a lands, phases 2→3→4→5→6 must go in order (each builds on the
-previous one's types); each needs its spec written by a coordinator session first —
-they contain real design decisions (Tooling-API-vs-init-script discovery, TOML schema)
-that must NOT be improvised by the executing agent. Phases 8–10 are maintainer-led.
+**Order.** Phases 1, 2, and 7 are DONE (T33a + T33c merged; T33b merged). Dispatch-ready
+NOW: `tasks/T33d-device-modules-launch.md` (phase 3). Phases 4→5→6 must follow in order
+(each builds on the previous one's types); each needs its spec written by a coordinator
+session first — they contain real design decisions (TOML schema, metadata-vs-probe
+precedence, fingerprint format) that must NOT be improvised by the executing agent.
+Phases 8–10 are maintainer-led.
 
 **Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
 1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed
