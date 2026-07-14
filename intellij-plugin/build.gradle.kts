@@ -109,19 +109,22 @@ intellijPlatform {
     // Plugin Verifier gate: internal-API / compat errors here are what the Marketplace compat
     // check rejects — run `./gradlew verifyPlugin` before any upload.
     //
-    // KNOWN BLIND SPOT (do NOT trust a green verifyPlugin for internal-API): the verifier can only
-    // download IDEs published to the public IntelliJ maven repo, which currently tops out at the
-    // 2025.x line. Several `PluginManager` descriptor lookups (e.g. getPluginByClass) were only
-    // annotated `@ApiStatus.Internal` in the platform's 262 branch (2026.2) — verified in
-    // intellij-community: NOT @Internal on 251/252/253, @Internal on 262. The Marketplace runs its
-    // verifier against 2026.2 RC (build 262.8665.176), so it flagged getPluginByClass while a local
-    // verifyPlugin against 2025.x stayed green — that is exactly how 0.1.2/0.1.3 shipped broken.
-    // Mitigation used for 0.1.4: we removed ALL platform plugin-descriptor APIs (see PluginInfo.kt)
-    // rather than relying on this gate. TODO: once IC 2026.2 is in the public maven repo, add it
-    // here (`ide(IntellijIdeaCommunity, "2026.2")`) so this class of drift is caught locally.
+    // History (0.1.2/0.1.3 shipped broken): several `PluginManager` descriptor lookups (e.g.
+    // getPluginByClass) are `@ApiStatus.Internal` only from the platform's 262 branch (2026.2)
+    // on, and 2026.x wasn't in the public IntelliJ maven repo yet — so a local verifyPlugin
+    // against 2025.x stayed green while the Marketplace verifier (2026.2 RC, build 262.8665.176)
+    // rejected the upload. 0.1.4 removed ALL platform plugin-descriptor APIs (see PluginInfo.kt).
+    // The 262 EAP line is now published to the snapshots repo, so the verifier list below pins
+    // the OLDEST supported line, the newest stable, and the Marketplace's own 262 build — keep
+    // the last entry tracking whatever line the Marketplace compat check runs.
     pluginVerification {
         ides {
             ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, providers.gradleProperty("platformVersion").get())
+            // useInstaller = false: resolve from the intellij-repository maven repo — the
+            // installer path (download.jetbrains.com dmg) doesn't carry these versions.
+            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, "2026.1.4", useInstaller = false)
+            // Exact build family the Marketplace verifier used for the 0.1.2 rejection.
+            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, "262.8665.176-EAP-SNAPSHOT", useInstaller = false)
         }
     }
 }
