@@ -1,6 +1,13 @@
 # T33a: Typed ProjectConfig + explicit --app-module / --app-module-dir (T33 phase 1 remainder)
-Status: TODO
+Status: DONE (2026-07-14, Sonnet background agent + coordinator review; branch t33/phase1-wiring)
 Assignee: agy
+
+## Outcome (2026-07-14)
+Implemented exactly per spec by a Sonnet background agent in an isolated worktree; coordinator
+re-ran all acceptance on the merged `t33/phase1-wiring` branch. Notes: Doctor keeps its old
+field names as private `get()` delegates onto the config (body untouched); `selectAppModule`
+returns the input list reference when both args are null (assertSame-verified). New
+ProjectConfigTest 7/7. Host + device gates green (see T33b Outcome for the shared device run).
 
 ## Goal
 Finish T33 phase 1: consolidate the portability options (landed in PR #9) into one typed

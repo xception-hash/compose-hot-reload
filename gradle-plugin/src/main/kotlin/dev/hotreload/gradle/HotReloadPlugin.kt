@@ -115,8 +115,8 @@ class HotReloadPlugin : Plugin<Project> {
                             "runtime classpath of the non-debuggable variant '${variant.name}'. " +
                             "The hot-reload runtime opens an on-device code-injection surface and " +
                             "must never ship in a release/non-debuggable build. Remove the " +
-                            "runtime-client dependency from this variant — the plugin already adds " +
-                            "it as `debugImplementation` for debuggable variants only."
+                            "runtime-client dependency from this variant — the plugin already wires " +
+                            "it into every debuggable build type automatically."
                     )
                 }
             }
