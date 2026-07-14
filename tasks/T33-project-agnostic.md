@@ -239,7 +239,9 @@ Assignee: agy — **executable spec ready: `tasks/T33a-config-model.md`**
 Add the Gradle-side discovery component and `hotreload inspect` command. Report
 machine-readable metadata (modules, variants, tasks, outputs, dependency graph).
 
-Assignee: agy
+Assignee: agy — **executable spec ready: `tasks/T33c-inspect-discovery.md`**
+(design fixed: init-script task over the Tooling API, schema v1, gson 2.11.0;
+mechanism smoke-proven 2026-07-14)
 
 ### Phase 3 — Explicit app-module, device, include/exclude-module, and launch options
 Replace assumptions that the app is `:app`, lives under `app/`, or uses `debug`.
