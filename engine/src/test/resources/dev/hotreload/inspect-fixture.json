@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "gradleVersion": "9.6.1",
+  "rootProjectName": "fixture-project",
+  "rootDir": "/abs/path/fixture-project",
+  "javaHome": "/abs/path/jdk-21",
+  "projects": [
+    {
+      "gradlePath": ":app",
+      "projectDir": "app",
+      "type": "androidApp",
+      "pluginIds": ["com.android.application", "org.jetbrains.kotlin.plugin.compose", "dev.hotreload"],
+      "variants": [
+        {
+          "name": "release",
+          "buildType": "release",
+          "flavors": [],
+          "debuggable": false,
+          "applicationId": "dev.hotreload.fixture",
+          "tasks": {
+            "compileKotlin": ":app:compileReleaseKotlin",
+            "assemble": ":app:assembleRelease",
+            "install": null
+          },
+          "classOutputDirs": ["app/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes"],
+          "sourceDirs": ["app/src/main/kotlin"],
+          "resDirs": ["app/src/main/res"],
+          "apkOutputDir": "app/build/outputs/apk/release",
+          "projectDependencies": [":feature"]
+        },
+        {
+          "name": "stageDebug",
+          "buildType": "debug",
+          "flavors": ["stage"],
+          "debuggable": true,
+          "applicationId": "dev.hotreload.fixture.stage",
+          "tasks": {
+            "compileKotlin": ":app:compileStageDebugKotlin",
+            "assemble": ":app:assembleStageDebug",
+            "install": ":app:installStageDebug"
+          },
+          "classOutputDirs": ["app/build/intermediates/built_in_kotlinc/stageDebug/compileStageDebugKotlin/classes"],
+          "sourceDirs": ["app/src/main/kotlin", "app/src/stage/kotlin", "app/src/stageDebug/kotlin"],
+          "resDirs": ["app/src/main/res", "app/src/stage/res"],
+          "apkOutputDir": "app/build/outputs/apk/stage/debug",
+          "projectDependencies": [":feature"]
+        }
+      ]
+    },
+    {
+      "gradlePath": ":feature",
+      "projectDir": "feature",
+      "type": "androidLib",
+      "pluginIds": ["com.android.library", "dev.hotreload"],
+      "variants": [
+        {
+          "name": "debug",
+          "buildType": "debug",
+          "flavors": [],
+          "tasks": {
+            "compileKotlin": ":feature:compileDebugKotlin",
+            "assemble": ":feature:assembleDebug",
+            "install": null
+          },
+          "classOutputDirs": ["feature/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"],
+          "sourceDirs": ["feature/src/main/kotlin"],
+          "resDirs": ["feature/src/main/res"],
+          "projectDependencies": [":core"]
+        }
+      ]
+    },
+    {
+      "gradlePath": ":core",
+      "projectDir": "core",
+      "type": "kotlinJvm",
+      "pluginIds": ["org.jetbrains.kotlin.jvm", "dev.hotreload"],
+      "jvm": {
+        "classOutputDirs": ["core/build/classes/kotlin/main"],
+        "sourceDirs": ["core/src/main/kotlin"],
+        "projectDependencies": []
+      }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 # T33c: `hotreload inspect` + Gradle metadata discovery (T33 phase 2)
-Status: TODO
+Status: DONE
 Assignee: agy
 
 ## Goal
@@ -200,3 +200,27 @@ green unmodified — pure-regression confirmation, phase 2 adds no watch-path co
 
 Flip Status → IN-REVIEW when acceptance passes; coordinator reviews, runs the device
 gate, and commits (per tasks/T33-project-agnostic.md agent rules).
+
+## Outcome (2026-07-14)
+Implemented by a delegated Sonnet agent in an isolated worktree; coordinator reviewed
+(diff spot-check of inspect.init.gradle / GradleDiscovery.kt / Main.kt) and re-ran all
+acceptance independently.
+
+- Host acceptance: JSON-OK, APPID-OK, TASK-OK, DEBUGGABLE-OK, TYPES-OK, DEPS-OK,
+  SUGGEST-OK, ARGS-OK all reproduced by the coordinator; behavior-freeze diff over
+  WatchSession/ModuleSpec/Doctor/GradleCompiler = 0 lines; `:engine:test` re-run with
+  `--rerun` (GradleDiscoveryTest 6/6, full suite green).
+- Device gate: `./e2e/run.sh` 16/16 PASS (295s), `./e2e/run-multi.sh` 4/4 PASS (53s),
+  both unmodified.
+- Implementation notes (agent decisions, all within spec):
+  - `SingleArtifact.APK` accessed via `Class.forName` reflection in the init script — a
+    direct class-literal reference inside a delegate-bound Groovy closure resolves `com`
+    as a property on the delegate (`MissingPropertyException`, live-reproduced).
+  - `pluginIds` from a curated allowlist via `pluginManager.hasPlugin(id)` (Gradle has
+    no public enumerate-all-plugin-ids API; spec example is itself a subset).
+  - `debuggable`/`applicationId`/`apkOutputDir` gated on project type (never emitted for
+    androidLib), per the spec's omit rule, not on duck-typed field presence.
+  - Source-set flavor tiers taken from `variant.productFlavors` (exact names) rather
+    than string-splitting the variant name.
+  - `--json` re-serializes the parsed report via gson (run() returns the typed model per
+    spec; not a byte-for-byte echo of the init script's file).

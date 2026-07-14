@@ -1,0 +1,306 @@
+// T33c: Gradle-side discovery for `hotreload inspect`.
+//
+// Registers a `hotreloadInspect` task on the ROOT project of whatever build this init
+// script is attached to. The task walks every project in the build, reports its module
+// type (androidApp / androidLib / kotlinJvm / other), and — for Android modules — every
+// variant's build type, flavors, debuggable/applicationId, compile/assemble/install task
+// paths, source/resource/class-output directories, best-effort APK output directory, and
+// declared (unresolved) project dependencies. Output is schema-v1 JSON written via
+// groovy.json.JsonOutput to the path given by `-Pdev.hotreload.inspect.out=<file>`.
+//
+// Deliberately plain, duck-typed Groovy: this script has NO compile-time dependency on
+// AGP. Android Gradle Plugin types (variant objects, SingleArtifact, etc.) are only
+// touched through objects AGP itself hands us (inside `plugins.withId(...)` blocks, where
+// the enclosing project's plugin classloader has AGP on it) or via reflection
+// (`Class.forName`) for the one case where we need a class literal (`SingleArtifact.APK`)
+// that Groovy cannot statically resolve without a compile dependency.
+
+def knownPluginIds = [
+    'com.android.application',
+    'com.android.library',
+    'com.android.dynamic-feature',
+    'com.android.test',
+    'org.jetbrains.kotlin.android',
+    'org.jetbrains.kotlin.jvm',
+    'org.jetbrains.kotlin.multiplatform',
+    'org.jetbrains.kotlin.plugin.compose',
+    'dev.hotreload',
+]
+
+// Per-project stash of captured variant data (Providers + immediately-available values),
+// filled in at CONFIGURATION time inside plugins.withId(...) / onVariants, consumed at
+// EXECUTION time by the hotreloadInspect task below.
+allprojects { proj ->
+    proj.plugins.withId('com.android.application') {
+        def androidComponents = proj.extensions.findByName('androidComponents')
+        def captured = new ArrayList()
+        proj.extensions.extraProperties.set('hotreloadVariants', captured)
+        androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+            def flavorNames = []
+            try {
+                flavorNames = variant.productFlavors.collect { it.second }
+            } catch (Throwable ignored) {
+                flavorNames = []
+            }
+
+            def projectDeps = []
+            try {
+                projectDeps = variant.runtimeConfiguration.allDependencies
+                    .findAll { it instanceof org.gradle.api.artifacts.ProjectDependency }
+                    .collect { it.path }
+                    .unique()
+            } catch (Throwable ignored) {
+                projectDeps = []
+            }
+
+            def apkProvider = null
+            try {
+                def apkArtifactClass = Class.forName(
+                    'com.android.build.api.artifact.SingleArtifact$APK', true, variant.class.classLoader,
+                )
+                def apkArtifactType = apkArtifactClass.getField('INSTANCE').get(null)
+                apkProvider = variant.artifacts.get(apkArtifactType)
+            } catch (Throwable ignored) {
+                apkProvider = null
+            }
+
+            captured << [
+                kind               : 'app',
+                name               : variant.name,
+                buildType          : variant.buildType,
+                flavors            : flavorNames,
+                debuggableValue    : variant.debuggable,
+                applicationIdProvider: variant.applicationId,
+                apkProvider        : apkProvider,
+                projectDependencies: projectDeps,
+            ]
+        }
+    }
+
+    proj.plugins.withId('com.android.library') {
+        def androidComponents = proj.extensions.findByName('androidComponents')
+        def captured = new ArrayList()
+        proj.extensions.extraProperties.set('hotreloadVariants', captured)
+        androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+            def flavorNames = []
+            try {
+                flavorNames = variant.productFlavors.collect { it.second }
+            } catch (Throwable ignored) {
+                flavorNames = []
+            }
+
+            def projectDeps = []
+            try {
+                projectDeps = variant.runtimeConfiguration.allDependencies
+                    .findAll { it instanceof org.gradle.api.artifacts.ProjectDependency }
+                    .collect { it.path }
+                    .unique()
+            } catch (Throwable ignored) {
+                projectDeps = []
+            }
+
+            captured << [
+                kind               : 'lib',
+                name               : variant.name,
+                buildType          : variant.buildType,
+                flavors            : flavorNames,
+                debuggableValue    : null,
+                applicationIdProvider: null,
+                apkProvider        : null,
+                projectDependencies: projectDeps,
+            ]
+        }
+    }
+}
+
+gradle.rootProject { root ->
+    root.tasks.register('hotreloadInspect') {
+        // The task walks every project at execution time (source/resource dirs, task
+        // lookups, Provider resolution): this is why the caller must pass
+        // --no-configuration-cache.
+        doLast {
+            def outPath = project.findProperty('dev.hotreload.inspect.out')
+            if (outPath == null) {
+                throw new GradleException('hotreloadInspect: -Pdev.hotreload.inspect.out=<file> is required')
+            }
+
+            def rootDir = root.rootDir
+            def toRel = { File f ->
+                def rel = rootDir.toPath().relativize(f.toPath()).toString()
+                rel.replace(File.separatorChar, (char) '/')
+            }
+
+            def sourceSetTiers = { List<String> flavors, String buildType, String variantName ->
+                def tiers = ['main']
+                tiers.addAll(flavors)
+                if (buildType != null) tiers << buildType
+                tiers << variantName
+                tiers.unique()
+            }
+
+            def collectDirs = { sourceSets, List<String> tierNames, String which ->
+                def dirs = []
+                tierNames.each { tname ->
+                    def sset = sourceSets.findByName(tname)
+                    if (sset == null) return
+                    def candidateDirs
+                    if (which == 'res') {
+                        candidateDirs = sset.res.srcDirs
+                    } else {
+                        try {
+                            candidateDirs = sset.kotlin.srcDirs
+                        } catch (Throwable ignored) {
+                            candidateDirs = sset.java.srcDirs
+                        }
+                    }
+                    candidateDirs.each { File f -> if (f.exists()) dirs << f }
+                }
+                dirs.unique()
+            }
+
+            def projects = []
+
+            root.allprojects.each { proj ->
+                def pluginIds = knownPluginIds.findAll { proj.pluginManager.hasPlugin(it) }
+
+                def isApp = proj.pluginManager.hasPlugin('com.android.application')
+                def isLib = proj.pluginManager.hasPlugin('com.android.library')
+                def isJvm = !isApp && !isLib && proj.pluginManager.hasPlugin('org.jetbrains.kotlin.jvm')
+                def type = isApp ? 'androidApp' : (isLib ? 'androidLib' : (isJvm ? 'kotlinJvm' : 'other'))
+
+                def variantsJson = null
+                def jvmJson = null
+
+                if (isApp || isLib) {
+                    def android = proj.extensions.findByName('android')
+                    def sourceSets = android?.sourceSets
+                    def capturedVariants = proj.extensions.extraProperties.has('hotreloadVariants')
+                        ? proj.extensions.extraProperties.get('hotreloadVariants')
+                        : []
+
+                    variantsJson = capturedVariants.collect { v ->
+                        def variantNameCap = v.name[0].toUpperCase() + v.name.substring(1)
+
+                        def compileTask = proj.tasks.findByName("compile${variantNameCap}Kotlin")
+                        def assembleTask = proj.tasks.findByName("assemble${variantNameCap}")
+                        def installTask = proj.tasks.findByName("install${variantNameCap}")
+
+                        def classOutputDirs = []
+                        if (compileTask != null) {
+                            compileTask.outputs.files.files.each { File f -> classOutputDirs << toRel(f) }
+                        }
+
+                        def tierNames = sourceSetTiers(v.flavors, v.buildType, v.name)
+                        def sourceDirs = sourceSets != null
+                            ? collectDirs(sourceSets, tierNames, 'source').collect { toRel(it) }
+                            : []
+                        def resDirs = sourceSets != null
+                            ? collectDirs(sourceSets, tierNames, 'res').collect { toRel(it) }
+                            : []
+
+                        def applicationId = null
+                        if (v.applicationIdProvider != null) {
+                            try {
+                                applicationId = v.applicationIdProvider.get()
+                            } catch (Throwable ignored) {
+                                applicationId = null
+                            }
+                        }
+
+                        def apkOutputDir = null
+                        if (v.kind == 'app') {
+                            try {
+                                if (v.apkProvider != null) {
+                                    apkOutputDir = toRel(v.apkProvider.get().asFile)
+                                }
+                            } catch (Throwable ignored) {
+                                apkOutputDir = null
+                            }
+                            if (apkOutputDir == null) {
+                                // Convention fallback: build/outputs/apk/<flavor...>/<buildType>.
+                                def parts = ['build', 'outputs', 'apk']
+                                v.flavors.each { parts << it }
+                                if (v.buildType != null) parts << v.buildType
+                                apkOutputDir = toRel(new File(proj.projectDir, parts.join(File.separator)))
+                            }
+                        }
+
+                        [
+                            name               : v.name,
+                            buildType          : v.buildType,
+                            flavors            : v.flavors,
+                            debuggable         : v.kind == 'app' ? v.debuggableValue : null,
+                            applicationId      : v.kind == 'app' ? applicationId : null,
+                            tasks              : [
+                                compileKotlin: compileTask?.path,
+                                assemble     : assembleTask?.path,
+                                install      : installTask?.path,
+                            ],
+                            classOutputDirs    : classOutputDirs,
+                            sourceDirs         : sourceDirs,
+                            resDirs            : resDirs,
+                            apkOutputDir       : apkOutputDir,
+                            projectDependencies: v.projectDependencies,
+                        ]
+                    }
+                } else if (isJvm) {
+                    def sourceSetContainer = proj.extensions.findByType(org.gradle.api.tasks.SourceSetContainer)
+                    def main = sourceSetContainer?.findByName('main')
+                    def sourceDirs = []
+                    if (main != null) {
+                        def candidateDirs
+                        try {
+                            candidateDirs = main.kotlin.srcDirs
+                        } catch (Throwable ignored) {
+                            candidateDirs = main.java.srcDirs
+                        }
+                        candidateDirs.each { File f -> if (f.exists()) sourceDirs << toRel(f) }
+                    }
+
+                    def compileTask = proj.tasks.findByName('compileKotlin')
+                    def classOutputDirs = []
+                    if (compileTask != null) {
+                        compileTask.outputs.files.files.each { File f -> classOutputDirs << toRel(f) }
+                    }
+
+                    def projectDeps = []
+                    def runtimeClasspath = proj.configurations.findByName('runtimeClasspath')
+                    if (runtimeClasspath != null) {
+                        projectDeps = runtimeClasspath.allDependencies
+                            .findAll { it instanceof org.gradle.api.artifacts.ProjectDependency }
+                            .collect { it.path }
+                            .unique()
+                    }
+
+                    jvmJson = [
+                        classOutputDirs    : classOutputDirs,
+                        sourceDirs         : sourceDirs,
+                        projectDependencies: projectDeps,
+                    ]
+                }
+
+                projects << [
+                    gradlePath: proj.path,
+                    projectDir: toRel(proj.projectDir),
+                    type      : type,
+                    pluginIds : pluginIds,
+                    variants  : variantsJson,
+                    jvm       : jvmJson,
+                ]
+            }
+
+            def report = [
+                schemaVersion  : 1,
+                gradleVersion  : root.gradle.gradleVersion,
+                rootProjectName: root.name,
+                rootDir        : rootDir.absolutePath,
+                javaHome       : System.getProperty('java.home'),
+                projects       : projects,
+            ]
+
+            def outFile = new File(outPath.toString())
+            outFile.parentFile?.mkdirs()
+            outFile.text = groovy.json.JsonOutput.toJson(report)
+        }
+    }
+}
