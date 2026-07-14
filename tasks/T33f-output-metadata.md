@@ -1,6 +1,33 @@
 # T33f: build/APK/resource paths from Gradle metadata (T33 phase 5)
-Status: IN-REVIEW
+Status: DONE (2026-07-14, agy headless Gemini 3.5 Flash High + coordinator review)
 Assignee: agy
+
+## Outcome (2026-07-14)
+Implemented by headless agy (`scripts/delegate.sh`, Gemini 3.5 Flash (High) — second
+faithful run on this model) exactly to spec; every load-bearing diff reviewed, nothing
+out of scope. Coordinator re-verified everything independently:
+- All 9 host markers re-run green (fresh `--rerun-tasks` on the test suites).
+- Device gate on emulator-5554: `./e2e/run.sh` all PASS (280s, literals SKIP
+  local-by-design) + `./e2e/run-multi.sh` 4/4 (51s), both UNMODIFIED.
+- Zero-config live smoke (`watch --project samples/multi-module`): `discovered:` →
+  `metadata: 3 module(s) from discovery` → auto-launch → cross-module CoreLabel edit
+  `hot-swapped: … 1333ms` (UI verified showing the edit) → values resource edit →
+  `apk: …/app/build/outputs/apk/debug/app-debug.apk (output-metadata.json)` →
+  `resource-swapped: … 1393ms`.
+- Profile live smoke: `configure --save-as t33f-live` wrote the `.discovery.json`
+  sidecar → `watch --profile t33f-live` → `profile:` line, `metadata: 3 module(s)
+  from discovery cache`, NO `discovered:` lines → edit `hot-swapped: … 910ms`.
+
+Review notes (accepted deviations, all benign):
+- ApkLocator carries a dead `jsonMatched` flag (only ever read where it is always
+  false) — cosmetic; the fallback control flow is correct.
+- The "layout by discovered type" rule is implemented as a proxy — AGP vs JVM
+  inferred from task/resDirs presence in the metadata (the spec put no `type` field
+  in ModuleMetadata, so the literal rule was unimplementable; the proxy is
+  equivalent for reports our extraction produces).
+- "All elements missing on disk" skips silently instead of printing a skip line.
+- ModuleSpecTest imports consolidated to a wildcard; every existing assertion is
+  untouched (the metadata==null freeze proof held).
 
 **Precondition:** T33e (PR #15) merged — this spec builds on its `ProfileStore`,
 the shared `resolveConfig` in `cli/Main.kt`, and the T33d trigger rule. Do not start
