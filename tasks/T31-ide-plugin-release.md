@@ -1,5 +1,5 @@
 # T31: IDE plugin — release readiness (validation, CLI bundling, Marketplace)
-Status: IN-REVIEW (0.1.2 published to Marketplace 2026-07-11; awaiting JB first-upload moderation ~2 days)
+Status: IN-REVIEW (0.1.4 published to Marketplace 2026-07-14; awaiting JB first-upload moderation ~2 days)
 Assignee: Opus + the maintainer (device + accounts/tokens are the maintainer's)
 
 ## Progress
@@ -45,10 +45,31 @@ Assignee: Opus + the maintainer (device + accounts/tokens are the maintainer's)
     - **Gotcha — first upload of a NEW plugin must go via the web UI** (plugins.jetbrains.com/plugin/add,
       to set license/repo/tags); the token-based `publishPlugin` only works for subsequent versions.
       The maintainer did the manual 0.1.1 upload; 0.1.2 then published straight through the token.
-  - **STILL LEFT (the maintainer, after 0.1.2 is approved/live):** set Marketplace metadata (icon, tags, source
-    URL); **release wrap** — `git tag 0.1.2` + refresh the GitHub Release asset with
-    `hotreload-intellij-plugin-0.1.2-signed.zip` (public 0.1.0 asset is the old clone-required zip).
-  - **Merge PR #7** (the ID + internal-API fix) to land 0.1.2 on `main`.
+  - **0.1.2 REJECTED by Marketplace moderation (2026-07-13) — third internal-API bounce, fixed as
+    0.1.4 (commit on PR #10, merged 1816f7a):** the verifier (1.408 vs IntelliJ 2026.2 RC) flagged
+    `PluginManager.getPluginByClass(Class)` — the exact call the 0.1.2 fix had introduced. The
+    ENTIRE `PluginManager` descriptor-lookup surface is `@ApiStatus.Internal` on the 262 (2026.2)
+    branch, with NO public replacement, so the fix removes platform descriptor APIs entirely:
+    new `PluginInfo.kt` bakes the version into a bundled `plugin.properties` at build time
+    (`generatePluginProperties` task) and derives the install dir from this plugin's own jar URL
+    (`getResource(".class")` → parent.parent) to locate the bundled CLI. Settings CLI-path
+    override stays as the escape hatch.
+    - **Gotcha — local `verifyPlugin` structurally CANNOT catch this class of bug:** the
+      `@ApiStatus.Internal` annotation exists only on the 262 branch, and the public IntelliJ
+      maven repo tops out at 2025.x, so no locally downloadable IDE reproduces the rejection.
+      The fix works by removing the API (grep-clean), not by trusting the gate. Once IC 2026.2
+      lands in the public repo, add `ide(IntellijIdeaCommunity, "2026.2")` to
+      `pluginVerification.ides` (comment in build.gradle.kts).
+    - (0.1.3 was the planned crash-reporting release, PR #8; its version number was consumed by
+      the rejection cycle — crash reporting ships in 0.1.4 together with the API fix and the
+      PR #9 portability flags in the bundled CLI.)
+  - **0.1.4 PUBLISHED (2026-07-14)** via the token chain (`signPlugin`+`publishPlugin` clean;
+    Marketplace shows `hasUnapprovedUpdate: true`). Awaiting JB moderation ~2 days.
+  - **STILL LEFT (the maintainer, after 0.1.4 is approved/live):** set Marketplace metadata (icon, tags, source
+    URL); **release wrap** — `git tag 0.1.4` + refresh the GitHub Release asset with the signed
+    0.1.4 zip (public 0.1.0 asset is the old clone-required zip). Next code release = tag 0.2.0
+    (portability features, minSdk-24 AAR).
+  - ~~Merge PR #7~~ (merged 2026-07-11); PR #10 (0.1.4 fix) merged 2026-07-14.
 
 ## Goal
 Take the IntelliJ/Android Studio plugin from "builds + attached to the v0.1.0 GitHub Release as a
