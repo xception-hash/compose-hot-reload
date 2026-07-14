@@ -19,6 +19,14 @@ android {
     buildFeatures {
         compose = true
     }
+
+    buildTypes {
+        create("qa") {
+            initWith(getByName("debug"))
+            isDebuggable = true
+            matchingFallbacks += "debug"
+        }
+    }
 }
 
 dependencies {

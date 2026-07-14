@@ -130,6 +130,8 @@ target builds pinned to another JDK, use:
   --module-variant :feature=vendorProductionDebug \
   --gradle-arg -PdevelopmentMode=true"
 ```
+The plugin wires runtime-client into every debuggable build type automatically, so a
+custom debuggable build type like `stage` above needs no hand-added dependency.
 
 `--module-variant` overrides the global app variant for modules where Gradle variant
 matching selects a differently named library variant; it and `--gradle-arg` are repeatable.
