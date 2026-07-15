@@ -16,7 +16,7 @@ it here, link it elsewhere.
 | 2 | ✅ DONE 2026-07-06 — `tasks/T28-proxies-codegen.md` all 5 steps; checkpoints A/B/C + e2e case 15 validated live (Fable) | — | done |
 | 3 | ✅ DONE 2026-07-10 — `tasks/T30-robustness-leftovers.md` all 4 items: super/invokespecial verified, synchronized-block SIGABRT found + classifier MONITORENTER→Rebuild guard, jpg/jpeg supported, 9-patch/fonts documented unsupported | — | done |
 | 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies, marketplace | unbounded | defer |
-| T33 | Project-agnostic generalization: shared config model, Gradle discovery, profiles, zero-touch init-script mode (10 phases) | large | TODO |
+| T33 | Project-agnostic generalization: shared config model, Gradle discovery, profiles, zero-touch init-script mode (10 phases) | large | IN-PROGRESS (phases 1–7 DONE incl. prepare/start+fingerprints in PR #17; 8–10 maintainer-led remain) |
 
 Recommended order: T29 (ship v0.1) → T30.
 

@@ -278,7 +278,8 @@ variant/applicationId checks before any newest-mtime fallback)
 End-to-end `hotreload start`: doctor → build → install → launch → watch. Record and
 validate build fingerprints.
 
-Assignee: agy — **spec ready (`tasks/T33g-prepare-start.md`)**
+Assignee: agy — **DONE (`tasks/T33g-prepare-start.md`, PR #17: implemented by the
+coordinator, device gate all-PASS 2026-07-15)**
 (design fixed: fingerprint = host-side JSON per (device, app) under the config
 dir, bound to the device's post-install base.apk sha256; refuse-to-watch ONLY on
 positively-known mismatch — unknown provenance warns and proceeds, absent file is
@@ -320,11 +321,10 @@ Assignee: maintainer
 How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks up T33
 work without a human in the loop:
 
-**Order.** Phases 1, 2, 3, 4, 5, and 7 are DONE (T33a/T33c/T33b merged; T33d in
-PR #14; T33e in PR #15; T33f in PR #16). **Phase 6 is the one dispatch-ready spec:
-`tasks/T33g-prepare-start.md`** (all design decisions fixed by the coordinator —
-implement it exactly, never improvise its design calls). Phases 8–10 are
-maintainer-led.
+**Order.** Phases 1–7 are DONE (T33a/T33c/T33b merged; T33d in PR #14; T33e in
+PR #15; T33f in PR #16; T33g/phase 6 in PR #17). No dispatch-ready spec remains —
+phases 8–10 are maintainer-led and need coordinator design sessions before any
+delegation.
 
 **Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
 1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed
