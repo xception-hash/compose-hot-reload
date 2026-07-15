@@ -25,6 +25,7 @@ data class ProjectConfig(
     val deviceSerial: String? = null,
     /** `--launch-activity`; null = monkey LAUNCHER fallback. */
     val launchActivity: String? = null,
+    val moduleMetadata: Map<String, ModuleMetadata> = emptyMap(),
 ) {
     init {
         require(modules.isNotEmpty()) { "at least one module (the app module) is required" }

@@ -255,18 +255,24 @@ discovery path; auto-launch via pidof gate + am/monkey; serial-aware Adb)
 Support `~/.config/compose-hot-reload/projects/<name>.toml` profiles.
 `hotreload configure --save-as` and `hotreload config show --profile`.
 
-Assignee: agy — **executable spec ready: `tasks/T33e-profiles-configure.md`**
-(design fixed: hand-rolled strict-subset TOML in the engine — no TOML lib exists in the
+Assignee: agy — **DONE (`tasks/T33e-profiles-configure.md`, merged in PR #15)**
+(design: hand-rolled strict-subset TOML in the engine — no TOML lib exists in the
 pinned offline caches; profiles persist the RESOLVED plan, include/exclude consumed at
 configure time; merge at the flag-string level so CLI > profile > discovery > default
 rides the existing parse path; configure-written profiles pin modules+appId and never
-re-trigger discovery; e2e stays byte-identical — it never passes `--profile`)
+re-trigger discovery)
 
 ### Phase 5 — Replace output-directory guesses with Gradle task/output metadata
 Obtain compile output dirs, APK paths, and resource directories from Gradle task
 inputs/outputs and AGP built-artifacts API rather than hardcoded directory conventions.
 
-Assignee: agy
+Assignee: agy — **spec ready (`tasks/T33f-output-metadata.md`)**
+(design fixed: schema v1 already carries the metadata — T33f consumes it host-side;
+per-field metadata-first/convention-fallback in ModuleSpec via a `ModuleMetadata`
+map on ProjectConfig; profiles get a machine-managed `<name>.discovery.json`
+sidecar written by `configure` — the TOML schema is untouched; the stale-APK
+heuristic is fixed always-on by parsing AGP's `output-metadata.json` with
+variant/applicationId checks before any newest-mtime fallback)
 
 ### Phase 6 — `prepare` and `start` orchestration with build fingerprints
 End-to-end `hotreload start`: doctor → build → install → launch → watch. Record and
@@ -306,12 +312,13 @@ Assignee: maintainer
 How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks up T33
 work without a human in the loop:
 
-**Order.** Phases 1, 2, 3, and 7 are DONE (T33a + T33c merged; T33b merged; T33d in
-PR #14). Dispatch-ready NOW: `tasks/T33e-profiles-configure.md` (phase 4; precondition:
-PR #14 merged). Phases 5→6 must follow in order (each builds on the previous one's
-types); each needs its spec written by a coordinator session first — they contain real
-design decisions (metadata-vs-probe precedence, fingerprint format) that must NOT be
-improvised by the executing agent. Phases 8–10 are maintainer-led.
+**Order.** Phases 1, 2, 3, 4, and 7 are DONE (T33a/T33c/T33b merged; T33d in PR #14;
+T33e in PR #15). **Phase 5 is the one dispatch-ready spec: `tasks/T33f-output-metadata.md`**
+(all design decisions fixed by the coordinator — implement it exactly). Phase 6 must
+follow phase 5 (it builds on its types) and still needs its spec written by a
+coordinator session first — it contains real design decisions (fingerprint format,
+prepare/start orchestration) that must NOT be improvised by the executing agent.
+Phases 8–10 are maintainer-led.
 
 **Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
 1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed

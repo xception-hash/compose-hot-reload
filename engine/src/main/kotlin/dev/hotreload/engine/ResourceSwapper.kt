@@ -35,6 +35,7 @@ class ResourceSwapper(
 ) {
     private val assembleTask = appModule.assembleTask
     private val seq = AtomicInteger(0)
+    private var lastApkSource: String? = null
 
     /**
      * Session-unique overlay-name component: `seq` restarts at 1 every watch session, but
@@ -86,11 +87,16 @@ class ResourceSwapper(
             return false
         }
 
-        val apk = findApk()
-        if (apk == null) {
+        val located = ApkLocator.locate(appModule.apkOutputDirs, appModule.variant, applicationId)
+        if (located == null) {
             println("no APK under ${appModule.apkOutputDirs.joinToString()} — cannot overlay resources")
             return false
         }
+        if (lastApkSource != located.source) {
+            println("apk: ${located.apk} (${located.source})")
+            lastApkSource = located.source
+        }
+        val apk = located.apk
 
         val overlayName = "hotreload-overlay-$sessionTag-${seq.incrementAndGet()}"
         val staging = extractOverlay(apk, overlayName)
@@ -125,23 +131,7 @@ class ResourceSwapper(
         }
     }
 
-    /**
-     * Newest APK below the selected app module's output tree. apkOutputDirs is ordered
-     * most-specific-first, but the recursive newest-mtime fallback can still pick a stale
-     * other-variant APK when several variants were assembled — acceptable v1 tradeoff.
-     */
-    private fun findApk(): Path? {
-        for (dir in appModule.apkOutputDirs) {
-            if (!dir.isDirectory()) continue
-            val apk = Files.walk(dir).use { stream ->
-                stream.filter { it.isRegularFile() && it.extension == "apk" }
-                    .max(Comparator.comparingLong { Files.getLastModifiedTime(it).toMillis() })
-                    .orElse(null)
-            }
-            if (apk != null) return apk
-        }
-        return null
-    }
+
 
     /** Copy just `resources.arsc` + `res/` from [apk] into a fresh temp dir named [overlayName]. */
     private fun extractOverlay(apk: Path, overlayName: String): Path {

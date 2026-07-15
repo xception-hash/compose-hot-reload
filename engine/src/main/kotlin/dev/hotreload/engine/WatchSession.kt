@@ -27,7 +27,8 @@ class WatchSession(private val config: Config) {
 
     /** The app module is AGP by definition, so its compile task is known before probing. */
     private val compileTask = config.project.modules.first().let { app ->
-        "${app.gradlePath}:compile${(app.variant ?: config.project.variant).taskSegment()}Kotlin"
+        config.project.moduleMetadata[app.gradlePath]?.compileTask
+            ?: "${app.gradlePath}:compile${(app.variant ?: config.project.variant).taskSegment()}Kotlin"
     }
 
     /** Resolved after the initial build (layout probing needs compiled output). */
@@ -146,7 +147,7 @@ class WatchSession(private val config: Config) {
                 check(initial.success) { "initial compile failed:\n${initial.output}" }
                 println("ok (${initial.durationMs}ms)")
 
-                modules = config.project.modules.map { ModuleSpec.probe(config.project.projectDir, it, config.project.variant) }
+                modules = config.project.modules.map { ModuleSpec.probe(config.project.projectDir, it, config.project.variant, config.project.moduleMetadata[it.gradlePath]) }
                 check(modules.first().layout != ModuleSpec.Layout.JVM) {
                     "app module '${modules.first().name}' is not an AGP module"
                 }

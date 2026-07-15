@@ -10,6 +10,8 @@ import dev.hotreload.engine.resolveWatchPlan
 import dev.hotreload.engine.watchCommandFor
 import dev.hotreload.engine.Profile
 import dev.hotreload.engine.ProfileStore
+import dev.hotreload.engine.ModuleMetadata
+import dev.hotreload.engine.moduleMetadata
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.system.exitProcess
@@ -135,6 +137,10 @@ fun main(args: Array<String>) {
             parts.add("--literals")
         }
         println("expanded: ${parts.joinToString(" ")}")
+        val discoveryPath = store.discoveryPath(profileName)
+        if (Files.exists(discoveryPath)) {
+            println("metadata: discovery cache present ($discoveryPath)")
+        }
         return
     }
 
@@ -171,7 +177,7 @@ fun main(args: Array<String>) {
         val appModuleOpt = opts.single("--app-module")
         val appModuleDirOpt = opts.single("--app-module-dir")
 
-        val config = resolveConfig(
+        val resolved = resolveConfig(
             project = project,
             appIdOpt = appIdOpt,
             moduleOpt = moduleOpt,
@@ -187,6 +193,7 @@ fun main(args: Array<String>) {
             appModuleOpt = appModuleOpt,
             appModuleDirOpt = appModuleDirOpt
         )
+        val config = resolved.config
 
         val profile = Profile(
             project = config.projectDir.toString(),
@@ -201,6 +208,13 @@ fun main(args: Array<String>) {
         )
 
         val store = ProfileStore.default()
+        val report = resolved.discoveryReport
+        if (report != null) {
+            store.saveDiscovery(saveAs, GradleDiscovery.toJson(report))
+        } else {
+            Files.deleteIfExists(store.discoveryPath(saveAs))
+        }
+
         val path = store.save(saveAs, profile)
         println("saved: $saveAs -> $path")
         println("run: hotreload watch --profile $saveAs")
@@ -252,7 +266,7 @@ fun main(args: Array<String>) {
     val appModuleOpt = opts.single("--app-module")
     val appModuleDirOpt = opts.single("--app-module-dir")
 
-    val config = resolveConfig(
+    val resolved = resolveConfig(
         project = project,
         appIdOpt = appIdOpt,
         moduleOpt = moduleOpt,
@@ -268,6 +282,33 @@ fun main(args: Array<String>) {
         appModuleOpt = appModuleOpt,
         appModuleDirOpt = appModuleDirOpt
     )
+    var config = resolved.config
+
+    if (profileName != null) {
+        val discoveryJson = try {
+            ProfileStore.default().loadDiscovery(profileName)
+        } catch (e: Exception) {
+            null
+        }
+        if (discoveryJson != null) {
+            try {
+                val report = GradleDiscovery.fromJson(discoveryJson)
+                if (report.rootDir != profile!!.project) {
+                    println("metadata: ignoring discovery cache (rootDir mismatch) — using convention fallbacks")
+                } else {
+                    val effectiveVariant = config.variant
+                    val cacheMetadata = report.moduleMetadata(config.modules, effectiveVariant)
+                    if (cacheMetadata.isNotEmpty()) {
+                        println("metadata: ${cacheMetadata.size} module(s) from discovery cache")
+                        config = config.copy(moduleMetadata = cacheMetadata)
+                    }
+                }
+            } catch (e: Exception) {
+                val reason = e.message ?: e.toString()
+                println("metadata: ignoring discovery cache ($reason) — using convention fallbacks")
+            }
+        }
+    }
 
     if (command == "doctor") {
         val ok = Doctor(config, sdk, buildTools).run()
@@ -293,6 +334,8 @@ fun main(args: Array<String>) {
     }
 }
 
+private class Resolved(val config: ProjectConfig, val discoveryReport: DiscoveryReport?)
+
 private fun resolveConfig(
     project: Path,
     appIdOpt: String?,
@@ -308,7 +351,7 @@ private fun resolveConfig(
     excludeModules: List<String>,
     appModuleOpt: String?,
     appModuleDirOpt: String?
-): ProjectConfig {
+): Resolved {
     val hasModule = moduleOpt != null
     val hasFilters = includeModules.isNotEmpty() || excludeModules.isNotEmpty()
 
@@ -362,7 +405,12 @@ private fun resolveConfig(
         println("discovered: modules ${plan.modules.joinToString { it.gradlePath }}")
         println("resolved: ${report.watchCommandFor(plan, project.toString())}")
 
-        return try {
+        val moduleMetadata = report.moduleMetadata(modules, plan.variantName)
+        if (moduleMetadata.isNotEmpty()) {
+            println("metadata: ${moduleMetadata.size} module(s) from discovery")
+        }
+
+        val config = try {
             ProjectConfig(
                 projectDir = project,
                 modules = modules,
@@ -373,10 +421,12 @@ private fun resolveConfig(
                 literals = literals,
                 deviceSerial = deviceSerial,
                 launchActivity = launchActivity,
+                moduleMetadata = moduleMetadata,
             )
         } catch (e: IllegalArgumentException) {
             fail(e.message ?: "invalid configuration")
         }
+        return Resolved(config, report)
     } else {
         // --- Legacy path (--module present, or --app-id present with no filters) ---
         val appId = appIdOpt ?: fail("--app-id is required\n\n$USAGE")
@@ -403,7 +453,7 @@ private fun resolveConfig(
             fail(e.message ?: "invalid --app-module/--app-module-dir")
         }
 
-        return try {
+        val config = try {
             ProjectConfig(
                 projectDir = project,
                 modules = modules,
@@ -418,6 +468,7 @@ private fun resolveConfig(
         } catch (e: IllegalArgumentException) {
             fail(e.message ?: "invalid configuration")
         }
+        return Resolved(config, null)
     }
 }
 

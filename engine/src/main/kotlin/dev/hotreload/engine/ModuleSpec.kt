@@ -14,6 +14,7 @@ class ModuleSpec private constructor(
     val variant: String,
     projectDir: Path,
     val classesDir: Path,
+    private val metadata: ModuleMetadata? = null,
 ) {
     data class Request(
         val gradlePath: String,
@@ -81,24 +82,28 @@ class ModuleSpec private constructor(
     val name: String = request.displayName
     val dir: Path = projectDir.resolve(request.relativeDir)
     val gradlePath: String = request.gradlePath
-    val compileTask: String = when (layout) {
+    val compileTask: String = metadata?.compileTask ?: when (layout) {
         Layout.AGP_BUILT_IN, Layout.AGP_KGP -> "$gradlePath:compile${variant.taskSegment()}Kotlin"
         Layout.JVM -> "$gradlePath:compileKotlin"
     }
 
-    val sourceRoots: List<Path> = sourceSetNames(variant).flatMap { sourceSet ->
-        listOf(dir.resolve("src/$sourceSet/kotlin"), dir.resolve("src/$sourceSet/java"))
-    }
+    val sourceRoots: List<Path> = metadata?.sourceDirs?.takeIf { it.isNotEmpty() }
+        ?.map { projectDir.resolve(it) }
+        ?: sourceSetNames(variant).flatMap { sourceSet ->
+            listOf(dir.resolve("src/$sourceSet/kotlin"), dir.resolve("src/$sourceSet/java"))
+        }
 
     /** Resource roots ordered from general to variant-specific. */
-    val resDirs: List<Path> = if (layout == Layout.JVM) {
-        emptyList()
-    } else {
-        sourceSetNames(variant).map { dir.resolve("src/$it/res") }
-    }
+    val resDirs: List<Path> = metadata?.resDirs?.takeIf { it.isNotEmpty() }
+        ?.map { projectDir.resolve(it) }
+        ?: if (layout == Layout.JVM) {
+            emptyList()
+        } else {
+            sourceSetNames(variant).map { dir.resolve("src/$it/res") }
+        }
 
-    val assembleTask: String = "$gradlePath:assemble${variant.taskSegment()}"
-    val installTask: String = "$gradlePath:install${variant.taskSegment()}"
+    val assembleTask: String = metadata?.assembleTask ?: "$gradlePath:assemble${variant.taskSegment()}"
+    val installTask: String = metadata?.installTask ?: "$gradlePath:install${variant.taskSegment()}"
     val apkOutputDirs: List<Path> = run {
         val buildType = listOf("debug", "release").firstOrNull {
             variant.endsWith(it, ignoreCase = true)
@@ -106,11 +111,13 @@ class ModuleSpec private constructor(
         val flavor = buildType?.let { variant.dropLast(it.length) }
             ?.takeIf { it.isNotEmpty() }
             ?.replaceFirstChar(Char::lowercaseChar)
-        listOfNotNull(
+        val conventionList = listOfNotNull(
             flavor?.let { dir.resolve("build/outputs/apk/$it/$buildType") },
             dir.resolve("build/outputs/apk/$variant"),
             dir.resolve("build/outputs/apk"),
-        ).distinct()
+        )
+        val prepended = listOfNotNull(metadata?.apkOutputDir?.let { projectDir.resolve(it) }) + conventionList
+        prepended.distinct()
     }
 
     companion object {
@@ -118,7 +125,12 @@ class ModuleSpec private constructor(
          * Probe both AGP 9 built-in Kotlin output and the standalone KGP output used by
          * AGP 8 projects. Must run after the initial compilation.
          */
-        fun probe(projectDir: Path, request: Request, variant: String): ModuleSpec {
+        fun probe(
+            projectDir: Path,
+            request: Request,
+            variant: String,
+            metadata: ModuleMetadata? = null,
+        ): ModuleSpec {
             val moduleVariant = request.variant ?: variant
             val moduleDir = projectDir.resolve(request.relativeDir)
             val taskSegment = moduleVariant.taskSegment()
@@ -129,13 +141,57 @@ class ModuleSpec private constructor(
                 Layout.AGP_KGP to moduleDir.resolve("build/tmp/kotlin-classes/$moduleVariant"),
                 Layout.JVM to moduleDir.resolve("build/classes/kotlin/main"),
             )
-            val (layout, classesDir) = candidates.firstOrNull { Files.isDirectory(it.second) }
-                ?: throw IllegalStateException(
-                    "module '${request.gradlePath}' (${request.relativeDir}) has no compiled classes under " +
-                        candidates.joinToString { it.second.toString() } +
-                        " — is it in the app's dependency graph and does it contain Kotlin sources?",
-                )
-            return ModuleSpec(request, layout, moduleVariant, projectDir, classesDir)
+
+            var chosenLayout: Layout? = null
+            var chosenClassesDir: Path? = null
+            val metadataDirsTried = mutableListOf<Path>()
+
+            if (metadata != null && metadata.classOutputDirs.isNotEmpty()) {
+                val resolvedMetadataDirs = metadata.classOutputDirs.map { projectDir.resolve(it) }
+                metadataDirsTried.addAll(resolvedMetadataDirs)
+                val foundDir = resolvedMetadataDirs.firstOrNull { dir ->
+                    Files.isDirectory(dir) && Files.walk(dir).use { stream ->
+                        stream.anyMatch { Files.isRegularFile(it) && it.fileName?.toString()?.endsWith(".class") == true }
+                    }
+                }
+                if (foundDir != null) {
+                    chosenClassesDir = foundDir
+                    val matchingCandidate = candidates.firstOrNull { it.second == foundDir }
+                    chosenLayout = if (matchingCandidate != null) {
+                        matchingCandidate.first
+                    } else {
+                        // layout when a metadata dir wins: the layout of the convention candidate equal
+                        // to the chosen dir if any; else by discovered type — androidApp/androidLib ->
+                        // AGP_BUILT_IN, kotlinJvm -> JVM.
+                        // (Layout then only feeds convention fallbacks for task names — the type-derived
+                        // value picks the right naming family; document this in a comment.)
+                        if (metadata.compileTask != null || metadata.assembleTask != null || metadata.installTask != null || metadata.resDirs.isNotEmpty()) {
+                            Layout.AGP_BUILT_IN
+                        } else {
+                            Layout.JVM
+                        }
+                    }
+                } else {
+                    println("metadata: ${request.gradlePath} classes dirs missing on disk — using convention probe")
+                }
+            }
+
+            if (chosenClassesDir == null || chosenLayout == null) {
+                val found = candidates.firstOrNull { Files.isDirectory(it.second) }
+                if (found != null) {
+                    chosenLayout = found.first
+                    chosenClassesDir = found.second
+                } else {
+                    val allTried = candidates.map { it.second } + metadataDirsTried
+                    throw IllegalStateException(
+                        "module '${request.gradlePath}' (${request.relativeDir}) has no compiled classes under " +
+                            allTried.joinToString { it.toString() } +
+                            " — is it in the app's dependency graph and does it contain Kotlin sources?",
+                    )
+                }
+            }
+
+            return ModuleSpec(request, chosenLayout, moduleVariant, projectDir, chosenClassesDir, metadata)
         }
 
         internal fun sourceSetNames(variant: String): List<String> {

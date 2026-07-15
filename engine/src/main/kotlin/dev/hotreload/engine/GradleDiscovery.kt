@@ -71,6 +71,54 @@ data class WatchPlan(
     val modules: List<ModuleSpec.Request>,
 )
 
+/** Per-module build metadata resolved from a DiscoveryReport for one watch plan. */
+data class ModuleMetadata(
+    val compileTask: String? = null,   // task PATHS, e.g. ":app:compileDebugKotlin"
+    val assembleTask: String? = null,
+    val installTask: String? = null,
+    val classOutputDirs: List<String> = emptyList(), // rootDir-relative, as reported
+    val sourceDirs: List<String> = emptyList(),
+    val resDirs: List<String> = emptyList(),
+    val apkOutputDir: String? = null,  // app module only
+)
+
+fun DiscoveryReport.moduleMetadata(
+    modules: List<ModuleSpec.Request>,
+    defaultVariant: String,
+): Map<String, ModuleMetadata> {
+    val allProjects = projects.orEmpty()
+    val byPath = allProjects.associateBy { it.gradlePath }
+
+    return modules.mapNotNull { request ->
+        val project = byPath[request.gradlePath] ?: return@mapNotNull null
+        val metadata = when (project.type) {
+            "androidApp", "androidLib" -> {
+                val variantName = request.variant ?: defaultVariant
+                val variant = project.variants.orEmpty().firstOrNull { it.name == variantName }
+                    ?: return@mapNotNull null
+                ModuleMetadata(
+                    compileTask = variant.tasks?.compileKotlin,
+                    assembleTask = variant.tasks?.assemble,
+                    installTask = variant.tasks?.install,
+                    classOutputDirs = variant.classOutputDirs.orEmpty(),
+                    sourceDirs = variant.sourceDirs.orEmpty(),
+                    resDirs = variant.resDirs.orEmpty(),
+                    apkOutputDir = if (project.type == "androidApp") variant.apkOutputDir else null
+                )
+            }
+            "kotlinJvm" -> {
+                val jvm = project.jvm ?: return@mapNotNull null
+                ModuleMetadata(
+                    classOutputDirs = jvm.classOutputDirs.orEmpty(),
+                    sourceDirs = jvm.sourceDirs.orEmpty()
+                )
+            }
+            else -> return@mapNotNull null
+        }
+        request.gradlePath to metadata
+    }.toMap()
+}
+
 /**
  * Resolve a [WatchPlan] from a [DiscoveryReport].
  *
@@ -320,6 +368,9 @@ object GradleDiscovery {
 
     /** Re-serializes a [DiscoveryReport] to schema-v1 JSON (for `hotreload inspect --json`). */
     fun toJson(report: DiscoveryReport): String = Gson().toJson(report)
+
+    /** Parses a schema-v1 JSON back to a [DiscoveryReport]. */
+    fun fromJson(json: String): DiscoveryReport = Gson().fromJson(json, DiscoveryReport::class.java)
 
     private fun extractInitScript(): Path {
         val bytes = GradleDiscovery::class.java.getResourceAsStream("/dev/hotreload/inspect.init.gradle")

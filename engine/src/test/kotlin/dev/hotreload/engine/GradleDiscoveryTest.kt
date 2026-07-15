@@ -316,4 +316,77 @@ class GradleDiscoveryTest {
         }
         assertTrue("not a watched module" in (e.message ?: ""))
     }
+    @Test
+    fun `moduleMetadata resolves metadata with exact-variant match`() {
+        val report = loadFixture()
+        val requests = listOf(
+            ModuleSpec.Request(":app", "app"),
+            ModuleSpec.Request(":feature", "feature", variant = "debug")
+        )
+        val metadataMap = report.moduleMetadata(requests, "stageDebug")
+        assertEquals(2, metadataMap.size)
+        val appMeta = metadataMap[":app"]
+        requireNotNull(appMeta)
+        assertEquals(":app:compileStageDebugKotlin", appMeta.compileTask)
+        assertEquals(":app:assembleStageDebug", appMeta.assembleTask)
+        assertEquals(":app:installStageDebug", appMeta.installTask)
+        assertEquals(listOf("app/build/intermediates/built_in_kotlinc/stageDebug/compileStageDebugKotlin/classes"), appMeta.classOutputDirs)
+        assertEquals(listOf("app/src/main/kotlin", "app/src/stage/kotlin", "app/src/stageDebug/kotlin"), appMeta.sourceDirs)
+        assertEquals(listOf("app/src/main/res", "app/src/stage/res"), appMeta.resDirs)
+        assertEquals("app/build/outputs/apk/stage/debug", appMeta.apkOutputDir)
+
+        val featureMeta = metadataMap[":feature"]
+        requireNotNull(featureMeta)
+        assertEquals(":feature:compileDebugKotlin", featureMeta.compileTask)
+        assertEquals(listOf("feature/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"), featureMeta.classOutputDirs)
+        assertNull(featureMeta.apkOutputDir)
+    }
+
+    @Test
+    fun `moduleMetadata request variant override changes lookup`() {
+        val report = loadFixture()
+        val requests = listOf(
+            ModuleSpec.Request(":app", "app", variant = "release"),
+            ModuleSpec.Request(":feature", "feature", variant = "debug")
+        )
+        val metadataMap = report.moduleMetadata(requests, "stageDebug")
+        val appMeta = metadataMap[":app"]
+        requireNotNull(appMeta)
+        assertEquals(":app:compileReleaseKotlin", appMeta.compileTask)
+        assertEquals("app/build/outputs/apk/release", appMeta.apkOutputDir)
+
+        val featureMeta = metadataMap[":feature"]
+        requireNotNull(featureMeta)
+        assertEquals(":feature:compileDebugKotlin", featureMeta.compileTask)
+    }
+
+    @Test
+    fun `moduleMetadata library without matching variant name gets no entry`() {
+        val report = loadFixture()
+        val requests = listOf(
+            ModuleSpec.Request(":feature", "feature", variant = "release")
+        )
+        val metadataMap = report.moduleMetadata(requests, "release")
+        assertTrue(metadataMap.isEmpty())
+    }
+
+    @Test
+    fun `moduleMetadata kotlinJvm mapping resolved for dirs only`() {
+        val report = loadFixture()
+        val requests = listOf(
+            ModuleSpec.Request(":core", "core")
+        )
+        val metadataMap = report.moduleMetadata(requests, "stageDebug")
+        assertEquals(1, metadataMap.size)
+        val coreMeta = metadataMap[":core"]
+        requireNotNull(coreMeta)
+        assertNull(coreMeta.compileTask)
+        assertNull(coreMeta.assembleTask)
+        assertNull(coreMeta.installTask)
+        assertEquals(listOf("core/build/classes/kotlin/main"), coreMeta.classOutputDirs)
+        assertEquals(listOf("core/src/main/kotlin"), coreMeta.sourceDirs)
+        assertTrue(coreMeta.resDirs.isEmpty())
+        assertNull(coreMeta.apkOutputDir)
+    }
 }
+

@@ -58,6 +58,26 @@ class ProfileStore(val baseDir: Path) {
         return baseDir.resolve("projects").resolve("$name.toml")
     }
 
+    fun discoveryPath(name: String): Path {
+        validateName(name)
+        return baseDir.resolve("projects").resolve("$name.discovery.json")
+    }
+
+    fun saveDiscovery(name: String, json: String): Path {
+        validateName(name)
+        val file = discoveryPath(name)
+        Files.createDirectories(file.parent)
+        Files.writeString(file, json)
+        return file
+    }
+
+    fun loadDiscovery(name: String): String? {
+        validateName(name)
+        val file = discoveryPath(name)
+        if (!Files.exists(file)) return null
+        return Files.readString(file)
+    }
+
     fun load(name: String): Profile {
         validateName(name)
         val file = path(name)
