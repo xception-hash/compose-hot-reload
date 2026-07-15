@@ -153,6 +153,10 @@ fun main(args: Array<String>) {
             parts.add("--project-java-home")
             parts.add(profile.projectJavaHome!!)
         }
+        if (profile.device != null) {
+            parts.add("--device")
+            parts.add(profile.device!!)
+        }
         if (profile.launchActivity != null) {
             parts.add("--launch-activity")
             parts.add(profile.launchActivity!!)
@@ -177,8 +181,8 @@ fun main(args: Array<String>) {
         val zeroTouchFlag = "--zero-touch" in rest
         val opts = parseOptions(rest.filter { it != "--literals" && it != "--zero-touch" })
 
-        if (opts.keys.any { it in setOf("--profile", "--device", "--sdk", "--build-tools") }) {
-            val badKey = opts.keys.first { it in setOf("--profile", "--device", "--sdk", "--build-tools") }
+        if (opts.keys.any { it in setOf("--profile", "--sdk", "--build-tools") }) {
+            val badKey = opts.keys.first { it in setOf("--profile", "--sdk", "--build-tools") }
             fail("option $badKey is not allowed for configure")
         }
 
@@ -198,6 +202,7 @@ fun main(args: Array<String>) {
         validateGradleArgs(gradleArgs)
         val projectJavaHomeStr = opts.single("--project-java-home")
         val projectJavaHome = projectJavaHomeStr?.let(Path::of)
+        val deviceSerial = opts.single("--device")
         val launchActivity = opts.single("--launch-activity")
         val literals = literalsFlag
 
@@ -216,7 +221,7 @@ fun main(args: Array<String>) {
             projectJavaHome = projectJavaHome,
             launchActivity = launchActivity,
             literals = literals,
-            deviceSerial = null,
+            deviceSerial = deviceSerial,
             includeModules = includeModules,
             excludeModules = excludeModules,
             appModuleOpt = appModuleOpt,
@@ -233,6 +238,7 @@ fun main(args: Array<String>) {
             moduleVariants = config.modules.filter { it.variant != null }.map { "${it.gradlePath}=${it.variant}" },
             gradleArgs = config.gradleArgs,
             projectJavaHome = config.projectJavaHome?.toString(),
+            device = config.deviceSerial,
             launchActivity = config.launchActivity,
             literals = config.literals,
             integrationMode = config.integrationMode,
@@ -291,7 +297,7 @@ fun main(args: Array<String>) {
     validateGradleArgs(gradleArgs)
     val projectJavaHomeStr = opts.single("--project-java-home") ?: profile?.projectJavaHome
     val projectJavaHome = projectJavaHomeStr?.let(Path::of)
-    val deviceSerial = opts.single("--device")
+    val deviceSerial = opts.single("--device") ?: profile?.device
     val launchActivity = opts.single("--launch-activity") ?: profile?.launchActivity
     val literals = literalsFlag || (profile?.literals ?: false)
     val integrationMode = if (zeroTouchFlag || profile?.integrationMode == IntegrationMode.ZERO_TOUCH) {
@@ -642,12 +648,23 @@ private fun resolveConfig(
 private fun runInspect(rest: List<String>) {
     // Valueless boolean flag, same treatment as --literals above.
     val json = "--json" in rest
-    val zeroTouch = "--zero-touch" in rest
+    val zeroTouchFlag = "--zero-touch" in rest
     val opts = parseOptions(rest.filter { it != "--json" && it != "--zero-touch" })
-    val project = Path.of(opts.required("--project")).toAbsolutePath().normalize()
-    val projectJavaHome = opts.single("--project-java-home")?.let(Path::of)
-    val gradleArgs = opts["--gradle-arg"].orEmpty()
+    val profile = opts.single("--profile")?.let { name ->
+        try {
+            ProfileStore.default().load(name)
+        } catch (e: IllegalArgumentException) {
+            fail(e.message ?: "failed to load profile")
+        }
+    }
+    val project = Path.of(opts.single("--project") ?: profile?.project ?: fail("--project is required (or provide it via --profile)"))
+        .toAbsolutePath()
+        .normalize()
+    val projectJavaHome = (opts.single("--project-java-home") ?: profile?.projectJavaHome)?.let(Path::of)
+    val explicitGradleArgs = opts["--gradle-arg"].orEmpty()
+    val gradleArgs = explicitGradleArgs.ifEmpty { profile?.gradleArgs.orEmpty() }
     validateGradleArgs(gradleArgs)
+    val zeroTouch = zeroTouchFlag || profile?.integrationMode == IntegrationMode.ZERO_TOUCH
 
     if (zeroTouch) {
         try {

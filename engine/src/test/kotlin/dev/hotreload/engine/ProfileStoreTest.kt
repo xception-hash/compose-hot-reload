@@ -16,11 +16,13 @@ class ProfileStoreTest {
         val profile = Profile(
             project = "/some/project",
             appId = "my.app",
+            device = "emulator-5554",
             integrationMode = IntegrationMode.ZERO_TOUCH,
         )
         val savedPath = store.save("my-app", profile)
         assertEquals(tempDir.resolve("projects/my-app.toml"), savedPath)
         assertTrue("zero-touch = true" in Files.readString(savedPath))
+        assertTrue("device = \"emulator-5554\"" in Files.readString(savedPath))
         
         val loaded = store.load("my-app")
         assertEquals(profile, loaded)
