@@ -4,20 +4,24 @@ Fable access ended 2026-07-07. Everything Fable-class is done and written down; 
 operating manual for finishing the project with **Opus 4.8 + Gemini/agy + the maintainer**. The roadmap
 table lives in `docs/PLAN.md` (status header) — ONE canonical copy, do not duplicate it here.
 
-## Current status — T33 complete (2026-07-15)
+## Current status — T33 PR open, awaiting CI and maintainer merge (2026-07-15)
 
-T33 phases 1–10 are complete in the dirty `t33h/zero-touch` worktree. No commit, push, or
-PR was made. The canonical completion record is `tasks/T33-project-agnostic.md` and the roadmap
-is `docs/PLAN.md`; generic configuration and compatibility details are in
-`docs/project-configuration.md`.
+T33 phases 1–10 are complete and committed on `t33h/zero-touch`. PR #19 is open against
+`main`: <https://github.com/xception-hash/compose-hot-reload/pull/19>. It is mergeable but
+**not merged**. The lightweight compatibility-contract check passed; the e2e and compatibility
+device jobs were still in progress at handoff. The canonical completion record is
+`tasks/T33-project-agnostic.md` and the roadmap is `docs/PLAN.md`; generic configuration and
+compatibility details are in `docs/project-configuration.md`.
 
 Final evidence: core/distribution and runtime-client tests; configured debug/qa + multi-module
 assembly; IntelliJ plugin test/build; configured `hotreload start` device regression; 4/4
 configured multi-module regression; and offline zero-touch `start` on AGP 9 plus AGP 8/JDK 17.
 The CI compatibility job enforces that the AGP 8 leg cannot be skipped.
 
-The T33-specific continuation below is historical evidence only. Future work should start from
-the newest `.agents/STATUS.md` entry and a newly scoped task rather than resuming it.
+The T33-specific continuation below is historical evidence only. At the next session, first ask
+the maintainer for PR #19's current CI status and, if all required checks are green, ask the
+maintainer to merge it. Do not merge the PR autonomously. Future implementation work should then
+start from the newest `.agents/STATUS.md` entry and a newly scoped task rather than resuming T33.
 
 ## Historical handoff — T33 continuation for GPT-5.6 Tera (2026-07-15)
 
