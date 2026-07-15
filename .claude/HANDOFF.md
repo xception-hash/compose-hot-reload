@@ -1,54 +1,59 @@
-# HANDOFF — Compose Hot Reload for Android (2026-07-15, T33g coordinator session)
+# HANDOFF — Compose Hot Reload for Android (2026-07-15, agent-handoff session)
 
-**Authoritative handoff is the memory file** — read it FIRST:
-`<claude-project-memory>/compose-hot-reload-status.md`
+**Authoritative live status is `.agents/STATUS.md`** (untracked, in this checkout) —
+read it FIRST. It is the shared status file for ALL agents (any vendor); the
+Claude project memory file is a private mirror of it and may lag.
 (This file is tracked: NO absolute home paths, no real names — "the maintainer".)
 
-## PREVIOUS GOAL (T33f) — DONE ✅
-DONE: T33f merged via **PR #16** (squash 9da19e0, e2e CI green, merged
-2026-07-15T02:58Z). Evidence: `gh pr view 16` → MERGED; coordinator had re-run all
-9 host markers + device gate (run.sh all-PASS 280s, run-multi 4/4 51s) before the
-PR. Post-merge housekeeping done this session: local main reset to origin/main
-(carried commits de-duped by the squash), `t33f/output-metadata` branch deleted,
-T33 §Phase 5 flipped DONE.
+## GOAL (this session) — Codex handover setup
+Make the project agent-neutral so a different CLI agent (Codex) can pick up work,
+while the existing Claude memory stays intact for a possible switch-back.
+Done-condition (checkable):
+1. `.agents/{README,STATUS,CODE-MAP,GOTCHAS}.md` exist, gitignored
+   (`git check-ignore .agents/STATUS.md` passes).
+2. Tracked pointer changes committed on branch `docs/agent-handoff` → PR:
+   `.gitignore` (+`.agents/`), `AGENTS.md` (maintainer-agents pointer section),
+   this file's header (authoritative → `.agents/STATUS.md`).
+3. Claude memory status + index note the handover and the switch-back procedure.
 
-## GOAL (this session)
-Write `tasks/T33g-prepare-start.md` (T33 phase 6: `hotreload prepare` + `hotreload
-start` orchestration + build fingerprints with refuse-to-watch on mismatch), commit
-to main, update memory, then ask the maintainer IN-TERMINAL whether to dispatch via
-`scripts/delegate.sh` on "Gemini 3.5 Flash (High)".
+## STATE
+- **Verified:** `.agents/STATUS.md` (verbatim memory status export + canonical
+  header), `.agents/CODE-MAP.md`, `.agents/GOTCHAS.md` (3 gotcha memories) created.
+  This file's header repointed (this edit).
+- **TODO next (in order):** write `.agents/README.md` (session protocol + first-
+  session prompt for the new agent); add `.agents/` to `.gitignore`; add the
+  maintainer-agents pointer section to `AGENTS.md`; confidentiality-grep the diff;
+  branch `docs/agent-handoff` off origin/main (do NOT commit on `t33g/prepare-start`
+  — PR #17 open) and open a PR; append handover+switch-back section to the Claude
+  memory status file + index note.
 
-**Done-condition:** spec committed on main (confidentiality grep clean), T33
-§Phase 6 flipped to spec-ready, memory status updated, maintainer asked about
-dispatch.
-
-## PREFLIGHT RESULTS (this session — ALL DONE)
-1. PR #16 MERGED ✅; housekeeping committed (T33 §Phase 5 DONE flip, 6c59e74).
-2. Marketplace 0.1.4: STILL in JB moderation (`hasUnapprovedUpdate: true`,
-   approved-updates list empty, downloads=2) — nothing actionable.
-3. Telegram bridge FIXED ✅ — root cause: pingjay auto-switched to the pingme
-   backend on 2026-07-12 (its CLI + venv appeared); pingme reports "sent"
-   (exit 0) but FCM delivery never reaches the phone. Telegram itself works.
-   Fix: pingme route in `~/.claude/bin/pingjay` now gated behind
-   `PINGJAY_USE_PINGME=1`; verified pingjay → Telegram (message_id 47).
-
-## MAIN TASK STATE
-- `tasks/T33g-prepare-start.md` WRITTEN (all design decisions fixed: host-side
-  JSON fingerprint bound to device base.apk sha256; refuse only on
-  positively-known mismatch, warn on unknown provenance, silent when absent;
-  prepare pipeline + start composition; 8 host markers).
-- T33 §Phase 6 flipped to spec-ready + agent-guide order paragraph updated.
-- NEXT: commit spec (grep gate first), update memory status, ask the maintainer
-  IN-TERMINAL whether to dispatch
-  `scripts/delegate.sh tasks/T33g-prepare-start.md` on "Gemini 3.5 Flash (High)".
-- After any agy run: check `git log` on main for the SessionEnd wip-commit gotcha.
+## PENDING (project queue)
+1. **PR #17 MERGED** (main = 5db0e43, 2026-07-15). Remaining cleanup: sync local
+   main, delete local branch `t33g/prepare-start`.
+2. **T33 phases 8–10** — maintainer-led, need a coordinator DESIGN session before
+   any delegation (8 zero-touch init-script bootstrap, 9 IDE-plugin
+   discovery/profiles consumption, 10 compat matrix + docs). No dispatch-ready
+   spec remains.
+3. **tasks/T31 header is STALE on main** (says 0.1.2/awaiting-moderation; reality:
+   0.1.4 published, in JB moderation). Update it on the next main-touching session.
+4. External wait: Marketplace 0.1.4 moderation. Queued someday: tag 0.2.0 release
+   wrap; PatchServer wedge robustness fix (re-arm soTimeout between sessions).
 
 ## GOTCHAS (standing)
 - Confidentiality grep before EVERY commit (employer/name/home-path patterns per
   the privacy memory); tracked files say "the maintainer", never a first name.
-- A stale stash `handoff-wip` (stash@{0}) holds an intermediate version of this
-  file — superseded by this version; safe to drop, kept because the harness
-  blocked `git stash drop`.
+- NEVER commit `.agents/` — it holds unsanitized local handoff content.
+- A stale stash `handoff-wip` (stash@{0}) holds an old version of this file —
+  superseded; safe to drop, kept because the harness blocked `git stash drop`.
 - export REPO_ROOT AFTER sourcing scripts/env.sh (source overwrites it).
 - Readiness greps line-anchored `^watching `; never edit sources before the real
   watching line (initial build absorbs edits into baseline without applying).
+- Fingerprint files live under the config dir `fingerprints/`; e2e relies on NONE
+  existing (absent = byte-silent freeze). Remove smoke fingerprints after device
+  work.
+
+DONE: 2026-07-15 — all 3 done-conditions met. Evidence: `git check-ignore
+.agents/STATUS.md` passes + 4 files exist (STATUS 1079→+handover section,
+CODE-MAP 57, GOTCHAS 76, README); PR #18 open (docs/agent-handoff 274b432,
+grep clean on added lines); memory status + index updated with switch-back
+procedure. Bonus housekeeping: local main → 5db0e43, t33g branch deleted.
