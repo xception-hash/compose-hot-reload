@@ -5,6 +5,11 @@ The [README](README.md) is the authoritative install/usage guide — follow its 
 those steps non-interactively: preflight checks, the background-run pattern for the
 watcher, and the exact log lines that mean success or failure.
 
+> **Maintainer agents:** if an untracked `.agents/` directory exists in this checkout,
+> you are working as the maintainer's agent — read `.agents/README.md` FIRST; it holds
+> the live project handoff and session protocol. The rest of this file is for agents
+> *using* the product.
+
 ## 1. Preflight (run before any Gradle step)
 
 ```bash
