@@ -1,7 +1,10 @@
 package dev.hotreload.cli
 
+import dev.hotreload.engine.Adb
 import dev.hotreload.engine.Doctor
 import dev.hotreload.engine.DiscoveryReport
+import dev.hotreload.engine.FingerprintStore
+import dev.hotreload.engine.Prepare
 import dev.hotreload.engine.GradleDiscovery
 import dev.hotreload.engine.ModuleSpec
 import dev.hotreload.engine.ProjectConfig
@@ -14,16 +17,22 @@ import dev.hotreload.engine.ModuleMetadata
 import dev.hotreload.engine.moduleMetadata
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Instant
 import kotlin.system.exitProcess
 
 private const val USAGE = """hotreload — Flutter-style hot reload for Jetpack Compose on Android
 
 Usage:
   hotreload watch --project <dir> [options]
+  hotreload prepare --project <dir> [options]
+  hotreload start --project <dir> [options]
   hotreload doctor --project <dir> [options]
   hotreload inspect --project <dir> [options]
   hotreload configure --project <dir> --save-as <name> [options]
   hotreload config show --profile <name>
+
+  prepare  build, install, and launch an instrumented APK for the resolved config
+  start    run doctor, prepare when necessary, then watch
 
 When --app-id and --module are omitted, the app module, variant, applicationId, and
 watched-module closure are discovered automatically via Gradle inspection.
@@ -45,6 +54,9 @@ Options:
                       Drop a DISCOVERED watched module; may be repeated. Only valid
                       without --module
   --gradle-arg <arg>  Extra target Gradle argument; may be repeated
+  --ignore-fingerprint
+                      (watch/start only) skip the build-fingerprint validation written by
+                      'hotreload prepare'
   --include-module <gradlePath>
                       Restrict the DISCOVERED watched modules to these (+ the app
                       module); may be repeated. Only valid without --module
@@ -72,9 +84,15 @@ fun main(args: Array<String>) {
     }
 
     val command = args[0]
-    if (command != "watch" && command != "doctor" && command != "inspect" && command != "configure" && command != "config") {
+    if (command != "watch" && command != "prepare" && command != "start" && command != "doctor" && command != "inspect" && command != "configure" && command != "config") {
         println(USAGE)
         exitProcess(1)
+    }
+
+    // --ignore-fingerprint is honored only by watch/start; reject it everywhere else
+    // (same shape as configure's disallowed-option error).
+    if ("--ignore-fingerprint" in args && command != "watch" && command != "start") {
+        fail("option --ignore-fingerprint is not allowed for $command")
     }
 
     if (command == "inspect") {
@@ -224,7 +242,8 @@ fun main(args: Array<String>) {
     // Valueless boolean flags: pull them out before the key/value option parser.
     val rest = args.drop(1)
     val literalsFlag = "--literals" in rest
-    val opts = parseOptions(rest.filter { it != "--literals" })
+    val ignoreFingerprint = "--ignore-fingerprint" in rest
+    val opts = parseOptions(rest.filter { it != "--literals" && it != "--ignore-fingerprint" })
 
     val profileName = opts.single("--profile")
     val profile = if (profileName != null) {
@@ -310,16 +329,61 @@ fun main(args: Array<String>) {
         }
     }
 
-    if (command == "doctor") {
-        val ok = Doctor(config, sdk, buildTools).run()
-        exitProcess(if (ok) 0 else 1)
+    when (command) {
+        "doctor" -> {
+            val ok = Doctor(config, sdk, buildTools).run()
+            exitProcess(if (ok) 0 else 1)
+        }
+        "prepare" -> {
+            try {
+                Prepare.run(config, sdk, buildTools)
+            } catch (t: Throwable) {
+                fail(t.message ?: t.toString())
+            }
+            exitProcess(0)
+        }
+        "start" -> runStart(config, sdk, buildTools, ignoreFingerprint)
+        else -> runWatchPhase(config, sdk, buildTools, ignoreFingerprint)
     }
+}
 
+/**
+ * `start`: doctor → prepare when necessary → watch. Gates on the environment, then prepares
+ * only when the app is missing, the handshake failed, or the fingerprint says the installed
+ * APK does not (positively) match the resolved configuration.
+ */
+private fun runStart(config: ProjectConfig, sdk: Path, buildTools: String, ignoreFingerprint: Boolean) {
+    val result = Doctor(config, sdk, buildTools).runChecked()
+    if (!result.envOk) {
+        println("start: environment checks failed — fix the [FAIL] items above")
+        exitProcess(1)
+    }
+    val reasons = mutableListOf<String>()
+    if (!result.appInstalled) reasons += "app not installed"
+    if (result.handshakeOk == false) reasons += "runtime handshake failed"
+    // handshakeOk == null (app not running) is NOT a trigger — watch auto-launches.
+    if (!ignoreFingerprint) fingerprintPrepareReason(config, sdk)?.let { reasons += it }
+
+    if (reasons.isNotEmpty()) {
+        println("start: preparing (${reasons.joinToString(", ")})")
+        try {
+            Prepare.run(config, sdk, buildTools)
+        } catch (t: Throwable) {
+            fail(t.message ?: t.toString())
+        }
+    }
+    runWatchPhase(config, sdk, buildTools, ignoreFingerprint)
+}
+
+/** Existence checks + fingerprint gate + WatchSession (shared by `watch` and `start`). */
+private fun runWatchPhase(config: ProjectConfig, sdk: Path, buildTools: String, ignoreFingerprint: Boolean) {
     val d8 = sdk.resolve("build-tools/$buildTools/d8")
     val adb = sdk.resolve("platform-tools/adb")
-    for ((what, path) in listOf("project dir" to project, "d8" to d8, "adb" to adb)) {
+    for ((what, path) in listOf("project dir" to config.projectDir, "d8" to d8, "adb" to adb)) {
         if (!Files.exists(path)) fail("$what not found: $path")
     }
+
+    fingerprintGate(config, adb, ignoreFingerprint)
 
     try {
         WatchSession(
@@ -332,6 +396,67 @@ fun main(args: Array<String>) {
     } catch (t: Throwable) {
         fail(t.message ?: t.toString())
     }
+}
+
+/**
+ * Fingerprint validation gate (T33 phase 6), run after the d8/adb existence checks and
+ * before WatchSession construction. Applies the three knowledge-state rules from the spec:
+ * absent fingerprint ⇒ silent (freeze); positively-matched device APK ⇒ compare config
+ * fields, REFUSE on any mismatch; unknown provenance (device sha differs/unobtainable) ⇒
+ * warn and proceed.
+ */
+private fun fingerprintGate(config: ProjectConfig, adbPath: Path, ignoreFingerprint: Boolean) {
+    if (ignoreFingerprint) {
+        println("fingerprint: check skipped (--ignore-fingerprint)")
+        return
+    }
+    val serial = resolveGateSerial(config, adbPath) ?: return // 0/multiple devices → skip silently
+    val fp = FingerprintStore.default().load(serial, config.applicationId) ?: return // absent → freeze
+
+    val adb = Adb(adbPath, serial)
+    val deviceSha = adb.installedApkSha256(config.applicationId)
+    if (fp.apkSha256 != null && deviceSha != null && fp.apkSha256 == deviceSha) {
+        val mismatches = fp.mismatches(config)
+        if (mismatches.isNotEmpty()) {
+            println("fingerprint: MISMATCH")
+            mismatches.forEach { println("  $it") }
+            fail(
+                "the installed APK was prepared for a different configuration — re-run " +
+                    "'hotreload prepare', or pass --ignore-fingerprint to override",
+            )
+        }
+        println("fingerprint: OK (prepared ${Instant.ofEpochMilli(fp.preparedAt)})")
+    } else {
+        println(
+            "fingerprint: installed APK changed outside 'hotreload prepare' — cannot verify " +
+                "build mode; run 'hotreload prepare' to refresh",
+        )
+    }
+}
+
+/**
+ * Why `start` should prepare (fingerprint clauses only), or null if the fingerprint state
+ * does not call for it: absent, unknown provenance (sha differs/unobtainable), or a
+ * field-mismatch against a positively-matched APK all trigger a prepare.
+ */
+private fun fingerprintPrepareReason(config: ProjectConfig, sdk: Path): String? {
+    val adbPath = sdk.resolve("platform-tools/adb")
+    val serial = resolveGateSerial(config, adbPath) ?: return null
+    val fp = FingerprintStore.default().load(serial, config.applicationId)
+        ?: return "no build fingerprint"
+    val deviceSha = Adb(adbPath, serial).installedApkSha256(config.applicationId)
+    return if (fp.apkSha256 != null && deviceSha != null && fp.apkSha256 == deviceSha) {
+        if (fp.mismatches(config).isNotEmpty()) "build configuration changed" else null
+    } else {
+        "installed APK changed outside prepare"
+    }
+}
+
+/** config.deviceSerial, or the single online device; null when zero or multiple are attached. */
+private fun resolveGateSerial(config: ProjectConfig, adbPath: Path): String? {
+    config.deviceSerial?.let { return it }
+    val devices = try { Adb(adbPath, null).devices() } catch (_: Throwable) { emptyList() }
+    return devices.singleOrNull()
 }
 
 private class Resolved(val config: ProjectConfig, val discoveryReport: DiscoveryReport?)

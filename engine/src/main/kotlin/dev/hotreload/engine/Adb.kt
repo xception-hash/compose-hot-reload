@@ -67,6 +67,35 @@ class Adb(private val adb: Path, serial: String? = null) {
         return exitCode to output
     }
 
+    /** `adb [-s serial] install -r <apk>` — returns (exitCode, combined output). Does not throw. */
+    fun install(apk: Path): Pair<Int, String> {
+        val process = ProcessBuilder(commandPrefix + listOf("install", "-r", apk.toString()))
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        val exitCode = process.waitFor()
+        return exitCode to output
+    }
+
+    /**
+     * sha256 of the app's installed base.apk, queried from the device (never assumes host-file
+     * identity): `pm path <appId>` → the `base.apk` line (minus the `package:` prefix) →
+     * `sha256sum <path>` → first whitespace-separated token, lowercased. Any failing step
+     * (non-zero exit, no base.apk line, malformed output) → null. Never throws.
+     */
+    fun installedApkSha256(applicationId: String): String? {
+        val (pmExit, pmOut) = safeShell("pm", "path", applicationId)
+        if (pmExit != 0) return null
+        val base = pmOut.lineSequence()
+            .map { it.trim().removePrefix("package:") }
+            .firstOrNull { it.endsWith("base.apk") }
+            ?: return null
+        val (shaExit, shaOut) = safeShell("sha256sum", base)
+        if (shaExit != 0) return null
+        val token = shaOut.trim().split(Regex("\\s+")).firstOrNull()?.lowercase()
+        return token?.takeIf { it.matches(Regex("^[0-9a-f]{64}$")) }
+    }
+
     /** `adb push <local> <remote>` — recursive for directories. Throws on non-zero exit. */
     fun push(local: Path, remote: String) {
         run("push", local.toString(), remote)

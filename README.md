@@ -148,6 +148,23 @@ Additional flags:
 | `--include-module <gradlePath>` | Restrict the discovered watched modules to these (+ the app module); may be repeated. Only valid without `--module` |
 | `--exclude-module <gradlePath>` | Drop a discovered watched module; may be repeated. Only valid without `--module` |
 
+### prepare / start
+
+`hotreload start --project <dir>` is the one-command path: it runs `doctor`, then builds,
+installs, and launches the app **only when needed** (app missing, handshake failing, or the
+installed APK doesn't match the resolved configuration), and finally watches.
+
+`hotreload prepare --project <dir>` is the explicit build+install+launch step on its own. It
+records a **build fingerprint** — the config fields that shape the APK (variant, modules,
+`--literals`, gradle args, JDK, protocol version) plus the sha256 of the base APK as installed
+on the device.
+
+On a later `watch`/`start`, if the fingerprint positively matches the installed APK, any config
+difference (for example running `watch --literals` against an APK prepared without it) is
+**refused** with a loud `fingerprint: MISMATCH` before a single class is swapped. If the APK was
+replaced outside `prepare` (Android Studio, `installDebug`), watch can't verify the build mode
+and prints a warning but proceeds. Pass `--ignore-fingerprint` to skip the check entirely.
+
 ### Profiles
 Profiles live outside the target repository, allowing zero-flag runs after configuration. Profiles are stored in:
 ```text
@@ -299,6 +316,8 @@ If hot reload fails to connect or experience issues on device, run `hotreload do
 ```
 
 * **APK Selection**: The swapper locates the active APK using AGP's `output-metadata.json` (logged as `apk: … (output-metadata.json)`). If the metadata is absent or unreadable, it logs a warning (`apk: no matching output-metadata.json — newest-APK fallback may pick a stale variant`) and falls back to recursive newest-mtime search, which can pick a stale variant APK.
+
+* **`fingerprint: MISMATCH`**: `watch`/`start` refuses because the APK installed by `hotreload prepare` was built for a different configuration than the one you are now watching. The canonical cause is a live-literals mismatch — the APK was `prepare`d with `--literals` (so AGP compiled the `LiveLiterals$*` helpers) but you are running `watch` without it, or vice versa; swapping in that state silently corrupts the Compose slot table. The message names every differing field. Fix it by re-running `hotreload prepare` with the same flags you watch with, or pass `--ignore-fingerprint` to override.
 
 ## 10. Live-literals fast path (experimental, opt-in)
 Editing only a constant inside a composable — a plain string, number, boolean, or char — can skip Gradle + d8 + class redefinition entirely and push the new value straight into Compose's live-literals mechanism, for a sub-100ms update. It is **off by default** because the Compose compiler's live-literals instrumentation adds overhead to debug builds.

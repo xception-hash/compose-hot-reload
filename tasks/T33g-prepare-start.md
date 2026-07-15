@@ -1,6 +1,27 @@
 # T33g: prepare/start orchestration + build fingerprints (T33 phase 6)
-Status: TODO
+Status: IN-REVIEW
 Assignee: agy
+
+## Outcome (host-only; device gate pending coordinator review)
+Implemented by the coordinator directly (not delegated to agy, at the maintainer's
+request). All host-only work done + verified; the device gate below is left for the
+reviewer.
+
+**New files:** `engine/Fingerprint.kt` (Fingerprint + FingerprintStore),
+`engine/AppLauncher.kt` (extracted `ensureRunning`), `engine/Prepare.kt`,
+`engine/src/test/.../FingerprintTest.kt` (12 tests), `.../FingerprintStoreTest.kt` (4 tests).
+**Changed:** `engine/Adb.kt` (+`install`, +`installedApkSha256`), `engine/Doctor.kt`
+(`run()` = `runChecked().ok`, structured `Result`, output frozen), `engine/WatchSession.kt`
+(one-line delegation to `AppLauncher`), `cli/Main.kt` (prepare/start commands, watch
+fingerprint gate, `--ignore-fingerprint`), `README.md` (prepare/start subsection +
+`fingerprint: MISMATCH` troubleshooting).
+
+**Host acceptance — all 8 markers printed:** TESTS-OK, USAGE-OK, PREPARE-FAILFAST-OK,
+START-DOCTOR-GATE-OK, FREEZE-DOCTOR-OK, FREEZE-WATCH-OK, FLAG-GUARD-OK, E2E-FROZEN-OK.
+`:engine:test :protocol:test :cli:compileKotlin :cli:installDist` BUILD SUCCESSFUL.
+NOTE: an emulator was attached during verification, so the no-device markers were exercised
+via a bogus `--device zzz-no-such-device` serial (same fail-fast/freeze code paths, no live
+hang). The canonical no-device run + the full device gate below are for the reviewer.
 
 **Precondition:** T33f (PR #16) merged — this spec builds on its `ApkLocator`,
 `ModuleMetadata`/`moduleMetadata` flow, the `.discovery.json` sidecar, and T33e's
