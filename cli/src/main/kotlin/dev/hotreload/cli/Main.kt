@@ -15,6 +15,10 @@ import dev.hotreload.engine.Profile
 import dev.hotreload.engine.ProfileStore
 import dev.hotreload.engine.ModuleMetadata
 import dev.hotreload.engine.moduleMetadata
+import dev.hotreload.engine.IntegrationMode
+import dev.hotreload.engine.GradleInvocation
+import dev.hotreload.engine.ReservedGradleProperties
+import dev.hotreload.engine.ZeroTouchArtifacts
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
@@ -75,6 +79,8 @@ Options:
                       JDK used by the target project's Gradle build (default: CLI JVM)
   --sdk <dir>         Android SDK root (default: ${'$'}ANDROID_HOME)
   --variant <name>    Android variant to compile (default: debug)
+  --zero-touch        Instrument through a bundled init-script bootstrap; never requires
+                      editing the target project's settings or module build files
 """
 
 fun main(args: Array<String>) {
@@ -154,6 +160,9 @@ fun main(args: Array<String>) {
         if (profile.literals) {
             parts.add("--literals")
         }
+        if (profile.integrationMode == IntegrationMode.ZERO_TOUCH) {
+            parts.add("--zero-touch")
+        }
         println("expanded: ${parts.joinToString(" ")}")
         val discoveryPath = store.discoveryPath(profileName)
         if (Files.exists(discoveryPath)) {
@@ -165,7 +174,8 @@ fun main(args: Array<String>) {
     if (command == "configure") {
         val rest = args.drop(1)
         val literalsFlag = "--literals" in rest
-        val opts = parseOptions(rest.filter { it != "--literals" })
+        val zeroTouchFlag = "--zero-touch" in rest
+        val opts = parseOptions(rest.filter { it != "--literals" && it != "--zero-touch" })
 
         if (opts.keys.any { it in setOf("--profile", "--device", "--sdk", "--build-tools") }) {
             val badKey = opts.keys.first { it in setOf("--profile", "--device", "--sdk", "--build-tools") }
@@ -185,6 +195,7 @@ fun main(args: Array<String>) {
         val variantOpt = opts.single("--variant")
         val moduleVariantList = opts["--module-variant"].orEmpty()
         val gradleArgs = opts["--gradle-arg"].orEmpty()
+        validateGradleArgs(gradleArgs)
         val projectJavaHomeStr = opts.single("--project-java-home")
         val projectJavaHome = projectJavaHomeStr?.let(Path::of)
         val launchActivity = opts.single("--launch-activity")
@@ -209,7 +220,8 @@ fun main(args: Array<String>) {
             includeModules = includeModules,
             excludeModules = excludeModules,
             appModuleOpt = appModuleOpt,
-            appModuleDirOpt = appModuleDirOpt
+            appModuleDirOpt = appModuleDirOpt,
+            integrationMode = if (zeroTouchFlag) IntegrationMode.ZERO_TOUCH else IntegrationMode.CONFIGURED,
         )
         val config = resolved.config
 
@@ -223,6 +235,7 @@ fun main(args: Array<String>) {
             projectJavaHome = config.projectJavaHome?.toString(),
             launchActivity = config.launchActivity,
             literals = config.literals,
+            integrationMode = config.integrationMode,
         )
 
         val store = ProfileStore.default()
@@ -243,7 +256,8 @@ fun main(args: Array<String>) {
     val rest = args.drop(1)
     val literalsFlag = "--literals" in rest
     val ignoreFingerprint = "--ignore-fingerprint" in rest
-    val opts = parseOptions(rest.filter { it != "--literals" && it != "--ignore-fingerprint" })
+    val zeroTouchFlag = "--zero-touch" in rest
+    val opts = parseOptions(rest.filter { it != "--literals" && it != "--ignore-fingerprint" && it != "--zero-touch" })
 
     val profileName = opts.single("--profile")
     val profile = if (profileName != null) {
@@ -274,11 +288,17 @@ fun main(args: Array<String>) {
     val variantOpt = opts.single("--variant") ?: profile?.variant
     val moduleVariantList = opts["--module-variant"].let { if (!it.isNullOrEmpty()) it else profile?.moduleVariants.orEmpty() }
     val gradleArgs = opts["--gradle-arg"].let { if (!it.isNullOrEmpty()) it else profile?.gradleArgs.orEmpty() }
+    validateGradleArgs(gradleArgs)
     val projectJavaHomeStr = opts.single("--project-java-home") ?: profile?.projectJavaHome
     val projectJavaHome = projectJavaHomeStr?.let(Path::of)
     val deviceSerial = opts.single("--device")
     val launchActivity = opts.single("--launch-activity") ?: profile?.launchActivity
     val literals = literalsFlag || (profile?.literals ?: false)
+    val integrationMode = if (zeroTouchFlag || profile?.integrationMode == IntegrationMode.ZERO_TOUCH) {
+        IntegrationMode.ZERO_TOUCH
+    } else {
+        IntegrationMode.CONFIGURED
+    }
 
     val includeModules = opts["--include-module"].orEmpty()
     val excludeModules = opts["--exclude-module"].orEmpty()
@@ -299,7 +319,8 @@ fun main(args: Array<String>) {
         includeModules = includeModules,
         excludeModules = excludeModules,
         appModuleOpt = appModuleOpt,
-        appModuleDirOpt = appModuleDirOpt
+        appModuleDirOpt = appModuleDirOpt,
+        integrationMode = integrationMode,
     )
     var config = resolved.config
 
@@ -475,7 +496,8 @@ private fun resolveConfig(
     includeModules: List<String>,
     excludeModules: List<String>,
     appModuleOpt: String?,
-    appModuleDirOpt: String?
+    appModuleDirOpt: String?,
+    integrationMode: IntegrationMode,
 ): Resolved {
     val hasModule = moduleOpt != null
     val hasFilters = includeModules.isNotEmpty() || excludeModules.isNotEmpty()
@@ -528,14 +550,11 @@ private fun resolveConfig(
         // "modules", not "watching": the bare "watching " prefix is the session-ready
         // contract line (e2e/IDE plugin grep for it) and must never appear earlier.
         println("discovered: modules ${plan.modules.joinToString { it.gradlePath }}")
-        println("resolved: ${report.watchCommandFor(plan, project.toString())}")
+        val resolvedCommand = report.watchCommandFor(plan, project.toString()) +
+            if (integrationMode == IntegrationMode.ZERO_TOUCH) " --zero-touch" else ""
+        println("resolved: $resolvedCommand")
 
-        val moduleMetadata = report.moduleMetadata(modules, plan.variantName)
-        if (moduleMetadata.isNotEmpty()) {
-            println("metadata: ${moduleMetadata.size} module(s) from discovery")
-        }
-
-        val config = try {
+        val provisionalConfig = try {
             ProjectConfig(
                 projectDir = project,
                 modules = modules,
@@ -546,12 +565,34 @@ private fun resolveConfig(
                 literals = literals,
                 deviceSerial = deviceSerial,
                 launchActivity = launchActivity,
-                moduleMetadata = moduleMetadata,
+                integrationMode = integrationMode,
             )
         } catch (e: IllegalArgumentException) {
             fail(e.message ?: "invalid configuration")
         }
-        return Resolved(config, report)
+
+        // The first discovery is intentionally uninstrumented: only it knows the exact
+        // watched-module closure. Once resolved, refresh metadata with the bootstrap init
+        // script applied to that allowlist and no other project.
+        val effectiveReport = if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+            try {
+                GradleInvocation.open(provisionalConfig).use { invocation ->
+                    GradleDiscovery.run(project, projectJavaHome, invocation.arguments)
+                }
+            } catch (t: Throwable) {
+                fail(t.message ?: t.toString())
+            }
+        } else {
+            report
+        }
+
+        val moduleMetadata = effectiveReport.moduleMetadata(modules, plan.variantName)
+        if (moduleMetadata.isNotEmpty()) {
+            println("metadata: ${moduleMetadata.size} module(s) from discovery")
+        }
+
+        val config = provisionalConfig.copy(moduleMetadata = moduleMetadata)
+        return Resolved(config, effectiveReport)
     } else {
         // --- Legacy path (--module present, or --app-id present with no filters) ---
         val appId = appIdOpt ?: fail("--app-id is required\n\n$USAGE")
@@ -589,6 +630,7 @@ private fun resolveConfig(
                 literals = literals,
                 deviceSerial = deviceSerial,
                 launchActivity = launchActivity,
+                integrationMode = integrationMode,
             )
         } catch (e: IllegalArgumentException) {
             fail(e.message ?: "invalid configuration")
@@ -600,10 +642,20 @@ private fun resolveConfig(
 private fun runInspect(rest: List<String>) {
     // Valueless boolean flag, same treatment as --literals above.
     val json = "--json" in rest
-    val opts = parseOptions(rest.filter { it != "--json" })
+    val zeroTouch = "--zero-touch" in rest
+    val opts = parseOptions(rest.filter { it != "--json" && it != "--zero-touch" })
     val project = Path.of(opts.required("--project")).toAbsolutePath().normalize()
     val projectJavaHome = opts.single("--project-java-home")?.let(Path::of)
     val gradleArgs = opts["--gradle-arg"].orEmpty()
+    validateGradleArgs(gradleArgs)
+
+    if (zeroTouch) {
+        try {
+            ZeroTouchArtifacts.verifyPackaged()
+        } catch (t: Throwable) {
+            fail(t.message ?: t.toString())
+        }
+    }
 
     val report = try {
         GradleDiscovery.run(project, projectJavaHome, gradleArgs)
@@ -616,11 +668,19 @@ private fun runInspect(rest: List<String>) {
         exitProcess(0)
     }
 
-    printInspectHuman(report)
+    printInspectHuman(report, zeroTouch)
     exitProcess(0)
 }
 
-private fun printInspectHuman(report: DiscoveryReport) {
+private fun validateGradleArgs(args: List<String>) {
+    try {
+        ReservedGradleProperties.validate(args)
+    } catch (e: IllegalArgumentException) {
+        fail(e.message ?: "invalid --gradle-arg")
+    }
+}
+
+private fun printInspectHuman(report: DiscoveryReport, zeroTouch: Boolean = false) {
     println("project root: ${report.rootDir.orEmpty()}  (Gradle ${report.gradleVersion.orEmpty()})")
     for (project in report.projects.orEmpty()) {
         println("${project.gradlePath}  ${project.type.orEmpty()}  dir=${project.projectDir.orEmpty()}")
@@ -642,7 +702,7 @@ private fun printInspectHuman(report: DiscoveryReport) {
     }
     val suggestion = report.suggestedWatchCommand()
     if (suggestion != null) {
-        println("suggested: $suggestion")
+        println("suggested: $suggestion${if (zeroTouch) " --zero-touch" else ""}")
     }
 }
 

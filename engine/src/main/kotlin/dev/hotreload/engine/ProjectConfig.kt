@@ -2,6 +2,69 @@ package dev.hotreload.engine
 
 import java.nio.file.Path
 
+enum class IntegrationMode {
+    CONFIGURED,
+    ZERO_TOUCH,
+}
+
+/**
+ * Reject user Gradle arguments that attempt to set properties owned by the zero-touch
+ * bootstrap. Internal bootstrap arguments are assembled separately and must never pass
+ * through this validator.
+ */
+object ReservedGradleProperties {
+    const val PREFIX = "dev.hotreload.bootstrap."
+
+    fun validate(args: List<String>) {
+        fun rejectIfReserved(propertyAndValue: String, systemProperty: Boolean = false) {
+            val property = propertyAndValue.substringBefore('=')
+            val projectProperty = if (systemProperty) {
+                property.removePrefix("org.gradle.project.")
+            } else {
+                property
+            }
+            require(!projectProperty.startsWith(PREFIX)) {
+                "Gradle property '$projectProperty' is reserved for zero-touch bootstrap internals " +
+                    "and cannot be passed with --gradle-arg"
+            }
+        }
+
+        var index = 0
+        while (index < args.size) {
+            val arg = args[index]
+            when {
+                arg == "-P" || arg == "--project-prop" -> {
+                    args.getOrNull(index + 1)?.let { rejectIfReserved(it) }
+                    index += 2
+                }
+                arg.startsWith("-P") && arg.length > 2 -> {
+                    rejectIfReserved(arg.substring(2))
+                    index++
+                }
+                arg.startsWith("--project-prop=") -> {
+                    rejectIfReserved(arg.substringAfter('='))
+                    index++
+                }
+                arg == "-D" || arg == "--system-prop" -> {
+                    args.getOrNull(index + 1)?.let { rejectIfReserved(it, systemProperty = true) }
+                    index += 2
+                }
+                arg.startsWith("-D") && arg.length > 2 -> {
+                    rejectIfReserved(arg.substring(2), systemProperty = true)
+                    index++
+                }
+                arg.startsWith("--system-prop=") -> {
+                    rejectIfReserved(arg.substringAfter('='), systemProperty = true)
+                    index++
+                }
+                else -> index++
+            }
+        }
+    }
+}
+
+fun validateUserGradleArgs(args: List<String>) = ReservedGradleProperties.validate(args)
+
 /**
  * The typed, fully-resolved project configuration shared by the CLI, [Doctor], and
  * [WatchSession] (T33 phase 1): consolidates what used to be threaded twice (once into
@@ -15,6 +78,7 @@ data class ProjectConfig(
     val variant: String = "debug",
     val projectJavaHome: Path? = null,
     val gradleArgs: List<String> = emptyList(),
+    val integrationMode: IntegrationMode = IntegrationMode.CONFIGURED,
     /**
      * Live-literals fast path (T24, `--literals`): literal-only edits are pushed in
      * place through Compose live literals before the normal compile+swap runs. Requires
@@ -33,6 +97,7 @@ data class ProjectConfig(
         require(applicationId.matches(Regex("^[A-Za-z0-9._]+$"))) {
             "applicationId contains characters outside [A-Za-z0-9._]: $applicationId"
         }
+        validateUserGradleArgs(gradleArgs)
         launchActivity?.let {
             require(it.matches(Regex("^[A-Za-z0-9._\$]+$"))) {
                 "launchActivity contains characters outside [A-Za-z0-9._\$]: $it"

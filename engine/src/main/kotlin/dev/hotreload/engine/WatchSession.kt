@@ -92,13 +92,12 @@ class WatchSession(private val config: Config) {
                 "device is not hot-swappable — is the app a debuggable build with the runtime-client?"
             }
 
-            val gradleArgs = config.project.gradleArgs +
-                if (config.project.literals) listOf("-Photreload.liveLiterals=true") else emptyList()
-            GradleCompiler(
-                config.project.projectDir.toFile(),
-                gradleArgs,
-                config.project.projectJavaHome?.toFile(),
-            ).use { gradle ->
+            GradleInvocation.open(config.project).use { invocation ->
+                GradleCompiler(
+                    config.project.projectDir.toFile(),
+                    invocation.arguments,
+                    config.project.projectJavaHome?.toFile(),
+                ).use { gradle ->
                 print("initial build... ")
                 val initial = gradle.compile(compileTask)
                 check(initial.success) { "initial compile failed:\n${initial.output}" }
@@ -115,7 +114,10 @@ class WatchSession(private val config: Config) {
 
                 val dexdump = config.d8.resolveSibling("dexdump").takeIf { Files.isRegularFile(it) }
                 if (dexdump == null) println("warning: no dexdump next to ${config.d8} — bitmap edits will overlay without invalidating")
-                val resources = ResourceSwapper(modules.first(), resDirs, config.project.applicationId, gradle, adb, device, dexdump)
+                val resources = ResourceSwapper(
+                    modules.first(), resDirs, config.project.applicationId, gradle, adb, device,
+                    dexdump, config.project.integrationMode,
+                )
 
                 // Registering a nonexistent root makes DirectoryWatcher fail (asynchronously).
                 sourceRoots = modules.flatMap { it.sourceRoots }.filter { Files.isDirectory(it) }
@@ -133,6 +135,7 @@ class WatchSession(private val config: Config) {
                     // before registration completes loses saves made in that window.
                     println("watching ${roots.joinToString()} (${snapshot.size} classes)")
                     CountDownLatch(1).await() // run until Ctrl-C
+                }
                 }
             }
         }
@@ -254,7 +257,11 @@ class WatchSession(private val config: Config) {
         return when (val plan = Classifier.plan(verdicts)) {
             is Classifier.PatchPlan.Rebuild -> {
                 plan.reasons.forEach { println("cannot hot-swap: $it") }
-                println("run a full install (e.g. ./gradlew ${modules.first().installTask}), relaunch, then restart watch")
+                if (config.project.integrationMode == IntegrationMode.ZERO_TOUCH) {
+                    println("run 'hotreload prepare --zero-touch' with the same project options, then restart watch")
+                } else {
+                    println("run a full install (e.g. ./gradlew ${modules.first().installTask}), relaunch, then restart watch")
+                }
                 null // keep the old baseline: these changes were NOT applied
             }
             is Classifier.PatchPlan.HotSwap -> {

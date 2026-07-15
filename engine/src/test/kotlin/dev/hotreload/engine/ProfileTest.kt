@@ -17,7 +17,8 @@ class ProfileTest {
             gradleArgs = listOf("--parallel", "--offline"),
             projectJavaHome = "/path/to/jdk",
             launchActivity = ".MainActivity",
-            literals = true
+            literals = true,
+            integrationMode = IntegrationMode.ZERO_TOUCH,
         )
         val tomlText = original.toToml("test-profile")
         
@@ -29,6 +30,7 @@ class ProfileTest {
         assertTrue("project-java-home = " in tomlText)
         assertTrue("launch-activity = " in tomlText)
         assertTrue("literals = true" in tomlText)
+        assertTrue("zero-touch = true" in tomlText)
 
         // Parse and reconstruct
         val map = Toml.parse(tomlText)
@@ -54,6 +56,7 @@ class ProfileTest {
         assertFalse("project-java-home =" in tomlText)
         assertFalse("launch-activity =" in tomlText)
         assertFalse("literals =" in tomlText)
+        assertFalse("zero-touch =" in tomlText)
 
         val map = Toml.parse(tomlText)
         val reconstructed = mapToProfile(map)
@@ -93,7 +96,7 @@ class ProfileTest {
         val e = assertFailsWith<IllegalArgumentException> {
             validateAndMap(map)
         }
-        assertTrue(e.message!!.contains("unknown key 'bogus-key' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, launch-activity, literals)"))
+        assertTrue(e.message!!.contains("unknown key 'bogus-key' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, launch-activity, literals, zero-touch)"))
     }
 
     private fun mapToProfile(map: Map<String, Any>): Profile {
@@ -107,11 +110,11 @@ class ProfileTest {
         }
         val allowedKeys = setOf(
             "schema", "project", "app-id", "variant", "modules", "module-variants",
-            "gradle-args", "project-java-home", "launch-activity", "literals"
+            "gradle-args", "project-java-home", "launch-activity", "literals", "zero-touch"
         )
         for (k in map.keys) {
             if (k !in allowedKeys) {
-                throw IllegalArgumentException("unknown key '$k' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, launch-activity, literals)")
+                throw IllegalArgumentException("unknown key '$k' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, launch-activity, literals, zero-touch)")
             }
         }
         val project = map.getString("project") ?: throw IllegalArgumentException("profile is missing required key 'project'")
@@ -123,6 +126,11 @@ class ProfileTest {
         val projectJavaHome = map.getString("project-java-home")
         val launchActivity = map.getString("launch-activity")
         val literals = map.getBoolean("literals") ?: false
+        val integrationMode = if (map.getBoolean("zero-touch") == true) {
+            IntegrationMode.ZERO_TOUCH
+        } else {
+            IntegrationMode.CONFIGURED
+        }
 
         return Profile(
             project = project,
@@ -133,7 +141,8 @@ class ProfileTest {
             gradleArgs = gradleArgs,
             projectJavaHome = projectJavaHome,
             launchActivity = launchActivity,
-            literals = literals
+            literals = literals,
+            integrationMode = integrationMode,
         )
     }
 

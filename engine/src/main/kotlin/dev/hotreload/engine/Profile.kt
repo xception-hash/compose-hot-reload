@@ -13,7 +13,12 @@ data class Profile(
     val projectJavaHome: String? = null,
     val launchActivity: String? = null,
     val literals: Boolean = false,
+    val integrationMode: IntegrationMode = IntegrationMode.CONFIGURED,
 ) {
+    init {
+        validateUserGradleArgs(gradleArgs)
+    }
+
     fun toToml(name: String): String {
         val sb = StringBuilder()
         sb.append("# Compose Hot Reload profile \"$name\" — written by `hotreload configure`.\n")
@@ -41,6 +46,9 @@ data class Profile(
         }
         if (literals) {
             sb.append("literals = true\n")
+        }
+        if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+            sb.append("zero-touch = true\n")
         }
         return sb.toString()
     }
@@ -93,11 +101,11 @@ class ProfileStore(val baseDir: Path) {
             }
             val allowedKeys = setOf(
                 "schema", "project", "app-id", "variant", "modules", "module-variants",
-                "gradle-args", "project-java-home", "launch-activity", "literals"
+                "gradle-args", "project-java-home", "launch-activity", "literals", "zero-touch"
             )
             for (k in map.keys) {
                 if (k !in allowedKeys) {
-                    throw IllegalArgumentException("unknown key '$k' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, launch-activity, literals)")
+                    throw IllegalArgumentException("unknown key '$k' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, launch-activity, literals, zero-touch)")
                 }
             }
             val project = map.getString("project") ?: throw IllegalArgumentException("profile is missing required key 'project'")
@@ -109,6 +117,11 @@ class ProfileStore(val baseDir: Path) {
             val projectJavaHome = map.getString("project-java-home")
             val launchActivity = map.getString("launch-activity")
             val literals = map.getBoolean("literals") ?: false
+            val integrationMode = if (map.getBoolean("zero-touch") == true) {
+                IntegrationMode.ZERO_TOUCH
+            } else {
+                IntegrationMode.CONFIGURED
+            }
 
             return Profile(
                 project = project,
@@ -119,7 +132,8 @@ class ProfileStore(val baseDir: Path) {
                 gradleArgs = gradleArgs,
                 projectJavaHome = projectJavaHome,
                 launchActivity = launchActivity,
-                literals = literals
+                literals = literals,
+                integrationMode = integrationMode,
             )
         } catch (e: Exception) {
             throw IllegalArgumentException("profile '$name': ${e.message}", e)

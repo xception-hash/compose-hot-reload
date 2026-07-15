@@ -58,6 +58,66 @@ class FingerprintStoreTest {
     }
 
     @Test
+    fun legacyFingerprintWithoutIntegrationModeNormalizesToConfigured() {
+        val store = FingerprintStore(tempDir)
+        val fp = fingerprint()
+        val file = store.save(fp)
+        val legacyJson = Files.readString(file)
+            .lineSequence()
+            .filterNot { "\"integrationMode\"" in it || "\"runtimeArtifactSha256\"" in it }
+            .joinToString("\n")
+        Files.writeString(file, legacyJson)
+
+        val loaded = assertNotNull(store.load(fp.deviceSerial, fp.applicationId))
+        assertEquals(IntegrationMode.CONFIGURED, loaded.integrationMode)
+        assertNull(loaded.runtimeArtifactSha256)
+    }
+
+    @Test
+    fun integrationModeUsesStableEnumNameInJson() {
+        val store = FingerprintStore(tempDir)
+        val configured = fingerprint()
+        val zeroTouch = Fingerprint.of(
+            ProjectConfig(
+                projectDir = Path.of("/proj"),
+                modules = listOf(ModuleSpec.Request(":app", "app")),
+                applicationId = "dev.hotreload.sample",
+                integrationMode = IntegrationMode.ZERO_TOUCH,
+            ),
+            configured.deviceSerial,
+            "sha",
+            "/x.apk",
+        )
+
+        val file = store.save(zeroTouch)
+        assertTrue("\"integrationMode\": \"ZERO_TOUCH\"" in Files.readString(file))
+    }
+
+    @Test
+    fun unknownOrNullIntegrationModeIsRejectedLoudly() {
+        val store = FingerprintStore(tempDir)
+        val fp = fingerprint()
+        val file = store.save(fp)
+        val validJson = Files.readString(file)
+
+        for (replacement in listOf("\"UNKNOWN\"", "null")) {
+            Files.writeString(file, validJson.replace("\"CONFIGURED\"", replacement))
+            val captured = ByteArrayOutputStream()
+            val original = System.out
+            System.setOut(PrintStream(captured))
+            try {
+                assertNull(store.load(fp.deviceSerial, fp.applicationId))
+            } finally {
+                System.setOut(original)
+            }
+            assertTrue(
+                "fingerprint: ignoring unreadable fingerprint file" in captured.toString(),
+                "replacement=$replacement output=${captured}",
+            )
+        }
+    }
+
+    @Test
     fun serialIsSanitizedWithoutPathEscape() {
         val store = FingerprintStore(tempDir)
         val kept = store.path("emulator-5554", "dev.hotreload.sample")

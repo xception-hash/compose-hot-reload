@@ -32,6 +32,7 @@ class ResourceSwapper(
     private val device: DeviceClient,
     /** `dexdump` from build-tools (sibling of d8); null degrades bitmap edits to overlay-only. */
     private val dexdump: Path?,
+    private val integrationMode: IntegrationMode = IntegrationMode.CONFIGURED,
 ) {
     private val assembleTask = appModule.assembleTask
     private val seq = AtomicInteger(0)
@@ -75,7 +76,11 @@ class ResourceSwapper(
                     append(" — value-only hot reload can't remap resource IDs")
                 },
             )
-            println("run a full install (e.g. ./gradlew ${appModule.installTask}), relaunch, then restart watch")
+            if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+                println("run 'hotreload prepare --zero-touch' with the same project options, then restart watch")
+            } else {
+                println("run a full install (e.g. ./gradlew ${appModule.installTask}), relaunch, then restart watch")
+            }
             // Keep the old baseline: the message persists until they reinstall (or revert).
             return false
         }

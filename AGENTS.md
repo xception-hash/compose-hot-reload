@@ -26,6 +26,8 @@ Following the README literally will hang your session. Instead:
 
 ```bash
 ./gradlew -q :cli:run --args="watch --project <dir> --app-id <id>" > /tmp/hotreload.log 2>&1 &
+# For a target that does not apply dev.hotreload, add --zero-touch and first run
+# a matching: hotreload prepare --zero-touch --project <dir> [...same options]
 ```
 
 Then poll the log. Healthy startup prints, in order:
@@ -52,7 +54,7 @@ Every save first prints `changed: <files>`. Then grep the log for one of:
 | `literal-pushed: <key> = <value> in <N>ms` | success (live-literal fast path) | same |
 | `compile failed — fix and save again` | your edit doesn't compile | fix the code, save again — recoverable, watcher keeps running |
 | `recomposition failed: …` | edit compiled but crashed at runtime | device keeps last-good frame; fix and save again |
-| `cannot hot-swap: <reason>` + `run a full install …` | edit needs a rebuild | `./gradlew :app:installDebug`, relaunch the app, restart the watcher |
+| `cannot hot-swap: <reason>` + `run a full install …` | edit needs a rebuild | configured mode: run the target's install task; zero-touch mode: rerun `hotreload prepare --zero-touch` with the same options; then restart the watcher |
 | *(nothing at all — not even `changed:`)* | edit is invisible to the watcher (fonts and other non-watched extensions; see README §5) | full reinstall is the only path |
 
 To confirm the UI actually changed, take a screenshot and read it:
@@ -65,11 +67,11 @@ adb exec-out screencap -p > /tmp/shot.png
 
 | Error (exact text in log) | Cause | Fix |
 |---|---|---|
-| `protocol version mismatch (device X != engine Y) — reinstall the app (stale runtime-client)` | app was installed from an older checkout | `./gradlew :app:installDebug`, relaunch |
-| `device is not hot-swappable — is the app a debuggable build with the runtime-client?` | release build, or plugin not applied | install the **debug** variant of a project that applies the `dev.hotreload` plugin |
-| `no classes found under …` | wrong `--project` dir, or app never built | check the path; run `installDebug` once first |
+| `protocol version mismatch (device X != engine Y) — reinstall the app (stale runtime-client)` | app was installed from an older checkout | configured mode: reinstall through the target build; zero-touch mode: rerun matching `hotreload prepare --zero-touch` |
+| `device is not hot-swappable — is the app a debuggable build with the runtime-client?` | release build, or selected integration was not applied | install a debuggable variant through the configured plugin or `hotreload prepare --zero-touch` |
+| `no classes found under …` | wrong `--project` dir, or app never built | check the path; prepare once using the same configured/zero-touch mode as the watcher |
 | `app module '…' is not an AGP module (no built-in-kotlinc output)` | wrong `--module` (first entry must be the Android app module) | fix `--module` order/names |
-| **No error, but edits behave wrongly / state corrupts** | stale APK vs `--literals` mode mismatch — this failure is **silent** | after adding/removing `--literals` (or any doubt about APK freshness): fresh `./gradlew :app:installDebug`, relaunch, restart watcher |
+| **No error, but edits behave wrongly / state corrupts** | stale APK vs `--literals` or integration-mode mismatch | rerun a matching prepare/install with the same `--literals` and `--zero-touch` choices, relaunch, and restart the watcher |
 
 ## 5. Don'ts
 

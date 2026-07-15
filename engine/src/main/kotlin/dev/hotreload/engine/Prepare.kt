@@ -47,15 +47,15 @@ object Prepare {
         val appVariant = app.variant ?: config.variant
 
         // 2. Build — same mode watch will run in (gradleArgs identity is the whole point).
-        val gradleArgs = config.gradleArgs +
-            if (config.literals) listOf("-Photreload.liveLiterals=true") else emptyList()
         val assembleTask = config.moduleMetadata[app.gradlePath]?.assembleTask
             ?: "${app.gradlePath}:assemble${appVariant.taskSegment()}"
-        GradleCompiler(config.projectDir.toFile(), gradleArgs, config.projectJavaHome?.toFile()).use { gradle ->
-            print("build: $assembleTask... ")
-            val build = gradle.compile(assembleTask)
-            check(build.success) { "build failed:\n${build.output}" }
-            println("ok (${build.durationMs}ms)")
+        GradleInvocation.open(config).use { invocation ->
+            GradleCompiler(config.projectDir.toFile(), invocation.arguments, config.projectJavaHome?.toFile()).use { gradle ->
+                print("build: $assembleTask... ")
+                val build = gradle.compile(assembleTask)
+                check(build.success) { "build failed:\n${build.output}" }
+                println("ok (${build.durationMs}ms)")
+            }
         }
 
         // 3. Probe + locate the APK (classes exist — assemble ran compile).

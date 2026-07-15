@@ -146,5 +146,55 @@ class ProjectConfigTest {
         )
         assertEquals(null, config.deviceSerial)
         assertEquals(null, config.launchActivity)
+        assertEquals(IntegrationMode.CONFIGURED, config.integrationMode)
+    }
+
+    @Test
+    fun zeroTouchIntegrationModeAccepted() {
+        val config = ProjectConfig(
+            projectDir = Path.of("."),
+            modules = listOf(ModuleSpec.Request.parse("app")),
+            applicationId = "com.example.app",
+            integrationMode = IntegrationMode.ZERO_TOUCH,
+        )
+        assertEquals(IntegrationMode.ZERO_TOUCH, config.integrationMode)
+    }
+
+    @Test
+    fun reservedBootstrapGradlePropertiesRejectedInAllSupportedForms() {
+        val forms = listOf(
+            listOf("-Pdev.hotreload.bootstrap.jar=/tmp/plugin.jar"),
+            listOf("-P", "dev.hotreload.bootstrap.runtimeAar=/tmp/runtime.aar"),
+            listOf("--project-prop=dev.hotreload.bootstrap.modules=:app"),
+            listOf("--project-prop", "dev.hotreload.bootstrap.appModule=:app"),
+            listOf("-Dorg.gradle.project.dev.hotreload.bootstrap.variant=debug"),
+            listOf("-D", "org.gradle.project.dev.hotreload.bootstrap.variant=debug"),
+            listOf("--system-prop=org.gradle.project.dev.hotreload.bootstrap.variant=debug"),
+            listOf("--system-prop", "org.gradle.project.dev.hotreload.bootstrap.variant=debug"),
+        )
+
+        for (args in forms) {
+            val error = assertFailsWith<IllegalArgumentException> {
+                validateUserGradleArgs(args)
+            }
+            assertTrue("dev.hotreload.bootstrap." in (error.message ?: ""), "args=$args: ${error.message}")
+        }
+    }
+
+    @Test
+    fun similarlyNamedGradlePropertyIsNotReserved() {
+        validateUserGradleArgs(listOf("-Pdev.hotreload.bootstrapper.value=true"))
+    }
+
+    @Test
+    fun projectConfigRejectsReservedBootstrapGradleProperty() {
+        assertFailsWith<IllegalArgumentException> {
+            ProjectConfig(
+                projectDir = Path.of("."),
+                modules = listOf(ModuleSpec.Request.parse("app")),
+                applicationId = "com.example.app",
+                gradleArgs = listOf("-Pdev.hotreload.bootstrap.jar=/tmp/plugin.jar"),
+            )
+        }
     }
 }

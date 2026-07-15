@@ -37,6 +37,36 @@ The watcher can drive an older target project with a different JDK by passing
 
 ## 3. Quickstart
 
+### Use zero-touch mode with your app
+
+Zero-touch mode instruments only the selected debuggable build while Gradle is running. It does
+not add a plugin, repository, dependency, or init script to your project's settings, build files,
+or sources. Clone this repository, connect one API 30+ device, then run:
+
+```bash
+git clone https://github.com/xception-hash/compose-hot-reload.git
+cd compose-hot-reload
+source scripts/env.sh
+./gradlew -q :cli:run --args="start --zero-touch --project /path/to/your/project"
+```
+
+`start` discovers the app and its project dependencies, checks the environment, builds and
+installs an instrumented APK when needed, launches it, and watches for saves. The watcher is a
+blocking daemon; leave it running while you edit. A target pinned to another JDK can keep using it:
+
+```bash
+./gradlew -q :cli:run --args="start --zero-touch \
+  --project /path/to/your/project \
+  --project-java-home /path/to/jdk-17"
+```
+
+The runtime AAR is bundled with the CLI. Its AndroidX Startup dependency
+(`androidx.startup:startup-runtime:1.2.0`) is resolved through the target's normal dependency
+repositories, so Android projects should retain `google()` in dependency resolution. Gradle still
+creates its ordinary `.gradle`, `.kotlin`, and `build` outputs; zero-touch mode does not create or
+modify project inputs such as `settings.gradle`, module build files, source files,
+`local.properties`, or a project-local init script.
+
 ### Try it on the bundled sample (fastest way to see it work)
 Want to see hot reload before wiring it into your own app? This repo ships a ready-to-go sample
 (`samples/single-module`, app id `dev.hotreload.sample`) that already applies the plugin. With an
@@ -53,6 +83,12 @@ Now edit any composable in
 `samples/single-module/app/src/main/kotlin/dev/hotreload/sample/MainActivity.kt` (e.g. change the
 `Greeting()` text), save, and watch the device update in ~1s with the on-screen counter state
 preserved. To add hot reload to **your own** app instead, follow a)–c) below.
+
+### Configured mode (persistent Gradle plugin integration)
+
+Configured mode remains the default when `--zero-touch` is absent. Use it when you want the
+instrumentation declared persistently by the target project rather than supplied by the CLI for
+each build.
 
 ### a) Add the JitPack repository and plugin dependency
 
@@ -112,7 +148,10 @@ source scripts/env.sh   # JAVA_HOME etc.
 
 Edit a composable, save the file, and watch the UI update on the device instantly.
 
-**Zero-config mode:** `hotreload watch --project <dir>` discovers the app module, variant, applicationId, and watched-module closure automatically — no `--app-id` or `--module` needed.
+**Automatic discovery:** `hotreload watch --project <dir>` discovers the app module, variant,
+applicationId, and watched-module closure automatically — no `--app-id` or `--module` needed.
+Discovery works in both configured and zero-touch modes; it is independent of how instrumentation
+is integrated.
 
 For multi-module projects, pass `--module` with a comma-separated list of Gradle module names (first entry = app module; nested paths use `/`):
 ```bash
@@ -143,6 +182,7 @@ Additional flags:
 | Flag | Description |
 |---|---|
 | `--profile <name>` | Load defaults from `~/.config/compose-hot-reload/projects/<name>.toml` (written by `configure`); any explicit flag overrides it |
+| `--zero-touch` | Use the bundled bootstrap and runtime AAR without editing the target project; accepted by `inspect`, `configure`, `doctor`, `prepare`, `watch`, and `start` |
 | `--device <serial>` | Target device serial when several are connected (`adb -s`; overrides `$ANDROID_SERIAL`) |
 | `--launch-activity <name>` | Activity to launch when the app is not running (default: the device's LAUNCHER intent for `--app-id`) |
 | `--include-module <gradlePath>` | Restrict the discovered watched modules to these (+ the app module); may be repeated. Only valid without `--module` |
@@ -154,6 +194,14 @@ Additional flags:
 installs, and launches the app **only when needed** (app missing, handshake failing, or the
 installed APK doesn't match the resolved configuration), and finally watches.
 
+Pass `--zero-touch` to both preparation and watching commands. A raw target-project
+`install<Variant>` does not carry the generated init script, so the matching explicit reinstall is:
+
+```bash
+hotreload prepare --zero-touch --project <dir>
+hotreload watch --zero-touch --project <dir>
+```
+
 `hotreload prepare --project <dir>` is the explicit build+install+launch step on its own. It
 records a **build fingerprint** — the config fields that shape the APK (variant, modules,
 `--literals`, gradle args, JDK, protocol version) plus the sha256 of the base APK as installed
@@ -164,6 +212,8 @@ difference (for example running `watch --literals` against an APK prepared witho
 **refused** with a loud `fingerprint: MISMATCH` before a single class is swapped. If the APK was
 replaced outside `prepare` (Android Studio, `installDebug`), watch can't verify the build mode
 and prints a warning but proceeds. Pass `--ignore-fingerprint` to skip the check entirely.
+The integration mode and bundled runtime artifact are fingerprinted too: switching between
+configured and zero-touch mode requires a matching `prepare`.
 
 ### Profiles
 Profiles live outside the target repository, allowing zero-flag runs after configuration. Profiles are stored in:
@@ -180,6 +230,8 @@ Profiles live outside the target repository, allowing zero-flag runs after confi
 
 Precedence order: CLI flag > profile > discovery > default.
 Note: A profile's `literals = true` setting cannot be disabled via CLI flags; edit the profile directly to change it.
+Profiles written with `configure --zero-touch` also persist zero-touch integration; `config show`
+includes `--zero-touch` in the expanded command.
 
 `configure` also caches Gradle discovery metadata next to the profile (`<name>.discovery.json`) and watch uses it for build/APK/resource paths; delete or re-run `configure` to refresh.
 
@@ -189,7 +241,9 @@ source sets assuming a single flavor dimension ending in `debug`/`release`
 (`<flavor><BuildType>`); multi-dimension flavors get one combined source-set name.
 Proper per-dimension discovery via Gradle metadata is on the roadmap (T33).
 
-When testing an AGP 8 target from a local checkout, do not include the AGP 9
+The following workaround is only for **configured-mode** testing of an AGP 8 target from a local
+checkout. Zero-touch mode bundles the runtime AAR and does not need `mavenLocal()` or a local
+runtime-client composite build. In configured mode, do not include the AGP 9
 `runtime-client` build directly. Publish its prebuilt AAR first:
 ```bash
 (cd runtime-client && JAVA_HOME="/path/to/android-studio/jbr" ./gradlew \
@@ -299,6 +353,7 @@ See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 - `runtime-client/` — Android AAR injected into apps: startup init, JVMTI agent `.so`, socket server, and Compose bridge shims.
 - `engine/` — JVM library: orchestrator for watcher, Gradle compiler, class diffing, D8 dexing, and client protocol.
 - `cli/` — Thin CLI wrapper around the engine.
+- `bootstrap/` — Java 17, AGP-free Gradle bootstrap used by explicit zero-touch mode.
 - `gradle-plugin/` — Gradle plugin that wires the runtime-client into debug builds and sets compiler flags.
 - `intellij-plugin/` — IntelliJ IDEA / Android Studio plugin (status bar widget, CLI spawner).
 - `samples/` — Example apps (single-module and multi-module).
@@ -322,9 +377,16 @@ If hot reload fails to connect or experience issues on device, run `hotreload do
 ## 10. Live-literals fast path (experimental, opt-in)
 Editing only a constant inside a composable — a plain string, number, boolean, or char — can skip Gradle + d8 + class redefinition entirely and push the new value straight into Compose's live-literals mechanism, for a sub-100ms update. It is **off by default** because the Compose compiler's live-literals instrumentation adds overhead to debug builds.
 
-To use it, build the app with the property and watch with `--literals`:
+In configured mode, build the app with the property and watch with `--literals`:
 ```bash
 ./gradlew :app:installDebug -Photreload.liveLiterals=true
 ./gradlew -q :cli:run --args="watch --literals --project $PWD/samples/single-module --app-id dev.hotreload.sample"
 ```
+In zero-touch mode the CLI supplies the matching compiler option itself, so use the same mode and
+flag for preparation and watching (or let `start` do both):
+
+```bash
+hotreload start --zero-touch --literals --project /path/to/your/project
+```
+
 `watch --literals` fails fast if the installed app wasn't built with the property. Only single, contiguous literal edits take the fast path; anything else (template strings, `const val`, structural edits, multi-file saves) falls back to the normal compile-and-swap path automatically.

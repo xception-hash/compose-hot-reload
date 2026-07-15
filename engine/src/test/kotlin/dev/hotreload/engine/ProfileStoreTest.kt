@@ -1,6 +1,7 @@
 package dev.hotreload.engine
 
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.*
 
@@ -12,12 +13,62 @@ class ProfileStoreTest {
     @Test
     fun saveLoadRoundTrip() {
         val store = ProfileStore(tempDir)
-        val profile = Profile(project = "/some/project", appId = "my.app")
+        val profile = Profile(
+            project = "/some/project",
+            appId = "my.app",
+            integrationMode = IntegrationMode.ZERO_TOUCH,
+        )
         val savedPath = store.save("my-app", profile)
         assertEquals(tempDir.resolve("projects/my-app.toml"), savedPath)
+        assertTrue("zero-touch = true" in Files.readString(savedPath))
         
         val loaded = store.load("my-app")
         assertEquals(profile, loaded)
+    }
+
+    @Test
+    fun legacyProfileDefaultsToConfiguredMode() {
+        val store = ProfileStore(tempDir)
+        val file = store.path("legacy")
+        Files.createDirectories(file.parent)
+        Files.writeString(file, "schema = 1\nproject = \"/some/project\"\n")
+
+        assertEquals(IntegrationMode.CONFIGURED, store.load("legacy").integrationMode)
+    }
+
+    @Test
+    fun falseZeroTouchValueMeansConfiguredMode() {
+        val store = ProfileStore(tempDir)
+        val file = store.path("configured")
+        Files.createDirectories(file.parent)
+        Files.writeString(file, "schema = 1\nproject = \"/some/project\"\nzero-touch = false\n")
+
+        assertEquals(IntegrationMode.CONFIGURED, store.load("configured").integrationMode)
+    }
+
+    @Test
+    fun nonBooleanZeroTouchValueRejected() {
+        val store = ProfileStore(tempDir)
+        val file = store.path("broken")
+        Files.createDirectories(file.parent)
+        Files.writeString(file, "schema = 1\nproject = \"/some/project\"\nzero-touch = \"yes\"\n")
+
+        val error = assertFailsWith<IllegalArgumentException> { store.load("broken") }
+        assertTrue("'zero-touch' must be boolean" in (error.message ?: ""))
+    }
+
+    @Test
+    fun reservedBootstrapPropertyInProfileRejected() {
+        val store = ProfileStore(tempDir)
+        val file = store.path("reserved")
+        Files.createDirectories(file.parent)
+        Files.writeString(
+            file,
+            "schema = 1\nproject = \"/some/project\"\ngradle-args = [\"-Pdev.hotreload.bootstrap.jar=/tmp/x\"]\n",
+        )
+
+        val error = assertFailsWith<IllegalArgumentException> { store.load("reserved") }
+        assertTrue("reserved for zero-touch bootstrap internals" in (error.message ?: ""))
     }
 
     @Test

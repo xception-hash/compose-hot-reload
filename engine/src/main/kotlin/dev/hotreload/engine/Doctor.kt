@@ -15,6 +15,7 @@ class Doctor(
     private val modules: List<ModuleSpec.Request> get() = config.modules
     private val variant: String get() = config.variant
     private val projectJavaHome: Path? get() = config.projectJavaHome
+    private val integrationMode: IntegrationMode get() = config.integrationMode
 
     /**
      * Structured checks (T33 phase 6) so `start` can gate on the environment and decide
@@ -158,8 +159,9 @@ class Doctor(
             }
         }
 
-        // d. Project checks: settings.gradle.kts applies dev.hotreload plugin's pluginManagement includeBuild;
-        // each watched module's build file applies dev.hotreload
+        // d. Project checks: every mode needs a Gradle root/settings file. Configured mode
+        // additionally verifies the dev.hotreload settings/module references; zero-touch
+        // supplies those externally and deliberately leaves target build files unchanged.
         if (!Files.isDirectory(projectDir)) {
             fail("Project checks: project directory not found: $projectDir (fix: specify valid --project directory)")
         } else {
@@ -173,6 +175,13 @@ class Doctor(
 
             if (settingsFile == null) {
                 fail("Project checks: settings file not found in $projectDir (fix: point --project to the Gradle root directory)")
+            } else if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+                try {
+                    ZeroTouchArtifacts.verifyPackaged()
+                    ok("Project configuration (zero-touch bootstrap; target build files remain unchanged)")
+                } catch (t: Throwable) {
+                    fail("Project configuration: zero-touch bootstrap artifacts missing or invalid (${t.message ?: t})")
+                }
             } else {
                 val settingsText = try { Files.readString(settingsFile) } catch (_: Throwable) { "" }
                 val settingsHasPlugin = settingsText.contains("includeBuild") || settingsText.contains("dev.hotreload")
@@ -220,7 +229,12 @@ class Doctor(
             if (pmExit != 0 || pmOutput.trim().isEmpty() || !pmOutput.contains("package:")) {
                 val app = modules.first()
                 val installTask = "${app.gradlePath}:install${(app.variant ?: variant).taskSegment()}"
-                fail("App installed: package '$applicationId' is not installed (fix: install the app on device via ./gradlew $installTask)")
+                val fix = if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+                    "run 'hotreload prepare --zero-touch' with the same project options"
+                } else {
+                    "install the app on device via ./gradlew $installTask"
+                }
+                fail("App installed: package '$applicationId' is not installed (fix: $fix)")
             } else {
                 appInstalled = true
                 val (runAsExit, runAsOutput) = adbRef.safeShell("run-as", applicationId, "id")
@@ -252,18 +266,33 @@ class Doctor(
                     null
                 }
                 if (localPort == null) {
-                    handshakeOk = fail("Runtime handshake: adb forward failed (fix: reinstall the app (stale runtime-client))")
+                    val fix = if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+                        "re-run 'hotreload prepare --zero-touch' with the same project options"
+                    } else {
+                        "reinstall the app (stale runtime-client)"
+                    }
+                    handshakeOk = fail("Runtime handshake: adb forward failed (fix: $fix)")
                 } else {
                     try {
                         val caps = DeviceClient(port = localPort).use { it.ping() }
                         if (caps.protocolVersion != Protocol.VERSION) {
-                            handshakeOk = fail("Runtime handshake: protocol version mismatch (device ${caps.protocolVersion} != engine ${Protocol.VERSION}) (fix: reinstall the app (stale runtime-client))")
+                            val fix = if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+                                "re-run 'hotreload prepare --zero-touch' with the same project options"
+                            } else {
+                                "reinstall the app (stale runtime-client)"
+                            }
+                            handshakeOk = fail("Runtime handshake: protocol version mismatch (device ${caps.protocolVersion} != engine ${Protocol.VERSION}) (fix: $fix)")
                         } else {
                             handshakeOk = true
                             ok("Runtime handshake: protocol v${caps.protocolVersion}, Compose runtime version: ${caps.composeVersion} (api=${caps.apiLevel}, redefine=${caps.canRedefine}, structural=${caps.canStructural}, inject=${caps.canInjectFile}, compose=${caps.composeBridgeOk})")
                         }
                     } catch (t: Throwable) {
-                        handshakeOk = fail("Runtime handshake: failed to connect to app runtime (${t.message ?: t}) (fix: reinstall the app (stale runtime-client))")
+                        val fix = if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+                            "re-run 'hotreload prepare --zero-touch' with the same project options"
+                        } else {
+                            "reinstall the app (stale runtime-client)"
+                        }
+                        handshakeOk = fail("Runtime handshake: failed to connect to app runtime (${t.message ?: t}) (fix: $fix)")
                     } finally {
                         try { adbRef.removeForward(localPort) } catch (_: Throwable) {}
                     }
