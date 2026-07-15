@@ -51,3 +51,9 @@ Done-condition (checkable):
 - Fingerprint files live under the config dir `fingerprints/`; e2e relies on NONE
   existing (absent = byte-silent freeze). Remove smoke fingerprints after device
   work.
+
+DONE: 2026-07-15 — all 3 done-conditions met. Evidence: `git check-ignore
+.agents/STATUS.md` passes + 4 files exist (STATUS 1079→+handover section,
+CODE-MAP 57, GOTCHAS 76, README); PR #18 open (docs/agent-handoff 274b432,
+grep clean on added lines); memory status + index updated with switch-back
+procedure. Bonus housekeeping: local main → 5db0e43, t33g branch deleted.
