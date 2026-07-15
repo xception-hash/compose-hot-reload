@@ -179,15 +179,15 @@ class WatchSession(private val config: Config) {
         }
 
         // Live-literals fast path (T24): a single .kt save that only changes one constant
-        // is pushed in place NOW — it wins the latency race. The normal compile+swap below
-        // still runs and re-applies it idempotently (keeping the baseline/table truthful).
-        if (config.project.literals && ktChanges.size == 1 && resChanges.isEmpty()) {
+        // is pushed in place NOW.  A successful push already recomposes the enclosing
+        // group; recompiling it can produce a keyless LiveLiterals helper and reset state.
+        val literalPushed = if (config.project.literals && ktChanges.size == 1 && resChanges.isEmpty()) {
             tryLiteralFastPath(ktChanges.single(), device, snapshot, t0)
-        }
+        } else false
 
         // Code first, then resources (spec): a mixed batch redefines classes before the
         // resource overlay so both are in place when the tree recomposes.
-        if (ktChanges.isNotEmpty()) {
+        if (ktChanges.isNotEmpty() && !literalPushed) {
             val result = swapClasses(gradle, dexer, device, snapshot, t0)
                 // Compile failed or rebuild required: keep the old baseline. The resource
                 // swap is skipped too (assembleDebug shares the failing compile) but stays
@@ -422,18 +422,21 @@ class WatchSession(private val config: Config) {
         device: DeviceClient,
         snapshot: Map<String, SnapshotEntry>,
         t0: Long,
-    ) {
-        val baseline = baselineText[ktFile] ?: return
-        val rel = sourceRelative(ktFile) ?: return
+    ): Boolean {
+        val baseline = baselineText[ktFile] ?: return false
+        val rel = sourceRelative(ktFile) ?: return false
         val entries = literalTable.entriesFor(rel)
-        if (entries.isEmpty()) return
-        val updated = runCatching { Files.readString(ktFile) }.getOrNull() ?: return
-        val push = LiteralFastPath.detect(baseline, updated, entries) ?: return
+        if (entries.isEmpty()) return false
+        val updated = runCatching { Files.readString(ktFile) }.getOrNull() ?: return false
+        val push = LiteralFastPath.detect(baseline, updated, entries) ?: return false
         try {
             device.literalUpdate(push.key, push.helperClass, enclosingKey(push, snapshot), push.type, push.value)
             println("literal-pushed: ${push.key} = ${push.value} in ${elapsedMs(t0)}ms")
+            baselineText[ktFile] = updated
+            return true
         } catch (t: Throwable) {
             println("literal fast path failed (${t.message}) — falling back to full swap")
+            return false
         }
     }
 

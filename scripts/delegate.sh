@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
-# Delegate a task spec to Antigravity CLI (headless). Usage: scripts/delegate.sh tasks/T01-repo-skeleton.md ["Model Name"]
-# Claude runs this in the background, then reviews with the spec's Acceptance commands.
+# Delegate a task spec to Antigravity CLI (headless).
+# Usage: scripts/delegate.sh tasks/T01-repo-skeleton.md "Model Name"
+# The coordinator may run this in the background, then reviews the Acceptance commands.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
+
+if [[ $# -ne 2 ]]; then
+  echo 'usage: scripts/delegate.sh <task-spec.md> "<Model Name>"' >&2
+  echo 'run `agy models` first and choose the least expensive capable model' >&2
+  exit 2
+fi
+
 SPEC="$1"
-MODEL="${2:-Claude Opus 4.6 (Thinking)}"
+MODEL="$2"
 cd "$REPO_ROOT"
 [ -f "$SPEC" ] || { echo "no such spec: $SPEC"; exit 1; }
 

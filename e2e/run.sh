@@ -2,6 +2,8 @@
 set -euo pipefail
 export PKG=dev.hotreload.sample
 source "$(dirname "$0")/../scripts/env.sh"
+CONFIG_DIR=$(mktemp -d)
+export HOTRELOAD_CONFIG_DIR="$CONFIG_DIR"
 
 START_TIME=$(date +%s)
 
@@ -57,6 +59,7 @@ cleanup() {
     git -C "$REPO_ROOT" checkout -- "$DRAWABLE" "$HOT_PHOTO" 2>/dev/null || true
     rm -f "$WIDGETS"
     rm -f "$WATCH_LOG"
+    rm -rf "$CONFIG_DIR"
 }
 trap cleanup EXIT
 
@@ -64,8 +67,8 @@ trap cleanup EXIT
 # double-swap everything this run does.
 kill_watch
 
-echo "--- Starting watch loop ---"
-(cd "$REPO_ROOT" && ./gradlew -q :cli:run --args="watch --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample") > "$WATCH_LOG" 2>&1 &
+echo "--- Starting configured start loop ---"
+(cd "$REPO_ROOT" && ./gradlew -q :cli:run --args="start --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample") > "$WATCH_LOG" 2>&1 &
 WATCH_PID=$!
 
 echo "Waiting for 'watching ' in log..."
@@ -80,6 +83,22 @@ while ! grep -q "watching " "$WATCH_LOG"; do
     sleep 1
 done
 echo "Watch loop ready."
+grep -Eq 'start: preparing \(.*no build fingerprint' "$WATCH_LOG" || {
+    echo "Configured start did not prepare the fixture through its start path."
+    cat "$WATCH_LOG"
+    exit 1
+}
+echo "PASS: configured start fixture path"
+# `start` prepared the fixture because this isolated config directory has no prior
+# fingerprint. Prepare force-stops and relaunches, so subsequent same-process assertions
+# must use the post-start PID rather than the manual pre-start launch above.
+INITIAL_PID=$(adb shell pidof dev.hotreload.sample || echo DEAD)
+if [ "$INITIAL_PID" = "DEAD" ]; then
+    echo "App failed to start through configured start path."
+    cat "$WATCH_LOG"
+    exit 1
+fi
+echo "Post-start PID: $INITIAL_PID"
 
 wait_for_hotswap() {
     local initial_count="$1"

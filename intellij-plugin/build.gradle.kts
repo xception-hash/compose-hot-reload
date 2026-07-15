@@ -17,6 +17,7 @@ repositories {
 }
 
 dependencies {
+    implementation("com.google.code.gson:gson:2.11.0")
     intellijPlatform {
         // Build/run against IntelliJ IDEA Community; the plugin also loads in Android Studio
         // (it only uses core platform APIs: status bar, actions, project settings).

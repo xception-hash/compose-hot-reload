@@ -1,6 +1,27 @@
 package dev.hotreload.client
 
 import android.util.Log
+import java.lang.reflect.Modifier
+
+internal fun setLiveLiteralBackingField(helper: Class<*>, key: String, value: Any) {
+    val enabled = helper.declaredFields
+        .firstOrNull { it.name == "enabled" && it.type == Boolean::class.javaPrimitiveType }
+        ?.apply { isAccessible = true }
+        ?: error("no boolean 'enabled' field on ${helper.name}")
+    require(Modifier.isStatic(enabled.modifiers)) { "'enabled' is not static on ${helper.name}" }
+
+    val backing = helper.declaredFields
+        .firstOrNull { it.name == key }
+        ?.apply { isAccessible = true }
+        ?: error("no backing field '$key' on ${helper.name}")
+    require(Modifier.isStatic(backing.modifiers)) { "backing field '$key' is not static" }
+    require(!Modifier.isFinal(backing.modifiers)) { "backing field '$key' is final" }
+
+    // Keep the generated getter on its direct backing-field branch. Enabling the helper would
+    // switch it to a lazily-created State that the existing composition has never observed.
+    enabled.setBoolean(null, false)
+    backing.set(null, value)
+}
 
 /**
  * Reflection shims into Compose runtime internals (surface documented in
@@ -86,27 +107,73 @@ object ComposeBridge {
      * Route (confirmed live at Compose BOM 2026.06.01): the static field
      * `Recomposer._runningRecomposers` (a MutableStateFlow) → its value (Set of
      * RecomposerInfoImpl) → each element's synthetic `this$0` (the owning Recomposer) →
-     * the Recomposer's `_knownCompositions` (List<ControlledComposition>) →
-     * `invalidateAll()` on each. Field names carry the underscore prefix and the
-     * composition list lives on the Recomposer INSTANCE, not the Companion. Must run on
-     * the main thread.
+     * the Recomposer's `_knownCompositions` (List<ControlledComposition>) → `invalidateAll()` on
+     * each. Field names carry the underscore prefix and the composition list lives on the
+     * Recomposer INSTANCE, not the Companion. Must run on the main thread.
      */
     fun invalidateAllCompositions(): Boolean {
         return try {
             val compositions = knownCompositions() ?: return false
             var count = 0
-            for (c in compositions) {
-                val m = c.javaClass.methods
+            for (composition in compositions) {
+                val invalidate = composition.javaClass.methods
                     .firstOrNull { it.name == "invalidateAll" && it.parameterCount == 0 }
                     ?.apply { isAccessible = true }
-                    ?: run { Log.e(TAG, "invalidateAll not found on ${c.javaClass.name}"); return false }
-                m.invoke(c)
+                    ?: run { Log.e(TAG, "invalidateAll not found on ${composition.javaClass.name}"); return false }
+                invalidate.invoke(composition)
                 count++
             }
             Log.i(TAG, "invalidateAll on $count compositions OK")
             true
         } catch (t: Throwable) {
             Log.e(TAG, "invalidateAllCompositions failed", t)
+            false
+        }
+    }
+
+    /** Force stable scopes to execute for a keyless code change without discarding slots. */
+    fun forceRecomposeAllCompositions(): Boolean = recomposeAllCompositionsNow()
+
+    /**
+     * Synchronously re-run every root composition with its existing content lambda after disabling
+     * scope skipping. Unlike live-edit's keyed invalidation this keeps the slot table in place, so
+     * unchanged groups retain their remembered values. Used when a generated live-literal backing
+     * field changes: the field is not snapshot state, so merely requesting a frame cannot make a
+     * skipped scope read it.
+     */
+    private fun recomposeAllCompositionsNow(): Boolean {
+        return try {
+            val compositions = knownCompositions() ?: return false
+            var count = 0
+            for (composition in compositions) {
+                val composerField = declaredField(composition.javaClass, "composer")
+                    ?: run { Log.e(TAG, "composer field not found on ${composition.javaClass.name}"); return false }
+                val composer = composerField.get(composition)
+                    ?: run { Log.e(TAG, "composer is null"); return false }
+                val force = composer.javaClass.methods
+                    .firstOrNull {
+                        it.name.substringBefore('$') == "forceRecomposeScopes" &&
+                            it.parameterCount == 0
+                    }
+                    ?.apply { isAccessible = true }
+                    ?: run { Log.e(TAG, "forceRecomposeScopes not found on ${composer.javaClass.name}"); return false }
+                force.invoke(composer)
+
+                val contentField = declaredField(composition.javaClass, "composable")
+                    ?: run { Log.e(TAG, "composable field not found on ${composition.javaClass.name}"); return false }
+                val content = contentField.get(composition)
+                    ?: run { Log.e(TAG, "composable content is null"); return false }
+                val setContent = composition.javaClass.methods
+                    .firstOrNull { it.name == "setContent" && it.parameterCount == 1 }
+                    ?.apply { isAccessible = true }
+                    ?: run { Log.e(TAG, "setContent not found on ${composition.javaClass.name}"); return false }
+                setContent.invoke(composition, content)
+                count++
+            }
+            Log.i(TAG, "setContent on $count compositions OK")
+            true
+        } catch (t: Throwable) {
+            Log.e(TAG, "recomposeAllCompositionsNow failed", t)
             false
         }
     }
@@ -230,112 +297,25 @@ object ComposeBridge {
     }
 
     /**
-     * `androidx.compose.runtime.internal.LiveLiteralKt` — the live-literals runtime
-     * (T24). Present only when the app was compiled with the Compose compiler's
-     * live-literals codegen (`-Photreload.liveLiterals=true`); null otherwise.
-     */
-    private val liveLiteralKt: Class<*>? by lazy {
-        try {
-            Class.forName("androidx.compose.runtime.internal.LiveLiteralKt")
-        } catch (t: Throwable) {
-            Log.e(TAG, "LiveLiteralKt unavailable (app not built with liveLiterals?)", t)
-            null
-        }
-    }
-
-    /** Global live-literals flag: idempotent, enabled once per process. */
-    @Volatile
-    private var literalsEnabled = false
-
-    /** Helper classes whose per-file `enabled` flag we have already flipped. */
-    private val enabledHelpers = java.util.Collections.synchronizedSet(HashSet<String>())
-
-    /**
      * Live-literals fast path (T24): set [key] (owned by [helperClass]) to [value] in place.
      *
-     * Live-literals **v2** gates each generated getter on TWO flags, both of which we must
-     * flip (mirrors AOSP `LiveLiteralSupport.enableGlobal` + `enableHelperClass`):
-     *  1. the global `LiveLiteralKt.isLiveLiteralsEnabled`, and
-     *  2. a per-file `enabled` boolean field on the `LiveLiterals$*Kt` [helperClass] itself
-     *     — WITHOUT this the getter returns its compile-time default and the update is
-     *     invisible (the bug that made v1 stick on screen).
-     *
-     * Then `LiveLiteralKt.updateLiveLiteralValue(key, value)` writes into the Compose
-     * `MutableState` backing the literal, and we recompose so the getter re-reads it.
-     *
-     * Recomposition is the subtle part. We enable lazily (to keep the flag's cost off
-     * non-`--literals` runs), so the composition that first drew the literal took the
-     * disabled branch and isn't subscribed to the state. A plain [invalidateAllCompositions]
-     * marks the scopes invalid but does NOT wake the Recomposer's frame loop when the app is
-     * idle — verified live: the value only appeared on the *next* unrelated edit. The
-     * Recomposer's own hot-reload entrypoint [invalidateGroupsWithKey] DOES wake it, so we
-     * invalidate the enclosing composable's key ([invalidateKey]); combined with the whole-
-     * tree invalidate (marks every scope, incl. the literal's) the pumped frame drains them
-     * all with `remember`/`rememberSaveable` preserved. Names are matched by prefix to
-     * tolerate `$runtime_release` mangling. Must run on the main thread.
+     * Live-literals v2 emits a mutable static field named exactly [key], plus an `enabled`
+     * switch. The disabled getter branch reads that field directly. Updating the generated field
+     * while leaving the helper disabled avoids switching an already-rendered composition to a
+     * lazily-created `State` it has never observed. A state-preserving whole-tree invalidation then
+     * makes the getter re-read the field without bashing the enclosing group (which Compose's keyed
+     * hot-reload invalidation would do). [invalidateKey] remains in the protocol for compatibility
+     * and diagnostics. Must run on the main thread.
      */
     fun updateLiteral(key: String, helperClass: String, invalidateKey: Int, value: Any): Boolean {
         return try {
-            val cls = liveLiteralKt ?: return false
-            if (!literalsEnabled) {
-                val enabledField = cls.declaredFields
-                    .firstOrNull { it.name.startsWith("isLiveLiteralsEnabled") }
-                    ?.apply { isAccessible = true }
-                if (enabledField?.getBoolean(null) != true) {
-                    val enable = cls.declaredMethods
-                        .firstOrNull { it.name.startsWith("enableLiveLiterals") && it.parameterCount == 0 }
-                        ?.apply { isAccessible = true }
-                        ?: run { Log.e(TAG, "enableLiveLiterals not found"); return false }
-                    enable.invoke(null)
-                }
-                literalsEnabled = true
-            }
-            if (enabledHelpers.add(helperClass) && !enableHelper(helperClass)) return false
-
-            val update = cls.declaredMethods
-                .firstOrNull { it.name.startsWith("updateLiveLiteralValue") && it.parameterCount == 2 }
-                ?.apply { isAccessible = true }
-                ?: run { Log.e(TAG, "updateLiveLiteralValue not found"); return false }
-            update.invoke(null, key, value)
-            // Mark every scope invalid (incl. the literal's), then wake the Recomposer. The
-            // whole-tree invalidate alone won't pump a frame; invalidateGroupsWithKey on the
-            // enclosing composable does. If the engine couldn't resolve a key, fall back to a
-            // forced frame (best-effort — may lag until the next natural frame).
-            invalidateAllCompositions()
-            if (invalidateKey != 0) invalidateGroupsWithKey(invalidateKey) else pumpFrame()
+            val helper = Class.forName(helperClass, false, javaClass.classLoader)
+            setLiveLiteralBackingField(helper, key, value)
+            if (!forceRecomposeAllCompositions()) return false
             Log.i(TAG, "updateLiteral($helperClass#$key = $value, invKey=$invalidateKey) OK")
             true
         } catch (t: Throwable) {
             Log.e(TAG, "updateLiteral($key) failed", t)
-            false
-        }
-    }
-
-    /**
-     * Force a Choreographer frame so the Recomposer's frame clock ticks and it drains any
-     * pending recompositions (an `invalidateAll` with no other activity would otherwise sit
-     * until the next natural frame). Best-effort; must run on the main thread.
-     */
-    private fun pumpFrame() {
-        try {
-            android.view.Choreographer.getInstance().postFrameCallback { }
-            ActivityTracker.current?.window?.decorView?.invalidate()
-        } catch (t: Throwable) {
-            Log.w(TAG, "pumpFrame failed", t)
-        }
-    }
-
-    /** Flip the per-file `enabled` flag on a `LiveLiterals$*Kt` class (live-literals v2). */
-    private fun enableHelper(helperClass: String): Boolean {
-        return try {
-            val helper = Class.forName(helperClass, false, javaClass.classLoader)
-            val enabled = helper.declaredFields.firstOrNull { it.name == "enabled" }
-                ?.apply { isAccessible = true }
-                ?: run { Log.e(TAG, "no 'enabled' field on $helperClass"); return false }
-            enabled.setBoolean(null, true)
-            true
-        } catch (t: Throwable) {
-            Log.e(TAG, "enableHelper($helperClass) failed", t)
             false
         }
     }

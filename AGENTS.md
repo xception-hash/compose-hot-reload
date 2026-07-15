@@ -76,7 +76,37 @@ adb exec-out screencap -p > /tmp/shot.png
 ## 5. Don'ts
 
 - Don't use `scripts/dev-install.sh`, `emulator-up.sh`, `taps.sh`, `ui-state.sh`,
-  `stats.sh`, or other `scripts/*.sh` beyond `env.sh` — they are maintainer-internal and
-  hardcode the maintainer's toy app and AVD.
+  `stats.sh`, or other maintainer-internal scripts that hardcode the maintainer's toy app
+  and AVD. `scripts/env.sh` and `scripts/delegate.sh` are explicitly allowed for their
+  documented workflows.
 - Don't edit source files while `initial build...` is still pending.
 - Don't parse timing numbers as pass/fail — only the log lines in §3 are the contract.
+
+## 6. Delegation and model cost
+
+The project owner prefers bounded, independent work to be delegated through
+Antigravity CLI (`agy`) when that reduces use of the primary agent's token budget.
+
+- Before delegating, run `agy models` and select the least expensive model capable of
+  the task. Prefer a lower-cost GPT model such as GPT-5.4 or GPT-5.5 if one is listed;
+  otherwise prefer a Flash/Low/Medium or similar lower-cost tier for routine work.
+- **Temporary quota constraint (recorded 2026-07-15): Claude Opus 4.6 quota is empty.**
+  Do not select Opus 4.6 until the project owner explicitly confirms that its quota has
+  reset. A model appearing in `agy models` does not prove that quota is available.
+- Invoke `agy` non-interactively with `--print` and an explicit `--model`, preferably
+  through `scripts/delegate.sh`. Give it a narrowly scoped prompt and require a concise
+  result. Never rely on an implicit/default model.
+- Use built-in generic sub-agents only when `agy` is unavailable, fails, or lacks a
+  capability required by the task. Built-in delegation currently does not guarantee
+  selection of a lower-cost model.
+- Do not delegate trivial work when coordination and returned output would consume
+  more tokens than completing it directly.
+- Treat model availability as dynamic. Do not rely on a model list recorded in this
+  file; query `agy models` in each future session.
+- For a long-running task that the owner may execute later, write a decision-complete
+  spec under `tasks/T<NN>-<name>.md` instead of leaving the plan only in chat. Include a
+  recommended model, at least one fallback from a different model family when possible,
+  the exact `scripts/delegate.sh` command, explicit out-of-scope boundaries, and exact
+  acceptance commands. Do not dispatch it unless the owner asks for immediate execution.
+- The coordinator remains responsible for reviewing the resulting diff and running the
+  acceptance gates; delegated output is never accepted solely from the worker's report.

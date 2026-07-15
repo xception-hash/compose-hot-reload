@@ -174,6 +174,10 @@ target builds pinned to another JDK, use:
 The plugin wires runtime-client into every debuggable build type automatically, so a
 custom debuggable build type like `stage` above needs no hand-added dependency.
 
+For a complete, project-agnostic example covering profiles, nonstandard module directories,
+target JDKs, configured versus zero-touch startup, and the CI compatibility matrix, see
+[Project configuration and compatibility](docs/project-configuration.md).
+
 `--module-variant` overrides the global app variant for modules where Gradle variant
 matching selects a differently named library variant; it and `--gradle-arg` are repeatable.
 
@@ -336,7 +340,11 @@ An IntelliJ IDEA / Android Studio plugin is available for driving hot reload fro
 - Spawns the `hotreload` CLI (`hotreload watch …`) and reflects its state in the status bar.
 - Status-bar widget shows: `Hot Reload: off / starting… / ready (Nms) / reloading… / error(n) / rebuild needed`. Click it to Start/Stop.
 - **Tools ▸ Start/Stop Hot Reload** menu toggle.
-- **Settings ▸ Tools ▸ Compose Hot Reload** for CLI path, project dir, app id, modules, and extra CLI args (persisted per-project).
+- **Settings ▸ Tools ▸ Compose Hot Reload** for structured project/profile settings. Use **Refresh
+  discovery** to populate editable app-module, debuggable-variant, application-id, and watched-module
+  choices; the page previews the resolved `hotreload watch` command. Target JDK, device, SDK,
+  literals, zero-touch, repeatable Gradle args, and one-token-per-line advanced overrides are also
+  persisted per project.
 - Balloons on failure: reload error (with first compiler/recompose error) and rebuild-required notice.
 
 **Install from disk:**

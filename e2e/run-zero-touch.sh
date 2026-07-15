@@ -130,7 +130,7 @@ run_inspect() {
         --zero-touch \
         --project "$project" \
         --project-java-home "$java_home" \
-        "${GRADLE_ARGS[@]}" \
+        "${GRADLE_ARGS[@]+${GRADLE_ARGS[@]}}" \
         --json > "$log"
 
     grep -Eq "\"gradleVersion\"[[:space:]]*:[[:space:]]*\"$expected_gradle\"" "$log" \
@@ -153,7 +153,7 @@ run_configure() {
         --project "$project" \
         --variant "$variant" \
         --project-java-home "$java_home" \
-        "${GRADLE_ARGS[@]}" \
+        "${GRADLE_ARGS[@]+${GRADLE_ARGS[@]}}" \
         --save-as "$profile"
 
     local toml="$CONFIG_DIR/projects/$profile.toml"
@@ -273,13 +273,17 @@ assert_bootstrap_build() {
     assert_instrumented_apk "$project" "$apk_dir"
 
     local classes
-    classes="$(find "$project" -type f -path "*/$variant/*" -name 'MainActivityKt.class' | head -1)"
-    [ -n "$classes" ] || fail "bootstrap build produced no MainActivityKt.class"
-    "$java_home/bin/javap" -v "$classes" | grep -q 'FunctionKeyMeta' \
+    classes="$(find "$project" -type f -path "*/$variant/*" -name '*.class')"
+    [ -n "$classes" ] || fail "bootstrap build produced no Kotlin classes"
+    local class_metadata
+    class_metadata="$(find "$project" -type f -path "*/$variant/*" -name '*.class' -exec "$java_home/bin/javap" -v {} +)"
+    [[ "$class_metadata" == *FunctionKeyMeta* ]] \
         || fail "bootstrap build omitted FunctionKeyMeta compiler instrumentation"
     find "$project" -type f -path "*/$variant/*" -name 'LiveLiterals*$*Kt.class' | grep -q . \
         || fail "bootstrap --literals build produced no LiveLiterals helper"
-    if "$java_home/bin/javap" -c -p "$classes" | grep -q invokedynamic; then
+    local class_bytecode
+    class_bytecode="$(find "$project" -type f -path "*/$variant/*" -name '*.class' -exec "$java_home/bin/javap" -c -p {} +)"
+    if [[ "$class_bytecode" == *invokedynamic* ]]; then
         fail "bootstrap build emitted invokedynamic despite deterministic class-shape flags"
     fi
     assert_tree_clean "$project" "instrumented zero-touch assemble"
@@ -458,22 +462,32 @@ assert_pid() {
     [ "$current" = "$initial_pid" ] || fail "PID changed for $package_name: expected $initial_pid, got ${current:-DEAD}"
 }
 
-start_watch() {
+start_session() {
+    local command="$1"
+    shift
     local project="$1"
     local java_home="$2"
     local variant="$3"
     shift 3
     WATCH_LOG="$(mktemp "${TMPDIR:-/tmp}/hotreload-zero-touch-watch.XXXXXX")"
-    "$CLI" watch \
+    "$CLI" "$command" \
         --zero-touch \
         --project "$project" \
         --variant "$variant" \
         --project-java-home "$java_home" \
         --device "$SERIAL" \
-        "${GRADLE_ARGS[@]}" \
+        "${GRADLE_ARGS[@]+${GRADLE_ARGS[@]}}" \
         "$@" > "$WATCH_LOG" 2>&1 &
     WATCH_PID=$!
     wait_for_ready
+}
+
+start_watch() {
+    start_session watch "$@"
+}
+
+start_zero_touch() {
+    start_session start "$@"
 }
 
 stop_watch() {
@@ -489,21 +503,14 @@ stop_watch() {
 echo "--- Device fixture: AGP 9 zero-touch + live literals ---"
 AGP9_PACKAGE="dev.hotreload.fixture.agp9.qa"
 adb -s "$SERIAL" uninstall "$AGP9_PACKAGE" >/dev/null 2>&1 || true
-"$CLI" prepare \
-    --zero-touch \
-    --literals \
-    --project "$AGP9_PROJECT" \
-    --variant qa \
-    --project-java-home "$JAVA_HOME" \
-    --device "$SERIAL" \
-    "${GRADLE_ARGS[@]}"
+start_zero_touch "$AGP9_PROJECT" "$JAVA_HOME" qa --literals
 AGP9_PID="$(wait_for_pid "$AGP9_PACKAGE")"
 assert_instrumented_apk "$AGP9_PROJECT" "qa"
-assert_tree_clean "$AGP9_PROJECT" "zero-touch prepare"
-start_watch "$AGP9_PROJECT" "$JAVA_HOME" qa --literals
+grep -q 'start: preparing (app not installed' "$WATCH_LOG" \
+    || fail "zero-touch start did not prepare the absent fixture app"
+assert_tree_clean "$AGP9_PROJECT" "zero-touch start readiness"
 grep -q 'live-literals fast path enabled' "$WATCH_LOG" \
     || fail "matching --literals watcher did not enable the fast path"
-assert_tree_clean "$AGP9_PROJECT" "zero-touch watch readiness"
 assert_ui 'Agp9 resource'
 tap_button 'Count: ' 2
 assert_ui 'Count: 2'
@@ -534,7 +541,7 @@ assert_pid "$AGP9_PACKAGE" "$AGP9_PID"
 stop_watch
 git -C "$AGP9_PROJECT" restore .
 assert_tree_clean "$AGP9_PROJECT" "AGP 9 edit restoration"
-echo "PASS: AGP 9 zero-touch prepare/watch/compiled/literal/resource paths"
+echo "PASS: AGP 9 zero-touch start/compiled/literal/resource paths"
 
 if [ "$JAVA17_ENABLED" -eq 1 ]; then
     echo "--- Device fixture: AGP 8 zero-touch / JDK 17 ---"
@@ -546,7 +553,7 @@ if [ "$JAVA17_ENABLED" -eq 1 ]; then
         --variant internalStage \
         --project-java-home "$JAVA17_HOME" \
         --device "$SERIAL" \
-        "${GRADLE_ARGS[@]}"
+        "${GRADLE_ARGS[@]+${GRADLE_ARGS[@]}}"
     AGP8_PID="$(wait_for_pid "$AGP8_PACKAGE")"
     assert_instrumented_apk "$AGP8_PROJECT" "internal/stage"
     assert_tree_clean "$AGP8_PROJECT" "AGP 8 zero-touch prepare"

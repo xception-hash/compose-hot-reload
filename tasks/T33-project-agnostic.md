@@ -1,5 +1,5 @@
 # T33: Project-agnostic hot reload — generalization roadmap
-Status: TODO
+Status: DONE (2026-07-15)
 Assignee: agy (phases 1–6), maintainer (phases 7–10)
 
 ## Goal
@@ -298,23 +298,23 @@ Assignee: maintainer — **core wiring fix DONE (`tasks/T33b-plugin-variant-wiri
 merged in PR #11)**; version-locking + doctor metadata checks remain
 maintainer/coordinator work.
 
-### Phase 8 — Zero-touch bootstrap / init-script mode
+### Phase 8 — ✅ DONE (2026-07-15): Zero-touch bootstrap / init-script mode
 Bundle bootstrap plugin + runtime AAR. Generate init script. No target-project
 modifications.
 
-Assignee: maintainer
+Assignee: maintainer — T33h complete; configured and zero-touch fixture/device acceptance passed
 
-### Phase 9 — Update IDE plugin to consume discovery and profiles
+### Phase 9 — ✅ DONE (2026-07-15): Update IDE plugin to consume discovery and profiles
 Structured controls, dropdown discovery values, profile support, resolved CLI command
 display.
 
-Assignee: maintainer
+Assignee: maintainer — structured controls, schema-v1 discovery, profiles, and resolved command complete
 
-### Phase 10 — Compatibility matrix and generic documentation
+### Phase 10 — ✅ DONE (2026-07-15): Compatibility matrix and generic documentation
 Run the full fixture matrix. Convert the case-study guide into a generic advanced
 configuration example. AGP 8 + flavored-variant sample for CI.
 
-Assignee: maintainer
+Assignee: maintainer — CI fixtures, two-mode `start` acceptance, and generic documentation complete
 
 ## Agent execution guide
 
