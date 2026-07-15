@@ -65,7 +65,7 @@ jobs:
             "ndk;28.2.13676358" \
             "cmake;3.22.1"
 
-      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+      - uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
 
       # scripts/icon-pixel.sh reads a screencap centre-pixel via Pillow for the
       # drawable/bitmap cases (11-13) — every other case uses uiautomator text
@@ -79,7 +79,7 @@ jobs:
       # (run.sh deletes its mktemp watch log in its trap; on timeouts it tails that
       # log to stdout, so the tee captures it).
       - name: Run e2e gate
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
         with:
           api-level: 36
           arch: x86_64
@@ -150,7 +150,7 @@ jobs:
             "ndk;28.2.13676358" \
             "cmake;3.22.1"
 
-      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+      - uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
 
       - name: Install Pillow (icon-pixel screencap reader)
         run: sudo apt-get update && sudo apt-get install -y python3-pil
@@ -168,7 +168,7 @@ jobs:
         run: JAVA17_HOME="$JAVA17_HOME" bash e2e/run-zero-touch.sh --host-only
 
       - name: Run offline zero-touch compatibility gate
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
         with:
           api-level: 36
           arch: x86_64

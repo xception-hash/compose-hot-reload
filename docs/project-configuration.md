@@ -24,9 +24,7 @@ hotreload configure \
   --app-id com.example.client.stage \
   --variant partnerStage \
   --project-java-home /opt/jdks/temurin-17 \
-  --module :androidApp=apps/android-client \
-  --module :feature=features/payments \
-  --module :shared=shared/domain \
+  --module :androidApp=apps/android-client,:feature=features/payments,:shared=shared/domain \
   --module-variant :feature=partnerStage \
   --gradle-arg -PfeatureToggle=true \
   --gradle-arg --parallel \
@@ -61,8 +59,7 @@ hotreload configure \
   --app-id com.example.client.stage \
   --variant partnerStage \
   --project-java-home /opt/jdks/temurin-17 \
-  --module :androidApp=apps/android-client \
-  --module :feature=features/payments \
+  --module :androidApp=apps/android-client,:feature=features/payments \
   --module-variant :feature=partnerStage \
   --gradle-arg -PfeatureToggle=true \
   --device emulator-5554 \
