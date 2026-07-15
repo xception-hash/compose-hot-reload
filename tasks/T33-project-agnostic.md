@@ -266,7 +266,7 @@ re-trigger discovery)
 Obtain compile output dirs, APK paths, and resource directories from Gradle task
 inputs/outputs and AGP built-artifacts API rather than hardcoded directory conventions.
 
-Assignee: agy — **spec ready (`tasks/T33f-output-metadata.md`)**
+Assignee: agy — **DONE (`tasks/T33f-output-metadata.md`, merged in PR #16)**
 (design fixed: schema v1 already carries the metadata — T33f consumes it host-side;
 per-field metadata-first/convention-fallback in ModuleSpec via a `ModuleMetadata`
 map on ProjectConfig; profiles get a machine-managed `<name>.discovery.json`
@@ -278,7 +278,16 @@ variant/applicationId checks before any newest-mtime fallback)
 End-to-end `hotreload start`: doctor → build → install → launch → watch. Record and
 validate build fingerprints.
 
-Assignee: agy
+Assignee: agy — **DONE (`tasks/T33g-prepare-start.md`, PR #17: implemented by the
+coordinator, device gate all-PASS 2026-07-15)**
+(design fixed: fingerprint = host-side JSON per (device, app) under the config
+dir, bound to the device's post-install base.apk sha256; refuse-to-watch ONLY on
+positively-known mismatch — unknown provenance warns and proceeds, absent file is
+byte-silent (e2e freeze); prepare = fail-fast serial → assemble via the exact
+watch GradleCompiler expression (literals mode identical) → ApkLocator →
+adb install -r → force-stop → AppLauncher launch → fingerprint; start = doctor
+runChecked → prepare when app missing / handshake hard-fails / fingerprint not
+clean → the same watch path)
 
 ### Phase 7 — Generalize configured-mode Gradle plugin variant handling
 Fix `debugImplementation` to follow the selected debuggable variant. Handle all module
@@ -312,13 +321,10 @@ Assignee: maintainer
 How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks up T33
 work without a human in the loop:
 
-**Order.** Phases 1, 2, 3, 4, and 7 are DONE (T33a/T33c/T33b merged; T33d in PR #14;
-T33e in PR #15). **Phase 5 is the one dispatch-ready spec: `tasks/T33f-output-metadata.md`**
-(all design decisions fixed by the coordinator — implement it exactly). Phase 6 must
-follow phase 5 (it builds on its types) and still needs its spec written by a
-coordinator session first — it contains real design decisions (fingerprint format,
-prepare/start orchestration) that must NOT be improvised by the executing agent.
-Phases 8–10 are maintainer-led.
+**Order.** Phases 1–7 are DONE (T33a/T33c/T33b merged; T33d in PR #14; T33e in
+PR #15; T33f in PR #16; T33g/phase 6 in PR #17). No dispatch-ready spec remains —
+phases 8–10 are maintainer-led and need coordinator design sessions before any
+delegation.
 
 **Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
 1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed

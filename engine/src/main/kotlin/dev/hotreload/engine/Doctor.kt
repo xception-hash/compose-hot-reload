@@ -16,8 +16,31 @@ class Doctor(
     private val variant: String get() = config.variant
     private val projectJavaHome: Path? get() = config.projectJavaHome
 
-    fun run(): Boolean {
+    /**
+     * Structured checks (T33 phase 6) so `start` can gate on the environment and decide
+     * whether `prepare` is needed. [run] is now `runChecked().ok`; every printed line is
+     * byte-identical and no check is added, removed, or reordered (doctor output is asserted
+     * by users/scripts). Doctor does NOT look at fingerprints (out of scope).
+     */
+    data class Result(
+        val ok: Boolean,           // == today's return value
+        val envOk: Boolean,        // java + sdk + device sections all passed
+        val appInstalled: Boolean,
+        val appDebuggable: Boolean,
+        val appRunning: Boolean,
+        val handshakeOk: Boolean?, // null = not attempted (app not running / earlier failure)
+    )
+
+    fun run(): Boolean = runChecked().ok
+
+    fun runChecked(): Result {
         var hasFail = false
+        var javaSectionOk = true
+        var deviceOk = false
+        var appInstalled = false
+        var appDebuggable = false
+        var appRunning = false
+        var handshakeOk: Boolean? = null
 
         fun ok(message: String) {
             println("[OK] $message")
@@ -38,7 +61,7 @@ class Doctor(
         // a. JAVA_HOME set + javac/java version >= 17
         val javaHome = System.getenv("JAVA_HOME")
         if (javaHome.isNullOrBlank()) {
-            fail("Java environment: JAVA_HOME is not set (fix: export JAVA_HOME=/path/to/jdk-17-or-newer)")
+            javaSectionOk = fail("Java environment: JAVA_HOME is not set (fix: export JAVA_HOME=/path/to/jdk-17-or-newer)")
         } else {
             val feature = try {
                 Runtime.version().feature()
@@ -46,11 +69,11 @@ class Doctor(
                 System.getProperty("java.version").split(".")[0].toIntOrNull() ?: 0
             }
             if (feature < 17) {
-                fail("Java environment: Java version is $feature (≥ 17 required) (fix: set JAVA_HOME to JDK 17 or newer)")
+                javaSectionOk = fail("Java environment: Java version is $feature (≥ 17 required) (fix: set JAVA_HOME to JDK 17 or newer)")
             } else {
                 val javacFile = File(javaHome, "bin/javac" + (if (isWindows) ".exe" else ""))
                 if (!javacFile.exists()) {
-                    fail("Java environment: javac not found at ${javacFile.absolutePath} (fix: point JAVA_HOME to a JDK installation, not a JRE)")
+                    javaSectionOk = fail("Java environment: javac not found at ${javacFile.absolutePath} (fix: point JAVA_HOME to a JDK installation, not a JRE)")
                 } else {
                     ok("Java environment (JAVA_HOME set, Java $feature ≥ 17)")
                 }
@@ -60,7 +83,7 @@ class Doctor(
         projectJavaHome?.let { home ->
             val javac = home.resolve("bin/javac" + if (isWindows) ".exe" else "")
             if (!Files.isDirectory(home) || !Files.isRegularFile(javac)) {
-                fail("Target project Java home: full JDK not found at $home")
+                javaSectionOk = fail("Target project Java home: full JDK not found at $home")
             } else {
                 ok("Target project Java home ($home)")
             }
@@ -110,6 +133,7 @@ class Doctor(
                         fail("Device connected: device API level is ${apiStr.trim().ifEmpty { "unknown" }} (≥ 30 required) (fix: use an emulator or device running Android 11 / API 30 or higher)")
                     } else {
                         deviceSerial = config.deviceSerial
+                        deviceOk = true
                         ok("Device connected: ${config.deviceSerial} (API $api ≥ 30)")
                     }
                 }
@@ -127,6 +151,7 @@ class Doctor(
                         fail("Device connected: device API level is ${apiStr.trim().ifEmpty { "unknown" }} (≥ 30 required) (fix: use an emulator or device running Android 11 / API 30 or higher)")
                     } else {
                         deviceSerial = serial
+                        deviceOk = true
                         ok("Device connected: $serial (API $api ≥ 30)")
                     }
                 }
@@ -197,11 +222,13 @@ class Doctor(
                 val installTask = "${app.gradlePath}:install${(app.variant ?: variant).taskSegment()}"
                 fail("App installed: package '$applicationId' is not installed (fix: install the app on device via ./gradlew $installTask)")
             } else {
+                appInstalled = true
                 val (runAsExit, runAsOutput) = adbRef.safeShell("run-as", applicationId, "id")
                 if (runAsExit != 0 || runAsOutput.contains("not debuggable") || runAsOutput.contains("unknown package")) {
                     fail("App debuggable: 'run-as $applicationId' failed ($runAsOutput) — app is not debuggable (fix: ensure debug build variant with android:debuggable=\"true\")")
                 } else {
                     appOk = true
+                    appDebuggable = true
                     ok("App installed and debuggable ($applicationId)")
                 }
             }
@@ -218,23 +245,25 @@ class Doctor(
             if (pid.isNullOrEmpty() || pid.toIntOrNull() == null) {
                 warn("Runtime handshake: app not running — hotreload watch will auto-launch it; start it manually and re-run doctor for the handshake check")
             } else {
+                appRunning = true
                 val localPort = try {
                     adbRef.forward(Protocol.deviceSocketName(applicationId))
                 } catch (t: Throwable) {
                     null
                 }
                 if (localPort == null) {
-                    fail("Runtime handshake: adb forward failed (fix: reinstall the app (stale runtime-client))")
+                    handshakeOk = fail("Runtime handshake: adb forward failed (fix: reinstall the app (stale runtime-client))")
                 } else {
                     try {
                         val caps = DeviceClient(port = localPort).use { it.ping() }
                         if (caps.protocolVersion != Protocol.VERSION) {
-                            fail("Runtime handshake: protocol version mismatch (device ${caps.protocolVersion} != engine ${Protocol.VERSION}) (fix: reinstall the app (stale runtime-client))")
+                            handshakeOk = fail("Runtime handshake: protocol version mismatch (device ${caps.protocolVersion} != engine ${Protocol.VERSION}) (fix: reinstall the app (stale runtime-client))")
                         } else {
+                            handshakeOk = true
                             ok("Runtime handshake: protocol v${caps.protocolVersion}, Compose runtime version: ${caps.composeVersion} (api=${caps.apiLevel}, redefine=${caps.canRedefine}, structural=${caps.canStructural}, inject=${caps.canInjectFile}, compose=${caps.composeBridgeOk})")
                         }
                     } catch (t: Throwable) {
-                        fail("Runtime handshake: failed to connect to app runtime (${t.message ?: t}) (fix: reinstall the app (stale runtime-client))")
+                        handshakeOk = fail("Runtime handshake: failed to connect to app runtime (${t.message ?: t}) (fix: reinstall the app (stale runtime-client))")
                     } finally {
                         try { adbRef.removeForward(localPort) } catch (_: Throwable) {}
                     }
@@ -242,6 +271,13 @@ class Doctor(
             }
         }
 
-        return !hasFail
+        return Result(
+            ok = !hasFail,
+            envOk = javaSectionOk && sdkOk && deviceOk,
+            appInstalled = appInstalled,
+            appDebuggable = appDebuggable,
+            appRunning = appRunning,
+            handshakeOk = handshakeOk,
+        )
     }
 }
