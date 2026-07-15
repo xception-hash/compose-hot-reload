@@ -278,7 +278,15 @@ variant/applicationId checks before any newest-mtime fallback)
 End-to-end `hotreload start`: doctor → build → install → launch → watch. Record and
 validate build fingerprints.
 
-Assignee: agy
+Assignee: agy — **spec ready (`tasks/T33g-prepare-start.md`)**
+(design fixed: fingerprint = host-side JSON per (device, app) under the config
+dir, bound to the device's post-install base.apk sha256; refuse-to-watch ONLY on
+positively-known mismatch — unknown provenance warns and proceeds, absent file is
+byte-silent (e2e freeze); prepare = fail-fast serial → assemble via the exact
+watch GradleCompiler expression (literals mode identical) → ApkLocator →
+adb install -r → force-stop → AppLauncher launch → fingerprint; start = doctor
+runChecked → prepare when app missing / handshake hard-fails / fingerprint not
+clean → the same watch path)
 
 ### Phase 7 — Generalize configured-mode Gradle plugin variant handling
 Fix `debugImplementation` to follow the selected debuggable variant. Handle all module
@@ -313,11 +321,10 @@ How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks
 work without a human in the loop:
 
 **Order.** Phases 1, 2, 3, 4, 5, and 7 are DONE (T33a/T33c/T33b merged; T33d in
-PR #14; T33e in PR #15; T33f in PR #16). Phase 6 is next — its spec
-(`tasks/T33g-prepare-start.md`) is written by a coordinator session with all design
-decisions fixed (fingerprint format, prepare/start orchestration); once that spec
-exists it is the one dispatch-ready item — implement it exactly, never improvise
-its design calls. Phases 8–10 are maintainer-led.
+PR #14; T33e in PR #15; T33f in PR #16). **Phase 6 is the one dispatch-ready spec:
+`tasks/T33g-prepare-start.md`** (all design decisions fixed by the coordinator —
+implement it exactly, never improvise its design calls). Phases 8–10 are
+maintainer-led.
 
 **Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
 1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed

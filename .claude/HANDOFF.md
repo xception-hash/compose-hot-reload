@@ -22,33 +22,26 @@ to main, update memory, then ask the maintainer IN-TERMINAL whether to dispatch 
 §Phase 6 flipped to spec-ready, memory status updated, maintainer asked about
 dispatch.
 
-## PREFLIGHT RESULTS (this session)
-1. PR #16 MERGED ✅ (see above). Housekeeping commit pending on main.
+## PREFLIGHT RESULTS (this session — ALL DONE)
+1. PR #16 MERGED ✅; housekeeping committed (T33 §Phase 5 DONE flip, 6c59e74).
 2. Marketplace 0.1.4: STILL in JB moderation (`hasUnapprovedUpdate: true`,
    approved-updates list empty, downloads=2) — nothing actionable.
-3. Telegram bridge debug — NOT yet done this session (next preflight step).
+3. Telegram bridge FIXED ✅ — root cause: pingjay auto-switched to the pingme
+   backend on 2026-07-12 (its CLI + venv appeared); pingme reports "sent"
+   (exit 0) but FCM delivery never reaches the phone. Telegram itself works.
+   Fix: pingme route in `~/.claude/bin/pingjay` now gated behind
+   `PINGJAY_USE_PINGME=1`; verified pingjay → Telegram (message_id 47).
 
-## NEXT STEPS (in order)
-1. Commit housekeeping (T33 §Phase 5 DONE flip + this file) — grep gate first.
-2. Debug Telegram bridge: `--notify` test, check credentials file + `--protocol`;
-   fix or report exactly what's broken. Until fixed: ask maintainer in-terminal.
-3. Write tasks/T33g-prepare-start.md. Design inputs (coordinator FIXES these in
-   the spec, executing agent must not improvise):
-   - prepare = build → install → launch instrumented APK; start = doctor →
-     prepare-if-needed → watch. REUSE T33d ensureAppRunning + T33f
-     metadata/ApkLocator — no re-implementation. Sacred watch path untouched.
-   - Fingerprints: variant, modules, compiler flags, runtime version, JDK, gradle
-     args; refuse-to-watch on installed-APK/config mismatch (closes the
-     engine-baseline-dex-mismatch hole — stale APK silently corrupts slot table).
-   - Open decisions to fix: fingerprint format + storage (device? profile dir?
-     APK meta?); staleness detection vs installed APK; prepare sequencing vs
-     auto-launch; start composition; profile interaction.
-   - Template: tasks/T33f-output-metadata.md (host-only greppable markers,
-     run.sh/run-multi.sh byte-identical, device gate = coordinator, force-stop
-     apps between watch sessions).
-4. Commit spec (grep gate), flip T33 §Phase 6 to spec-ready, update memory
-   status, ask maintainer about dispatch IN-TERMINAL.
-5. After any agy run: check `git log` on main for the SessionEnd wip-commit gotcha.
+## MAIN TASK STATE
+- `tasks/T33g-prepare-start.md` WRITTEN (all design decisions fixed: host-side
+  JSON fingerprint bound to device base.apk sha256; refuse only on
+  positively-known mismatch, warn on unknown provenance, silent when absent;
+  prepare pipeline + start composition; 8 host markers).
+- T33 §Phase 6 flipped to spec-ready + agent-guide order paragraph updated.
+- NEXT: commit spec (grep gate first), update memory status, ask the maintainer
+  IN-TERMINAL whether to dispatch
+  `scripts/delegate.sh tasks/T33g-prepare-start.md` on "Gemini 3.5 Flash (High)".
+- After any agy run: check `git log` on main for the SessionEnd wip-commit gotcha.
 
 ## GOTCHAS (standing)
 - Confidentiality grep before EVERY commit (employer/name/home-path patterns per
