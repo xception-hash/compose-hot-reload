@@ -266,7 +266,7 @@ re-trigger discovery)
 Obtain compile output dirs, APK paths, and resource directories from Gradle task
 inputs/outputs and AGP built-artifacts API rather than hardcoded directory conventions.
 
-Assignee: agy — **spec ready (`tasks/T33f-output-metadata.md`)**
+Assignee: agy — **DONE (`tasks/T33f-output-metadata.md`, merged in PR #16)**
 (design fixed: schema v1 already carries the metadata — T33f consumes it host-side;
 per-field metadata-first/convention-fallback in ModuleSpec via a `ModuleMetadata`
 map on ProjectConfig; profiles get a machine-managed `<name>.discovery.json`
@@ -312,13 +312,12 @@ Assignee: maintainer
 How an agent (agy headless via `scripts/delegate.sh`, or any coding agent) picks up T33
 work without a human in the loop:
 
-**Order.** Phases 1, 2, 3, 4, and 7 are DONE (T33a/T33c/T33b merged; T33d in PR #14;
-T33e in PR #15). **Phase 5 is the one dispatch-ready spec: `tasks/T33f-output-metadata.md`**
-(all design decisions fixed by the coordinator — implement it exactly). Phase 6 must
-follow phase 5 (it builds on its types) and still needs its spec written by a
-coordinator session first — it contains real design decisions (fingerprint format,
-prepare/start orchestration) that must NOT be improvised by the executing agent.
-Phases 8–10 are maintainer-led.
+**Order.** Phases 1, 2, 3, 4, 5, and 7 are DONE (T33a/T33c/T33b merged; T33d in
+PR #14; T33e in PR #15; T33f in PR #16). Phase 6 is next — its spec
+(`tasks/T33g-prepare-start.md`) is written by a coordinator session with all design
+decisions fixed (fingerprint format, prepare/start orchestration); once that spec
+exists it is the one dispatch-ready item — implement it exactly, never improvise
+its design calls. Phases 8–10 are maintainer-led.
 
 **Rules (binding, from `docs/WORKFLOW.md` + `AGENTS.md`):**
 1. Implement the spec EXACTLY — nothing extra, nothing under "Out of scope". A needed
