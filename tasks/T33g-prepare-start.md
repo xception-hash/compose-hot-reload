@@ -1,6 +1,30 @@
 # T33g: prepare/start orchestration + build fingerprints (T33 phase 6)
-Status: IN-REVIEW
+Status: DONE
 Assignee: agy
+
+## Device gate (coordinator, 2026-07-15, emulator-5554) — ALL PASS
+Host acceptance re-run independently first: all 8 markers green (no-device paths via a
+bogus `--device zzz-no-such-device` serial, emulator attached). Then the full gate:
+- `./e2e/run.sh` all cases PASS (271s, literals SKIP as designed locally) +
+  `./e2e/run-multi.sh` 4/4 PASS (50s), both UNMODIFIED — no-fingerprint freeze proven on
+  a real device.
+- **Prepare smoke:** `build: :app:assembleDebug... ok` → `apk: … (output-metadata.json)`
+  → `installed:` → `launched:` → `fingerprint: written` → `prepared: … (debug,
+  literals=false)`; JSON on disk with all fields (protocolVersion 8, device sha256).
+- **Match smoke:** same-config watch → `fingerprint: OK (prepared …)` → watching → leaf
+  edit → `hot-swapped: 2 redefined, 4 groups invalidated in 1519ms`.
+- **Mismatch smoke (THE incident, closed):** `watch --literals` → `fingerprint: MISMATCH`
+  + `literals: recorded 'false' != resolved 'true'`, exit 1, no watch;
+  `--ignore-fingerprint` → skip line → watching.
+- **Outside-install smoke:** edited `:app:installDebug` over the prepared app → watch →
+  `fingerprint: installed APK changed outside 'hotreload prepare' — cannot verify build
+  mode…` → still proceeds to watching.
+- **Start smoke:** uninstalled multisample → `start` → doctor `[FAIL] App installed…` →
+  `start: preparing (app not installed, no build fingerprint)` → full prepare lines →
+  `fingerprint: OK` → watching → cross-module core edit → `hot-swapped: 1 redefined,
+  whole tree invalidated (no compose keys) in 905ms`.
+Cleanup: smoke fingerprints removed, pristine sample reinstalled, apps force-stopped,
+watchers pkilled.
 
 ## Outcome (host-only; device gate pending coordinator review)
 Implemented by the coordinator directly (not delegated to agy, at the maintainer's
