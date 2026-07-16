@@ -30,4 +30,30 @@ class HotReloadPreflightTest {
         assertTrue(zeroExit.ok)
         assertTrue(zeroExit.failures.isEmpty())
     }
+
+    @Test fun `parse retains raw output and exit code`() {
+        val result = HotReloadPreflight.parse(1, "hotreload: --sdk not given and ANDROID_HOME not set")
+        assertEquals(1, result.exitCode)
+        assertEquals("hotreload: --sdk not given and ANDROID_HOME not set", result.rawOutput)
+    }
+
+    @Test fun `notice for a fatal abort with no FAIL lines shows the raw output, not an empty bullet list`() {
+        val fatal = "hotreload: --sdk not given and ANDROID_HOME not set"
+        val pf = HotReloadPreflight.parse(1, fatal)
+        val notice = HotReloadPreflight.notice(pf)
+
+        assertEquals("Hot reload preflight could not run", notice.title)
+        assertTrue(notice.body.contains(fatal))
+        assertTrue(!notice.body.contains("•"))
+        assertTrue(notice.reportLines.contains(fatal))
+    }
+
+    @Test fun `notice for FAIL lines still returns the found-problems title and bullet body`() {
+        val pf = HotReloadPreflight.parse(1, "[OK] a\n[FAIL] no device (fix: ...)\n[FAIL] app not installed")
+        val notice = HotReloadPreflight.notice(pf)
+
+        assertEquals("Hot reload preflight found problems", notice.title)
+        assertTrue(notice.body.contains("•"))
+        assertTrue(notice.body.contains("no device (fix: ...)"))
+    }
 }

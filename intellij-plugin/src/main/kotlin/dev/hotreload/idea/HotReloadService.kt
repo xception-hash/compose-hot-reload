@@ -102,6 +102,7 @@ class HotReloadService(private val project: Project) : Disposable {
         val process = GeneralCommandLine(launcher.toString())
             .withWorkDirectory(config.projectDir)
             .withEnvironment("JAVA_HOME", System.getProperty("java.home"))
+            .withEnvironment(sdkEnv(config))
             .withParameters(config.doctorArguments())
             .createProcess()
         val out = process.inputStream.readBytes().toString(Charsets.UTF_8)
@@ -110,20 +111,26 @@ class HotReloadService(private val project: Project) : Disposable {
         return HotReloadPreflight.parse(code, out + "\n" + err)
     }
 
+    /** Auto-discover the Android SDK for injection as ANDROID_HOME, but only when the user gave
+     *  no explicit --sdk (a non-blank config.sdkPath already flows as --sdk). GUI-launched IDEs
+     *  usually have no ANDROID_HOME in their env, unlike a terminal-launched one. */
+    private fun sdkEnv(config: HotReloadWatchConfig): Map<String, String> =
+        if (config.sdkPath.isNotBlank()) emptyMap()
+        else AndroidSdkResolver.discover(
+            config.projectDir, System.getenv(), System.getProperty("user.home"), SystemInfo.isWindows,
+        )?.let { mapOf("ANDROID_HOME" to it) } ?: emptyMap()
+
     /** Warn (do not hard-block) when the preflight fails: list the problems and offer Start anyway. */
     private fun balloonPreflight(pf: PreflightResult) {
-        val body = buildString {
-            append("The hot reload environment check found problems:\n")
-            pf.failures.forEach { append("• ").append(it).append('\n') }
-            append("\nFix these, or click \"Start anyway\" to launch regardless.")
-        }
+        val notice = HotReloadPreflight.notice(pf)
         val notification = NotificationGroupManager.getInstance()
             .getNotificationGroup(NOTIFICATION_GROUP)
-            .createNotification("Hot reload preflight found problems", body, NotificationType.WARNING)
+            .createNotification(notice.title, notice.body, NotificationType.WARNING)
         notification.addAction(NotificationAction.createSimple("Start anyway") {
             notification.expire()
             launch()
         })
+        notification.addAction(reportAction(notice.reportDetail, notice.reportLines))
         notification.notify(project)
     }
 
@@ -276,6 +283,7 @@ class HotReloadService(private val project: Project) : Disposable {
             // so point the child at the IDE's own bundled JBR — always present, and a valid JDK for
             // the CLI JVM and the target project's Gradle daemon (JBR matches the pinned toolchain).
             withEnvironment("JAVA_HOME", System.getProperty("java.home"))
+            withEnvironment(sdkEnv(config))
             addParameters(config.watchArguments())
         }
         return cmd
@@ -332,12 +340,13 @@ class HotReloadService(private val project: Project) : Disposable {
 
     /** Build the "Report on GitHub" balloon action: prefills a GitHub issue with the error
      *  detail, the last 30 lines of CLI output, plugin/IDE/OS info, and opens it in the browser. */
-    private fun reportAction(errorDetail: String): NotificationAction {
-        val history = historySnapshot().takeLast(30)
-        return NotificationAction.createSimple("Report on GitHub") {
+    private fun reportAction(errorDetail: String): NotificationAction =
+        reportAction(errorDetail, historySnapshot().takeLast(30))
+
+    private fun reportAction(errorDetail: String, history: List<String>): NotificationAction =
+        NotificationAction.createSimple("Report on GitHub") {
             BrowserUtil.browse(GitHubIssueUrl.build(reportTitle(errorDetail), reportBody(errorDetail, history)))
         }
-    }
 
     private fun reportTitle(errorDetail: String): String {
         val firstLine = errorDetail.lineSequence().firstOrNull()?.takeIf { it.isNotBlank() }
