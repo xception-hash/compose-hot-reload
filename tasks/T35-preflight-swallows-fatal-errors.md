@@ -1,6 +1,6 @@
 # T35: Preflight swallows fatal CLI errors + no SDK auto-discovery
-Status: IN-REVIEW — host-side DONE (0.1.6, branch t35/preflight-fatal-errors, commit 9d329a8);
-device smoke + publish pending (2026-07-16)
+Status: DEVICE-VERIFIED — host-side + device smoke DONE (0.1.6, branch t35/preflight-fatal-errors);
+PR/merge + publish pending Jay (2026-07-16)
 Assignee: Sonnet subagent (mechanical) + Opus coordinator (design + re-verify)
 Recommended model: Sonnet (localized plugin + engine changes, unit-tested) — coordinator re-verifies
 
@@ -19,10 +19,17 @@ Implementation matched the design below; commit 9d329a8 (spec + settings doc in 
   (forced `--rerun-tasks`; +5 AndroidSdkResolver, +3 Preflight, +1 Command), `verifyPlugin`
   **Compatible** on 2025.1 / 2026.1.4 / 262 EAP (only the 3 known StatusBarWidget deprecations),
   `buildPlugin` → `hotreload-intellij-plugin-0.1.6.zip`. Protocol unchanged (v8), no AAR reinstall.
-- **LEFT FOR JAY:** (1) device smoke — install the 0.1.6 zip in Android Studio, force-stop the sample
-  and Start on a DEFAULT config (no SDK set, GUI-launched) → the balloon now shows the real cause +
-  Report action, and with a standard `~/Library/Android/sdk` the SDK check passes via auto-discovery;
-  (2) merge; (3) publish 0.1.6 (reuse the existing signing key). Ship this instead of publishing 0.1.5.
+- **DEVICE SMOKE PASSED (2026-07-16):** 0.1.6 installed in Android Studio, default config (no SDK
+  path set, GUI-launched). Preflight on a broken env (no device) rendered specific `[FAIL]` bullets
+  ("Device connected: no online devices found (fix: …)", app-installed + handshake skipped) **plus a
+  Report on GitHub action** — proving SDK auto-discovery works (doctor reached the device check
+  instead of the old `--sdk not given` fatal abort). Booting `Medium_Phone_API_36.0` cleared it and
+  the happy-path Start→reload verified. Both headline fixes confirmed live.
+- **LEFT FOR JAY:** (1) merge the PR; (2) publish 0.1.6 (reuse the existing signing key). Ship this
+  instead of publishing 0.1.5.
+- **Known cosmetic (non-blocking):** IntelliJ renders notification bodies as HTML and collapses the
+  `\n\nFix these…` separator onto the last bullet's line. Switch body separators to `<br>` for
+  cleaner wrapping in a follow-up if desired.
 
 ## Problem (observed live 2026-07-16, Android Studio 2026.1.1, 0.1.5 plugin)
 
