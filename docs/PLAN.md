@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-06) — Phases 0–6 DELIVERED
+## Status (2026-07-15) — T33 project-agnostic generalization DELIVERED
 
 T01–T28 are done; the product works end-to-end (body edits, structural adds, multi-module,
 resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
@@ -16,7 +16,7 @@ it here, link it elsewhere.
 | 2 | ✅ DONE 2026-07-06 — `tasks/T28-proxies-codegen.md` all 5 steps; checkpoints A/B/C + e2e case 15 validated live (Fable) | — | done |
 | 3 | ✅ DONE 2026-07-10 — `tasks/T30-robustness-leftovers.md` all 4 items: super/invokespecial verified, synchronized-block SIGABRT found + classifier MONITORENTER→Rebuild guard, jpg/jpeg supported, 9-patch/fonts documented unsupported | — | done |
 | 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies, marketplace | unbounded | defer |
-| T33 | Project-agnostic generalization: shared config model, Gradle discovery, profiles, zero-touch init-script mode (10 phases) | large | IN-PROGRESS (phases 1–7 DONE incl. prepare/start+fingerprints in PR #17; 8–10 maintainer-led remain) |
+| T33 | Project-agnostic generalization: shared config model, Gradle discovery, profiles, zero-touch init-script mode (10 phases) | large | ✅ DONE 2026-07-15 — all 10 phases; CI matrix includes AGP 8 standalone-KGP flavored fixture and AGP 9 built-in Kotlin, and `start` is device-verified in configured and zero-touch modes |
 
 Recommended order: T29 (ship v0.1) → T30.
 

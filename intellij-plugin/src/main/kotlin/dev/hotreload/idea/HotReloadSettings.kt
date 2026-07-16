@@ -10,7 +10,8 @@ import com.intellij.util.xmlb.XmlSerializerUtil
 
 /**
  * Project-level, persisted plugin configuration (stored in `.idea/hotreload.xml`).
- * Exactly the surface T26 asks for: where the CLI lives, and the `watch` arguments.
+ * Structured `watch` inputs, stored per project. The original T26 fields remain so existing
+ * `.idea/hotreload.xml` files continue to launch the same command.
  */
 @Service(Service.Level.PROJECT)
 @State(name = "HotReloadSettings", storages = [Storage("hotreload.xml")])
@@ -22,6 +23,20 @@ class HotReloadSettings : PersistentStateComponent<HotReloadSettings.State> {
         var appId: String = ""
         /** Comma-separated Gradle modules; the first is the app module. */
         var modules: String = "app"
+        /** Optional named CLI profile. Explicit structured controls still override it. */
+        var profile: String = ""
+        /** Explicit app module when it differs from the first watched module. */
+        var appModule: String = ""
+        var variant: String = ""
+        /** Target project's JDK, passed as `--project-java-home`. */
+        var targetJdk: String = ""
+        var device: String = ""
+        var literals: Boolean = false
+        var zeroTouch: Boolean = false
+        /** One exact Gradle argument per item; emitted as repeatable `--gradle-arg`. */
+        var gradleArgs: MutableList<String> = mutableListOf()
+        /** Advanced append-only CLI tokens. Each item is one token, never shell-split. */
+        var advancedTokens: MutableList<String> = mutableListOf()
         /** Android SDK root; blank = the CLI's default ($ANDROID_HOME). */
         var sdkPath: String = ""
         /**
@@ -29,7 +44,7 @@ class HotReloadSettings : PersistentStateComponent<HotReloadSettings.State> {
          * `./gradlew :cli:installDist`). Blank = use the CLI bundled inside the plugin (T31 Part 2).
          */
         var cliLauncherPath: String = ""
-        /** Extra `watch` args appended verbatim, e.g. `--literals` or `--build-tools 36.0.0`. */
+        /** Legacy whitespace-delimited extra arguments, read only when [advancedTokens] is empty. */
         var extraArgs: String = ""
     }
 

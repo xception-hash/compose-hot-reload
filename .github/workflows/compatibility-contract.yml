@@ -1,0 +1,34 @@
+name: compatibility-contract
+
+# Keep the lightweight fixture/docs contract live for documentation-only changes, which the
+# emulator workflow deliberately skips. The full compatibility job still exercises the device
+# matrix whenever code or fixture inputs change.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/e2e.yml'
+      - '.github/workflows/compatibility-contract.yml'
+      - 'docs/project-configuration.md'
+      - 'e2e/check-compatibility-contract.sh'
+      - 'e2e/run-zero-touch.sh'
+      - 'e2e/fixtures/zero-touch/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/e2e.yml'
+      - '.github/workflows/compatibility-contract.yml'
+      - 'docs/project-configuration.md'
+      - 'e2e/check-compatibility-contract.sh'
+      - 'e2e/run-zero-touch.sh'
+      - 'e2e/fixtures/zero-touch/**'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: bash e2e/check-compatibility-contract.sh

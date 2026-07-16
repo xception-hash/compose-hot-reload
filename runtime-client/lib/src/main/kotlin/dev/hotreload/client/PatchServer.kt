@@ -206,7 +206,7 @@ class PatchServer(private val context: Context) {
         }
 
         is Request.InvalidateAll -> onMainThread(request.requestId) {
-            ComposeBridge.invalidateAllCompositions()
+            ComposeBridge.forceRecomposeAllCompositions()
         }
 
         is Request.LiteralUpdate -> onMainThread(request.requestId) {
@@ -226,7 +226,7 @@ class PatchServer(private val context: Context) {
             if (request.groupIds.isNotEmpty()) {
                 request.groupIds.all { ComposeBridge.invalidateGroupsWithKey(it) }
             } else {
-                ComposeBridge.invalidateAllCompositions()
+                ComposeBridge.forceRecomposeAllCompositions()
             }
         }
     }

@@ -16,6 +16,7 @@ class FingerprintTest {
         literals: Boolean = false,
         gradleArgs: List<String> = emptyList(),
         projectJavaHome: Path? = null,
+        integrationMode: IntegrationMode = IntegrationMode.CONFIGURED,
     ) = ProjectConfig(
         projectDir = Path.of("/proj"),
         modules = modules,
@@ -24,6 +25,7 @@ class FingerprintTest {
         literals = literals,
         gradleArgs = gradleArgs,
         projectJavaHome = projectJavaHome,
+        integrationMode = integrationMode,
     )
 
     @Test
@@ -50,6 +52,8 @@ class FingerprintTest {
         assertEquals("/opt/jdk", fp.projectJavaHome)
         assertEquals(Protocol.VERSION, fp.protocolVersion)
         assertEquals(Fingerprint.REQUIRED_COMPILER_FLAGS, fp.compilerFlags)
+        assertEquals(IntegrationMode.CONFIGURED, fp.integrationMode)
+        assertNull(fp.runtimeArtifactSha256)
         assertEquals("abc123", fp.apkSha256)
         assertEquals("/proj/app/x.apk", fp.apkPath)
     }
@@ -94,6 +98,35 @@ class FingerprintTest {
         val m = fp.mismatches(config(literals = true))
         assertEquals(1, m.size)
         assertTrue(m.single().startsWith("literals:"), m.single())
+    }
+
+    @Test
+    fun integrationModeMismatchReported() {
+        val fp = Fingerprint.of(config(), "s", "sha", "/x.apk")
+        val m = fp.mismatches(config(integrationMode = IntegrationMode.ZERO_TOUCH))
+        assertTrue(m.any { it.startsWith("integrationMode:") }, m.toString())
+        assertTrue(m.any { it.startsWith("runtimeArtifactSha256:") }, m.toString())
+    }
+
+    @Test
+    fun zeroTouchFingerprintIncludesBundledRuntimeHash() {
+        val cfg = config(integrationMode = IntegrationMode.ZERO_TOUCH)
+        val fp = Fingerprint.of(cfg, "s", "sha", "/x.apk")
+
+        assertEquals(IntegrationMode.ZERO_TOUCH, fp.integrationMode)
+        assertEquals(ZeroTouchArtifacts.runtimeArtifactSha256(), fp.runtimeArtifactSha256)
+        assertTrue(fp.runtimeArtifactSha256?.isNotBlank() == true)
+    }
+
+    @Test
+    fun zeroTouchRuntimeArtifactMismatchReported() {
+        val cfg = config(integrationMode = IntegrationMode.ZERO_TOUCH)
+        val fp = Fingerprint.of(cfg, "s", "sha", "/x.apk")
+            .copy(runtimeArtifactSha256 = "different")
+
+        val mismatch = fp.mismatches(cfg)
+        assertEquals(1, mismatch.size)
+        assertTrue(mismatch.single().startsWith("runtimeArtifactSha256:"), mismatch.single())
     }
 
     @Test

@@ -1,0 +1,34 @@
+initscript {
+    def jarPath = gradle.startParameter.projectProperties['dev.hotreload.bootstrap.jar']
+    if (jarPath == null || jarPath.trim().isEmpty()) {
+        throw new GradleException('zero-touch bootstrap: missing dev.hotreload.bootstrap.jar')
+    }
+    dependencies {
+        classpath files(jarPath)
+    }
+}
+
+def hotreloadModulesValue = gradle.startParameter.projectProperties['dev.hotreload.bootstrap.modules'] ?: ''
+def hotreloadModules = hotreloadModulesValue.split(',').findAll { !it.isEmpty() } as Set
+def hotreloadAppModule = gradle.startParameter.projectProperties['dev.hotreload.bootstrap.appModule']
+def hotreloadVariant = gradle.startParameter.projectProperties['dev.hotreload.bootstrap.variant']
+def hotreloadRuntimeAar = gradle.startParameter.projectProperties['dev.hotreload.bootstrap.runtimeAar']
+
+if (hotreloadModules.isEmpty()) {
+    throw new GradleException('zero-touch bootstrap: watched module allowlist is empty')
+}
+if (hotreloadAppModule == null || !hotreloadModules.contains(hotreloadAppModule)) {
+    throw new GradleException('zero-touch bootstrap: app module is absent from the watched module allowlist')
+}
+if (hotreloadVariant == null || hotreloadVariant.trim().isEmpty()) {
+    throw new GradleException('zero-touch bootstrap: selected variant is missing')
+}
+if (hotreloadRuntimeAar == null || hotreloadRuntimeAar.trim().isEmpty()) {
+    throw new GradleException('zero-touch bootstrap: runtime AAR path is missing')
+}
+
+gradle.beforeProject { project ->
+    if (hotreloadModules.contains(project.path)) {
+        project.pluginManager.apply(dev.hotreload.bootstrap.BootstrapPlugin)
+    }
+}

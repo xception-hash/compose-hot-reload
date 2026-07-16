@@ -1,3 +1,6 @@
+import java.util.jar.JarInputStream
+import java.util.zip.ZipFile
+
 plugins {
     kotlin("jvm") version "2.4.0"
     id("org.jetbrains.intellij.platform") version "2.5.0"
@@ -14,6 +17,7 @@ repositories {
 }
 
 dependencies {
+    implementation("com.google.code.gson:gson:2.11.0")
     intellijPlatform {
         // Build/run against IntelliJ IDEA Community; the plugin also loads in Android Studio
         // (it only uses core platform APIs: status bar, actions, project settings).
@@ -140,5 +144,46 @@ tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("pr
     // Copy the installDist output tree (bin/ + lib/) into <sandbox>/plugins/<pluginName>/cli/
     from(layout.projectDirectory.dir("../cli/build/install/cli")) {
         into("${pluginName.get()}/cli")
+    }
+}
+
+// Marketplace builds copy the root installDist tree into the plugin ZIP. Inspect the final
+// archive so a missing nested bootstrap payload cannot ship unnoticed.
+tasks.named("buildPlugin") {
+    doLast {
+        val archive = outputs.files.files.singleOrNull { it.extension == "zip" }
+            ?: error("buildPlugin produced no unique ZIP: ${outputs.files.files}")
+        val required = setOf(
+            "dev/hotreload/bootstrap/bootstrap.jar",
+            "dev/hotreload/bootstrap/runtime-client.aar",
+            "dev/hotreload/bootstrap/zero-touch.init.gradle",
+        )
+
+        ZipFile(archive).use { zip ->
+            val engineEntries = mutableListOf<java.util.zip.ZipEntry>()
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                if (entry.name.endsWith("/cli/lib/engine.jar")) engineEntries += entry
+            }
+            check(engineEntries.size == 1) {
+                "expected exactly one */cli/lib/engine.jar in $archive, found ${engineEntries.map { it.name }}"
+            }
+
+            val bundled = mutableSetOf<String>()
+            zip.getInputStream(engineEntries.single()).use { input ->
+                JarInputStream(input).use { jar ->
+                    var entry = jar.nextJarEntry
+                    while (entry != null) {
+                        bundled += entry.name
+                        entry = jar.nextJarEntry
+                    }
+                }
+            }
+            val missing = required - bundled
+            check(missing.isEmpty()) {
+                "IntelliJ plugin's bundled CLI engine JAR is missing zero-touch payloads: ${missing.joinToString()}"
+            }
+        }
     }
 }

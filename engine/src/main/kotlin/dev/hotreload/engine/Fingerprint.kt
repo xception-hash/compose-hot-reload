@@ -2,6 +2,7 @@ package dev.hotreload.engine
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
 import dev.hotreload.protocol.Protocol
 import java.nio.file.Files
 import java.nio.file.Path
@@ -26,6 +27,8 @@ data class Fingerprint(
     val modules: List<String>,        // sorted "gradlePath=relativeDir"
     val moduleVariants: List<String>, // sorted "gradlePath=variant"
     val literals: Boolean,
+    val integrationMode: IntegrationMode,
+    val runtimeArtifactSha256: String?,
     val gradleArgs: List<String>,
     val projectJavaHome: String?,
     val protocolVersion: Int,
@@ -51,6 +54,8 @@ data class Fingerprint(
         cmp("modules", modules, resolved.modules)
         cmp("moduleVariants", moduleVariants, resolved.moduleVariants)
         cmp("literals", literals, resolved.literals)
+        cmp("integrationMode", integrationMode, resolved.integrationMode)
+        cmp("runtimeArtifactSha256", runtimeArtifactSha256, resolved.runtimeArtifactSha256)
         cmp("gradleArgs", gradleArgs, resolved.gradleArgs)
         cmp("projectJavaHome", projectJavaHome, resolved.projectJavaHome)
         cmp("protocolVersion", protocolVersion, resolved.protocolVersion)
@@ -79,6 +84,12 @@ data class Fingerprint(
                 .map { "${it.gradlePath}=${it.variant}" }
                 .sorted(),
             literals = config.literals,
+            integrationMode = config.integrationMode,
+            runtimeArtifactSha256 = if (config.integrationMode == IntegrationMode.ZERO_TOUCH) {
+                ZeroTouchArtifacts.runtimeArtifactSha256()
+            } else {
+                null
+            },
             gradleArgs = config.gradleArgs,
             projectJavaHome = config.projectJavaHome?.toString(),
             protocolVersion = Protocol.VERSION,
@@ -111,7 +122,18 @@ class FingerprintStore(private val baseDir: Path) {
         val file = path(serial, applicationId)
         if (!Files.exists(file)) return null
         return try {
-            GSON.fromJson(Files.readString(file), Fingerprint::class.java)
+            val json = JsonParser.parseString(Files.readString(file)).asJsonObject
+            // Fingerprints written before zero-touch existed necessarily describe a
+            // configured-mode APK. Normalize that additive schema-1 field before Gson
+            // constructs the non-null enum property.
+            if (!json.has("integrationMode")) {
+                json.addProperty("integrationMode", IntegrationMode.CONFIGURED.name)
+            } else {
+                val mode = json.get("integrationMode")
+                require(!mode.isJsonNull) { "integrationMode must not be null" }
+                IntegrationMode.valueOf(mode.asString)
+            }
+            GSON.fromJson(json, Fingerprint::class.java)
                 ?: throw IllegalStateException("empty JSON")
         } catch (e: Exception) {
             println("fingerprint: ignoring unreadable fingerprint file (${e.message})")

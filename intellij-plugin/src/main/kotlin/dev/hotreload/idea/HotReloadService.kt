@@ -64,8 +64,9 @@ class HotReloadService(private val project: Project) : Disposable {
         if (isRunning) return
         outputHistory.clear()
         val settings = HotReloadSettings.getInstance(project).state
+        val config = HotReloadWatchConfig.from(settings, project.basePath.orEmpty())
         val command = try {
-            buildCommand(settings)
+            buildCommand(config)
         } catch (e: ConfigError) {
             setStatus(status.copy(state = HotReloadState.ERROR, detail = e.message))
             balloon("Cannot start hot reload", e.message ?: "invalid configuration", NotificationType.ERROR)
@@ -185,11 +186,20 @@ class HotReloadService(private val project: Project) : Disposable {
 
     private class ConfigError(message: String) : Exception(message)
 
-    private fun buildCommand(s: HotReloadSettings.State): GeneralCommandLine {
-        val launcher = resolveLauncher(s)
-        val projectDir = s.projectDir.ifBlank { project.basePath ?: "" }
+    /** The exact launch preview used by Settings; execution still uses token lists, not this text. */
+    fun renderedCommand(config: HotReloadWatchConfig): String = try {
+        renderCommand(listOf(resolveLauncher(config).toString()) + config.watchArguments())
+    } catch (e: ConfigError) {
+        "(CLI unavailable: ${e.message}) ${renderCommand(config.watchArguments())}"
+    }
+
+    private fun buildCommand(config: HotReloadWatchConfig): GeneralCommandLine {
+        val launcher = resolveLauncher(config)
+        val projectDir = config.projectDir
         if (projectDir.isBlank()) throw ConfigError("project dir is not set and the IDE project has no base path")
-        if (s.appId.isBlank()) throw ConfigError("application id is not set")
+        if (config.appId.isBlank() && config.profile.isBlank()) {
+            throw ConfigError("application id is not set (or select a profile that provides one)")
+        }
 
         val cmd = GeneralCommandLine(launcher.toString()).apply {
             withWorkDirectory(projectDir)
@@ -198,12 +208,7 @@ class HotReloadService(private val project: Project) : Disposable {
             // so point the child at the IDE's own bundled JBR — always present, and a valid JDK for
             // the CLI JVM and the target project's Gradle daemon (JBR matches the pinned toolchain).
             withEnvironment("JAVA_HOME", System.getProperty("java.home"))
-            addParameters("watch", "--project", projectDir, "--app-id", s.appId.trim())
-            val modules = s.modules.trim().ifBlank { "app" }
-            addParameters("--module", modules)
-            if (s.sdkPath.isNotBlank()) addParameters("--sdk", s.sdkPath.trim())
-            s.extraArgs.trim().takeIf { it.isNotEmpty() }
-                ?.split(Regex("\\s+"))?.let { addParameters(it) }
+            addParameters(config.watchArguments())
         }
         return cmd
     }
@@ -213,8 +218,8 @@ class HotReloadService(private val project: Project) : Disposable {
      * devs pointing at a local `:cli:installDist`); otherwise use the CLI bundled inside the plugin
      * (T31 Part 2) so a Marketplace user needs no repo clone.
      */
-    private fun resolveLauncher(s: HotReloadSettings.State): Path {
-        val override = s.cliLauncherPath.trim()
+    internal fun resolveLauncher(config: HotReloadWatchConfig): Path {
+        val override = config.cliLauncherPath.trim()
         if (override.isNotEmpty()) {
             val p = Path.of(override)
             if (!Files.isRegularFile(p)) throw ConfigError("CLI launcher not found: $override")

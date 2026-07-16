@@ -16,8 +16,10 @@ class ProfileTest {
             moduleVariants = listOf(":feature=stageDebug"),
             gradleArgs = listOf("--parallel", "--offline"),
             projectJavaHome = "/path/to/jdk",
+            device = "emulator-5554",
             launchActivity = ".MainActivity",
-            literals = true
+            literals = true,
+            integrationMode = IntegrationMode.ZERO_TOUCH,
         )
         val tomlText = original.toToml("test-profile")
         
@@ -27,8 +29,10 @@ class ProfileTest {
         assertTrue("module-variants = " in tomlText)
         assertTrue("gradle-args = " in tomlText)
         assertTrue("project-java-home = " in tomlText)
+        assertTrue("device = " in tomlText)
         assertTrue("launch-activity = " in tomlText)
         assertTrue("literals = true" in tomlText)
+        assertTrue("zero-touch = true" in tomlText)
 
         // Parse and reconstruct
         val map = Toml.parse(tomlText)
@@ -52,8 +56,10 @@ class ProfileTest {
         assertFalse("module-variants =" in tomlText)
         assertFalse("gradle-args =" in tomlText)
         assertFalse("project-java-home =" in tomlText)
+        assertFalse("device =" in tomlText)
         assertFalse("launch-activity =" in tomlText)
         assertFalse("literals =" in tomlText)
+        assertFalse("zero-touch =" in tomlText)
 
         val map = Toml.parse(tomlText)
         val reconstructed = mapToProfile(map)
@@ -93,7 +99,7 @@ class ProfileTest {
         val e = assertFailsWith<IllegalArgumentException> {
             validateAndMap(map)
         }
-        assertTrue(e.message!!.contains("unknown key 'bogus-key' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, launch-activity, literals)"))
+        assertTrue(e.message!!.contains("unknown key 'bogus-key' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, device, launch-activity, literals, zero-touch)"))
     }
 
     private fun mapToProfile(map: Map<String, Any>): Profile {
@@ -107,11 +113,11 @@ class ProfileTest {
         }
         val allowedKeys = setOf(
             "schema", "project", "app-id", "variant", "modules", "module-variants",
-            "gradle-args", "project-java-home", "launch-activity", "literals"
+            "gradle-args", "project-java-home", "device", "launch-activity", "literals", "zero-touch"
         )
         for (k in map.keys) {
             if (k !in allowedKeys) {
-                throw IllegalArgumentException("unknown key '$k' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, launch-activity, literals)")
+                throw IllegalArgumentException("unknown key '$k' (allowed: schema, project, app-id, variant, modules, module-variants, gradle-args, project-java-home, device, launch-activity, literals, zero-touch)")
             }
         }
         val project = map.getString("project") ?: throw IllegalArgumentException("profile is missing required key 'project'")
@@ -121,8 +127,14 @@ class ProfileTest {
         val moduleVariants = map.getStringList("module-variants") ?: emptyList()
         val gradleArgs = map.getStringList("gradle-args") ?: emptyList()
         val projectJavaHome = map.getString("project-java-home")
+        val device = map.getString("device")
         val launchActivity = map.getString("launch-activity")
         val literals = map.getBoolean("literals") ?: false
+        val integrationMode = if (map.getBoolean("zero-touch") == true) {
+            IntegrationMode.ZERO_TOUCH
+        } else {
+            IntegrationMode.CONFIGURED
+        }
 
         return Profile(
             project = project,
@@ -132,8 +144,10 @@ class ProfileTest {
             moduleVariants = moduleVariants,
             gradleArgs = gradleArgs,
             projectJavaHome = projectJavaHome,
+            device = device,
             launchActivity = launchActivity,
-            literals = literals
+            literals = literals,
+            integrationMode = integrationMode,
         )
     }
 

@@ -13,8 +13,11 @@ Android Studio.
 - **Status-bar widget** — `Hot Reload: off / starting… / ready (Nms) / reloading… / error(n) /
   rebuild needed`. Click it to Start/Stop.
 - **Tools ▸ Start/Stop Hot Reload** — same toggle from the menu.
-- **Settings ▸ Tools ▸ Compose Hot Reload** — CLI launcher path (override), project dir, app id,
-  modules, SDK path, extra CLI args (all persisted per-project).
+- **Settings ▸ Tools ▸ Compose Hot Reload** — structured, persisted watch settings: project,
+  profile, app module/variant/application id, watched modules, target JDK, device, SDK,
+  literals, zero-touch, and repeatable Gradle arguments. **Refresh discovery** runs the CLI's
+  non-mutating `inspect --json` and fills editable choices for debuggable app variants and their
+  module closure. The page also shows the read-only resolved command that Start will execute.
 - **Balloons** on failure: a reload error (tooltip = first compiler/recompose error) and a
   rebuild-required notice (with the reinstall hint).
 
@@ -68,16 +71,21 @@ cd intellij-plugin
 In the sandbox IDE:
 
 1. Open a sample project (e.g. `samples/single-module`).
-2. **Settings ▸ Tools ▸ Compose Hot Reload**: set **Application id** (e.g. `dev.hotreload.sample`)
-   and **Modules** (e.g. `app`). Leave Project dir blank to use the open project. The CLI launcher
-   defaults to the bundled one; override it if you want to test a different build.
-3. Make sure the app is installed and running on a device/emulator (the plugin does not install
+2. In **Settings ▸ Tools ▸ Compose Hot Reload**, set a project dir (or leave it blank for the open
+   project), then click **Refresh discovery**. Select the discovered app module and debuggable
+   variant; the app id and watched-module closure are suggested but remain editable. Choose a
+   saved CLI profile when appropriate. The CLI launcher defaults to the bundled one; override it
+   if you want to test a different build.
+3. **Advanced raw overrides** are an escape hatch for unsupported flags. Enter one exact token per line;
+   they are appended after structured arguments and are never parsed as a shell string. Likewise,
+   enter one target Gradle argument per line.
+4. Make sure the app is installed and running on a device/emulator (the plugin does not install
    it — same prerequisites as running `hotreload watch` by hand).
-4. Click the status-bar widget (or **Tools ▸ Start Hot Reload**) → it goes
+5. Click the status-bar widget (or **Tools ▸ Start Hot Reload**) → it goes
    `starting… → ready`.
-5. Edit a composable body and save → `reloading… → ready (Nms)` and the emulator updates.
-6. Make a signature change and save → **rebuild-needed** balloon.
-7. Stop from the widget/menu → the process is destroyed; `pgrep -f dev.hotreload.cli.MainKt`
+6. Edit a composable body and save → `reloading… → ready (Nms)` and the emulator updates.
+7. Make a signature change and save → **rebuild-needed** balloon.
+8. Stop from the widget/menu → the process is destroyed; `pgrep -f dev.hotreload.cli.MainKt`
    should be empty.
 
 ## Install from disk (release IDE)

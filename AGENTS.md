@@ -31,6 +31,8 @@ Following the README literally will hang your session. Instead:
 
 ```bash
 ./gradlew -q :cli:run --args="watch --project <dir> --app-id <id>" > /tmp/hotreload.log 2>&1 &
+# For a target that does not apply dev.hotreload, add --zero-touch and first run
+# a matching: hotreload prepare --zero-touch --project <dir> [...same options]
 ```
 
 Then poll the log. Healthy startup prints, in order:
@@ -57,7 +59,7 @@ Every save first prints `changed: <files>`. Then grep the log for one of:
 | `literal-pushed: <key> = <value> in <N>ms` | success (live-literal fast path) | same |
 | `compile failed — fix and save again` | your edit doesn't compile | fix the code, save again — recoverable, watcher keeps running |
 | `recomposition failed: …` | edit compiled but crashed at runtime | device keeps last-good frame; fix and save again |
-| `cannot hot-swap: <reason>` + `run a full install …` | edit needs a rebuild | `./gradlew :app:installDebug`, relaunch the app, restart the watcher |
+| `cannot hot-swap: <reason>` + `run a full install …` | edit needs a rebuild | configured mode: run the target's install task; zero-touch mode: rerun `hotreload prepare --zero-touch` with the same options; then restart the watcher |
 | *(nothing at all — not even `changed:`)* | edit is invisible to the watcher (fonts and other non-watched extensions; see README §5) | full reinstall is the only path |
 
 To confirm the UI actually changed, take a screenshot and read it:
@@ -70,16 +72,46 @@ adb exec-out screencap -p > /tmp/shot.png
 
 | Error (exact text in log) | Cause | Fix |
 |---|---|---|
-| `protocol version mismatch (device X != engine Y) — reinstall the app (stale runtime-client)` | app was installed from an older checkout | `./gradlew :app:installDebug`, relaunch |
-| `device is not hot-swappable — is the app a debuggable build with the runtime-client?` | release build, or plugin not applied | install the **debug** variant of a project that applies the `dev.hotreload` plugin |
-| `no classes found under …` | wrong `--project` dir, or app never built | check the path; run `installDebug` once first |
+| `protocol version mismatch (device X != engine Y) — reinstall the app (stale runtime-client)` | app was installed from an older checkout | configured mode: reinstall through the target build; zero-touch mode: rerun matching `hotreload prepare --zero-touch` |
+| `device is not hot-swappable — is the app a debuggable build with the runtime-client?` | release build, or selected integration was not applied | install a debuggable variant through the configured plugin or `hotreload prepare --zero-touch` |
+| `no classes found under …` | wrong `--project` dir, or app never built | check the path; prepare once using the same configured/zero-touch mode as the watcher |
 | `app module '…' is not an AGP module (no built-in-kotlinc output)` | wrong `--module` (first entry must be the Android app module) | fix `--module` order/names |
-| **No error, but edits behave wrongly / state corrupts** | stale APK vs `--literals` mode mismatch — this failure is **silent** | after adding/removing `--literals` (or any doubt about APK freshness): fresh `./gradlew :app:installDebug`, relaunch, restart watcher |
+| **No error, but edits behave wrongly / state corrupts** | stale APK vs `--literals` or integration-mode mismatch | rerun a matching prepare/install with the same `--literals` and `--zero-touch` choices, relaunch, and restart the watcher |
 
 ## 5. Don'ts
 
 - Don't use `scripts/dev-install.sh`, `emulator-up.sh`, `taps.sh`, `ui-state.sh`,
-  `stats.sh`, or other `scripts/*.sh` beyond `env.sh` — they are maintainer-internal and
-  hardcode the maintainer's toy app and AVD.
+  `stats.sh`, or other maintainer-internal scripts that hardcode the maintainer's toy app
+  and AVD. `scripts/env.sh` and `scripts/delegate.sh` are explicitly allowed for their
+  documented workflows.
 - Don't edit source files while `initial build...` is still pending.
 - Don't parse timing numbers as pass/fail — only the log lines in §3 are the contract.
+
+## 6. Delegation and model cost
+
+The project owner prefers bounded, independent work to be delegated through
+Antigravity CLI (`agy`) when that reduces use of the primary agent's token budget.
+
+- Before delegating, run `agy models` and select the least expensive model capable of
+  the task. Prefer a lower-cost GPT model such as GPT-5.4 or GPT-5.5 if one is listed;
+  otherwise prefer a Flash/Low/Medium or similar lower-cost tier for routine work.
+- **Temporary quota constraint (recorded 2026-07-15): Claude Opus 4.6 quota is empty.**
+  Do not select Opus 4.6 until the project owner explicitly confirms that its quota has
+  reset. A model appearing in `agy models` does not prove that quota is available.
+- Invoke `agy` non-interactively with `--print` and an explicit `--model`, preferably
+  through `scripts/delegate.sh`. Give it a narrowly scoped prompt and require a concise
+  result. Never rely on an implicit/default model.
+- Use built-in generic sub-agents only when `agy` is unavailable, fails, or lacks a
+  capability required by the task. Built-in delegation currently does not guarantee
+  selection of a lower-cost model.
+- Do not delegate trivial work when coordination and returned output would consume
+  more tokens than completing it directly.
+- Treat model availability as dynamic. Do not rely on a model list recorded in this
+  file; query `agy models` in each future session.
+- For a long-running task that the owner may execute later, write a decision-complete
+  spec under `tasks/T<NN>-<name>.md` instead of leaving the plan only in chat. Include a
+  recommended model, at least one fallback from a different model family when possible,
+  the exact `scripts/delegate.sh` command, explicit out-of-scope boundaries, and exact
+  acceptance commands. Do not dispatch it unless the owner asks for immediate execution.
+- The coordinator remains responsible for reviewing the resulting diff and running the
+  acceptance gates; delegated output is never accepted solely from the worker's report.
