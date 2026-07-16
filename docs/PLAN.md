@@ -26,8 +26,10 @@ update it here, link it elsewhere.
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
 
 All engineering is DONE. Remaining items are optional housekeeping, none blocking:
-- **Release provenance:** only `0.1.0` is git-tagged; 0.1.1→0.1.4 shipped to the Marketplace
-  without git tags / GitHub Releases. Tag the current `main` + cut Releases if provenance matters.
+- **Release provenance:** ✅ DONE 2026-07-16 — tag `0.1.6` cut on `main` (PR #23 version bumps),
+  GitHub Release 0.1.6 with the signed plugin zip (marked latest), JitPack serves all three
+  artifacts at 0.1.6 (verified by real resolution from a scratch project). Intermediate versions
+  0.1.1→0.1.5 remain untagged by design (Marketplace-only iterations).
 - **PatchServer wedge robustness:** re-arm `soTimeout` between sessions (long-standing nice-to-have).
 - Stretch item 4 above (Compose N-1 shims, suspend-lambda proxies) if the project is extended.
 

@@ -3,6 +3,9 @@ jdk:
 # The root Gradle build only contains engine/cli/protocol (host-side tools). The two
 # published modules live in separate composite builds, so JitPack's default install
 # would publish nothing — install each explicitly.
+# Single &&-chained line: JitPack joins list items with `;`, so a failure in the first
+# command would otherwise still publish a partial artifact set with a green build status
+# (happened on the first 0.1.6 build — a DNS blip killed gradle-plugin, runtime-client
+# published alone, and JitPack collapsed it to wrong root coordinates, all marked "ok").
 install:
-  - ./gradlew -p gradle-plugin publishToMavenLocal
-  - ./gradlew -p runtime-client publishToMavenLocal
+  - ./gradlew -p gradle-plugin publishToMavenLocal && ./gradlew -p runtime-client publishToMavenLocal
