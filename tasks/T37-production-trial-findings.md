@@ -203,14 +203,17 @@ status-widget deprecation notices remain.
 
 ## Pending target-project matrix
 
-1. Publish 0.1.8 only after explicit maintainer approval.
-2. Start from the Marketplace plugin with normal user-facing settings and capture the full
+1. Complete the maintainer-run dual-mode plugin smoke in
+   [`T38`](T38-manual-plugin-dual-mode-smoke.md): local 0.1.8 through plugin zero-touch, then
+   configured mode with temporary local composite/plugin wiring, followed by exact restoration.
+2. Publish 0.1.8 only after the T38 smoke passes and the maintainer gives explicit approval.
+3. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
-3. Verify app-module body edit and state behavior.
-4. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
+4. Verify app-module body edit and state behavior.
+5. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
    a reachable non-app module where the target has one.
-5. After each result, record the plugin status/log line and a sanitized visual observation.
-6. Restore every temporary target edit before ending the trial.
+6. After each result, record the plugin status/log line and a sanitized visual observation.
+7. Restore every temporary target edit before ending the trial.
 
 ## Acceptance
 
@@ -224,6 +227,8 @@ status-widget deprecation notices remain.
 - [x] Local 0.1.8 candidate merges into the minSdk-23 target and reaches zero-touch preparation.
 - [x] Patch DEX desugaring matches the installed APK and a real target edit survives targeted
       recomposition with a visibly changed frame.
-- [ ] 0.1.8 verified and submitted only after the local merge/preparation check passes.
+- [x] Local 0.1.8 passes Plugin Verifier on all three configured IDE baselines.
+- [ ] T38 manual plugin zero-touch and configured-integration smoke passes before submission.
+- [ ] 0.1.8 submitted only after explicit maintainer approval.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
       executed after a release contains both product fixes.
