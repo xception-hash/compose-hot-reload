@@ -1,7 +1,28 @@
 # T35: Preflight swallows fatal CLI errors + no SDK auto-discovery
-Status: OPEN (follow-up from T34 device testing, 2026-07-16)
-Assignee: unassigned
+Status: IN-REVIEW — host-side DONE (0.1.6, branch t35/preflight-fatal-errors, commit 9d329a8);
+device smoke + publish pending (2026-07-16)
+Assignee: Sonnet subagent (mechanical) + Opus coordinator (design + re-verify)
 Recommended model: Sonnet (localized plugin + engine changes, unit-tested) — coordinator re-verifies
+
+## Outcome 2026-07-16 (host-side DONE) — all three bugs fixed, plugin 0.1.6
+Implementation matched the design below; commit 9d329a8 (spec + settings doc in b54aec9).
+- **Bug 1** — `PreflightResult` retains `rawOutput`/`exitCode`; new pure `HotReloadPreflight.notice()`
+  renders the balloon (bullets for `[FAIL]`s, else the real doctor output + exit code, "could not
+  run" title). `balloonPreflight` uses it and wires a **Report on GitHub** action (new `reportAction`
+  overload takes explicit history — the watch ring buffer is empty pre-launch).
+- **Bug 2** — new pure `AndroidSdkResolver.discover()` (local.properties `sdk.dir` → `ANDROID_HOME`
+  → `ANDROID_SDK_ROOT` → platform default; first existing dir wins). `HotReloadService.sdkEnv()`
+  injects it as `ANDROID_HOME` into the doctor + watch subprocess, ONLY when no explicit `--sdk`.
+- **Bug 3** — `expandUserHome()` applied to `sdkPath`/`cliLauncherPath`/`targetJdk` in
+  `HotReloadWatchConfig.from()` (added a `home` seam so tests are deterministic).
+- **Gates (coordinator re-verified from artifacts, not the agent's word):** `test` **43/43**
+  (forced `--rerun-tasks`; +5 AndroidSdkResolver, +3 Preflight, +1 Command), `verifyPlugin`
+  **Compatible** on 2025.1 / 2026.1.4 / 262 EAP (only the 3 known StatusBarWidget deprecations),
+  `buildPlugin` → `hotreload-intellij-plugin-0.1.6.zip`. Protocol unchanged (v8), no AAR reinstall.
+- **LEFT FOR JAY:** (1) device smoke — install the 0.1.6 zip in Android Studio, force-stop the sample
+  and Start on a DEFAULT config (no SDK set, GUI-launched) → the balloon now shows the real cause +
+  Report action, and with a standard `~/Library/Android/sdk` the SDK check passes via auto-discovery;
+  (2) merge; (3) publish 0.1.6 (reuse the existing signing key). Ship this instead of publishing 0.1.5.
 
 ## Problem (observed live 2026-07-16, Android Studio 2026.1.1, 0.1.5 plugin)
 
