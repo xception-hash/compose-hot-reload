@@ -8,5 +8,5 @@ local.properties
 .cxx/
 third_party/tools-base/
 external/
-.claude/worktrees/
+.claude/
 .agents/
