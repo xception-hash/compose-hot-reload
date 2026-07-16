@@ -23,12 +23,14 @@ require_text() {
 WORKFLOW=.github/workflows/e2e.yml
 DOC=docs/project-configuration.md
 RUNNER=e2e/run-zero-touch.sh
+GATE=e2e/run-zero-touch-compatibility-gate.sh
 AGP8=e2e/fixtures/zero-touch/agp8
 AGP9=e2e/fixtures/zero-touch/agp9
 
 require_file "$WORKFLOW"
 require_file "$DOC"
 require_file "$RUNNER"
+require_file "$GATE"
 require_file "$AGP8/build.gradle.kts"
 require_file "$AGP8/settings.gradle.kts"
 require_file "$AGP9/build.gradle.kts"
@@ -52,11 +54,19 @@ for text in \
     "java-version: '17'" \
     "java-version: '21'" \
     'JAVA17_HOME' \
-    'ZERO_TOUCH_OFFLINE=1' \
     'e2e/run-zero-touch.sh' \
-    'AGP 8/JDK 17 leg was skipped' \
     'api-level: 36'; do
     require_text "$WORKFLOW" "$text"
+done
+
+# The offline gate and its skip-detection guard live in the gate script rather than
+# inline in the workflow (android-emulator-runner runs each line of a multi-line
+# `script:` block as an independent `sh -c` process, so an exit code captured on one
+# line can't survive to a later line — see e2e/run-zero-touch-compatibility-gate.sh).
+for text in \
+    'ZERO_TOUCH_OFFLINE=1' \
+    'AGP 8/JDK 17 leg was skipped'; do
+    require_text "$GATE" "$text"
 done
 
 # Assert each fixture contract explicitly so a fixture rename or a lost standalone-Kotlin
