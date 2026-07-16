@@ -26,6 +26,10 @@ android {
         create("qa") {
             initWith(getByName("debug"))
             isDebuggable = true
+            // Coverage rewrites classes while packaging, after Kotlin's class outputs. The
+            // zero-touch bootstrap must disable it so installed DEX and patch shapes match.
+            enableAndroidTestCoverage = true
+            enableUnitTestCoverage = true
             applicationIdSuffix = ".qa"
             matchingFallbacks += "debug"
         }

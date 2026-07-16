@@ -46,6 +46,8 @@ class WatchSession(private val config: Config) {
     private val primedClasses = mutableSetOf<String>()
     /** interp.dex is injected into the app classloader once, on the first interpreted edit. */
     private var interpDexInjected = false
+    /** Desugaring support classes already appended to the app classloader this watch session. */
+    private val injectedPatchSynthetics = mutableSetOf<String>()
 
     /** The committed interpreter runtime dex, shipped as an engine resource (T27 step 2). */
     private val interpDex: ByteArray by lazy {
@@ -75,7 +77,6 @@ class WatchSession(private val config: Config) {
         val appId = config.project.applicationId
         ensureAppRunning(adb, appId)
         val localPort = adb.forward(Protocol.deviceSocketName(appId))
-        val dexer = DexCompiler(config.d8)
 
         DeviceClient(port = localPort).use { device ->
             val caps = device.ping()
@@ -108,6 +109,15 @@ class WatchSession(private val config: Config) {
                     "app module '${modules.first().name}' is not an AGP module"
                 }
                 println("modules: " + modules.joinToString { "${it.gradlePath}: ${it.layout} (${it.classesDir})" })
+
+                val patchMinApi = adb.installedMinSdk(appId) ?: 30.also {
+                    println("warning: could not read installed minSdk for $appId — patch D8 falling back to API 30")
+                }
+                val patchClasspath = (classesDirs + modules.flatMap { it.compileClasspath })
+                    .filter { Files.exists(it) }
+                    .distinct()
+                val dexer = DexCompiler(config.d8, patchMinApi, patchClasspath)
+                println("patch dex: min-api=$patchMinApi desugaring=true classpath=${patchClasspath.size} entries")
 
                 var snapshot = ClassSnapshot.scan(classesDirs)
                 check(snapshot.isNotEmpty()) { "no classes found under ${classesDirs.joinToString()}" }
@@ -267,14 +277,18 @@ class WatchSession(private val config: Config) {
             is Classifier.PatchPlan.HotSwap -> {
                 for (fqcn in plan.inject) {
                     val entry = changed.getValue(fqcn.replace('.', '/'))
+                    val output = dexer.dexOneOutput(entry.file)
+                    injectPatchSynthetics(output, device)
                     // The device's PatchServer only accepts [A-Za-z0-9_.-] filenames; '$'
                     // from nested/lambda classes must be sanitized (it's only a label).
-                    device.injectDex("${fqcn.replace('.', '_').replace('$', '_')}.dex", dexer.dexOne(entry.file))
+                    device.injectDex("${fqcn.replace('.', '_').replace('$', '_')}.dex", output.primaryDex)
                 }
                 if (plan.redefine.isNotEmpty()) {
-                    val batch = plan.redefine.map { fqcn ->
-                        ClassDex(fqcn, dexer.dexOne(changed.getValue(fqcn.replace('.', '/')).file))
+                    val outputs = plan.redefine.associateWith { fqcn ->
+                        dexer.dexOneOutput(changed.getValue(fqcn.replace('.', '/')).file)
                     }
+                    outputs.values.forEach { injectPatchSynthetics(it, device) }
+                    val batch = outputs.map { (fqcn, output) -> ClassDex(fqcn, output.primaryDex) }
                     device.redefine(batch, plan.structural)
                 }
                 // Redefine-path invalidation (skip when this batch is pure-interpret — the
@@ -333,7 +347,9 @@ class WatchSession(private val config: Config) {
             val baselineBytes = baseline[internal]?.bytes
                 ?: error("no baseline bytes to prime $fqcn (class absent from the pre-edit snapshot)")
             val stub = StubTransform.transform(baselineBytes, frameLoader)
-            device.redefine(listOf(ClassDex(fqcn, dexer.dexBytes(stub))), structural = true)
+            val output = dexer.dexBytesOutput(stub)
+            injectPatchSynthetics(output, device)
+            device.redefine(listOf(ClassDex(fqcn, output.primaryDex)), structural = true)
             primedClasses += internal
             println("primed: $fqcn")
         }
@@ -346,6 +362,18 @@ class WatchSession(private val config: Config) {
         device.liveEditClasses(bytesOf(interpret), bytesOf(support), primedDexName = null, groupIds = groupIds.toList())
         if (support.isNotEmpty()) println("support: ${support.joinToString()}")
         println("interpreted: ${interpret.joinToString()} (${elapsedMs(t0)}ms)")
+    }
+
+    private fun injectPatchSynthetics(
+        output: DexCompiler.Output,
+        device: DeviceClient,
+    ) {
+        output.syntheticDexes.forEach { (className, bytes) ->
+            if (!injectedPatchSynthetics.add(className)) return@forEach
+            val safeName = className.replace('.', '_').replace('$', '_')
+            device.injectDex("desugar-$safeName.dex", bytes)
+            println("desugar-injected: $className")
+        }
     }
 
     /**

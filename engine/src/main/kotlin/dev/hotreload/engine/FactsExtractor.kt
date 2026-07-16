@@ -74,8 +74,12 @@ object FactsExtractor {
     }
 
     private fun extractComposeKey(method: MethodNode): Int? {
-        // Check invisible annotations (CLASS retention)
-        val annotations = method.invisibleAnnotations ?: return null
+        // Compose runtime versions have emitted FunctionKeyMeta with both CLASS and RUNTIME
+        // retention. ASM exposes those as invisible and visible annotations respectively.
+        val annotations = buildList {
+            method.invisibleAnnotations?.let(::addAll)
+            method.visibleAnnotations?.let(::addAll)
+        }
         for (ann in annotations) {
             if (ann.desc == FUNCTION_KEY_META_DESC) {
                 val values = ann.values ?: continue

@@ -331,6 +331,7 @@ class GradleDiscoveryTest {
         assertEquals(":app:assembleStageDebug", appMeta.assembleTask)
         assertEquals(":app:installStageDebug", appMeta.installTask)
         assertEquals(listOf("app/build/intermediates/built_in_kotlinc/stageDebug/compileStageDebugKotlin/classes"), appMeta.classOutputDirs)
+        assertEquals(listOf(".gradle/transforms/stage-debug-dependency.jar"), appMeta.compileClasspath)
         assertEquals(listOf("app/src/main/kotlin", "app/src/stage/kotlin", "app/src/stageDebug/kotlin"), appMeta.sourceDirs)
         assertEquals(listOf("app/src/main/res", "app/src/stage/res"), appMeta.resDirs)
         assertEquals("app/build/outputs/apk/stage/debug", appMeta.apkOutputDir)
@@ -384,9 +385,9 @@ class GradleDiscoveryTest {
         assertNull(coreMeta.assembleTask)
         assertNull(coreMeta.installTask)
         assertEquals(listOf("core/build/classes/kotlin/main"), coreMeta.classOutputDirs)
+        assertEquals(listOf(".gradle/caches/kotlin-stdlib.jar"), coreMeta.compileClasspath)
         assertEquals(listOf("core/src/main/kotlin"), coreMeta.sourceDirs)
         assertTrue(coreMeta.resDirs.isEmpty())
         assertNull(coreMeta.apkOutputDir)
     }
 }
-

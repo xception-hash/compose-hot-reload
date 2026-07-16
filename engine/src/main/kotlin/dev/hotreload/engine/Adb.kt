@@ -96,6 +96,27 @@ class Adb(private val adb: Path, serial: String? = null) {
         return token?.takeIf { it.matches(Regex("^[0-9a-f]{64}$")) }
     }
 
+    /**
+     * Minimum SDK recorded for the installed package. Patch D8 must use this value rather than
+     * the device API: APK builds below API 24 move interface static/default methods to `$-CC`
+     * companions, and patch call sites must undergo the identical rewrite.
+     */
+    fun installedMinSdk(applicationId: String): Int? {
+        val (exitCode, output) = safeShell("dumpsys", "package", applicationId)
+        if (exitCode != 0) return null
+        return parseInstalledMinSdk(output)
+    }
+
+    companion object {
+        internal fun parseInstalledMinSdk(output: String): Int? =
+            Regex("""\bminSdk=(\d+)\b""")
+                .find(output)
+                ?.groupValues
+                ?.get(1)
+                ?.toIntOrNull()
+                ?.takeIf { it > 0 }
+    }
+
     /** `adb push <local> <remote>` — recursive for directories. Throws on non-zero exit. */
     fun push(local: Path, remote: String) {
         run("push", local.toString(), remote)

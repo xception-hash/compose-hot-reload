@@ -9,7 +9,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        minSdk = 30
+        // Match the API-23 host fixture; hot reload itself remains device-gated at API 30.
+        minSdk = 23
     }
 
     buildFeatures {

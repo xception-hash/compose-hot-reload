@@ -186,6 +186,21 @@ apk_has_startup() {
     return 1
 }
 
+apk_has_jacoco_init() {
+    local apk="$1"
+    local dex_dir="$FIXTURE_ROOT/dex-jacoco-$RANDOM-$RANDOM"
+    mkdir -p "$dex_dir"
+    unzip -qq "$apk" 'classes*.dex' -d "$dex_dir"
+    local dex
+    for dex in "$dex_dir"/classes*.dex; do
+        if "$ANDROID_HOME/build-tools/36.0.0/dexdump" -s "$dex" \
+            | grep -F '$jacocoInit' >/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 assert_plain_release_clean() {
     local project="$1"
     local java_home="$2"
@@ -235,6 +250,9 @@ assert_instrumented_apk() {
         || fail "zero-touch APK does not contain the runtime native agent"
     apk_has_startup "$apk" \
         || fail "zero-touch APK does not contain AndroidX Startup 1.2.0"
+    if apk_has_jacoco_init "$apk"; then
+        fail "zero-touch APK contains JaCoCo-instrumented class shapes"
+    fi
 }
 
 bootstrap_gradle() {
@@ -293,6 +311,16 @@ assert_bootstrap_build() {
     class_metadata="$(find "$project" -type f -path "*/$variant/*" -name '*.class' -exec "$java_home/bin/javap" -v {} +)"
     [[ "$class_metadata" == *FunctionKeyMeta* ]] \
         || fail "bootstrap build omitted FunctionKeyMeta compiler instrumentation"
+    if [ -d "$project/features" ]; then
+        local feature_classes
+        feature_classes="$(find "$project/features" -type f -path "*/$variant/*" -name '*.class')"
+        [ -n "$feature_classes" ] || fail "bootstrap build produced no feature-module Kotlin classes"
+        local feature_metadata
+        feature_metadata="$(find "$project/features" -type f -path "*/$variant/*" -name '*.class' \
+            -exec "$java_home/bin/javap" -v {} +)"
+        [[ "$feature_metadata" == *FunctionKeyMeta* ]] \
+            || fail "bootstrap build omitted FunctionKeyMeta instrumentation from a Compose library"
+    fi
     find "$project" -type f -path "*/$variant/*" -name 'LiveLiterals*$*Kt.class' | grep -q . \
         || fail "bootstrap --literals build produced no LiveLiterals helper"
     local class_bytecode

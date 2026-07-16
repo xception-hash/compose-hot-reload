@@ -132,18 +132,85 @@ plugin's `test` plus `buildPlugin` tasks. The 0.1.8 ZIP must be installed from d
 fresh target `prepare --zero-touch` before running `verifyPlugin` and submitting a new Marketplace
 update. Do not use a manifest override or edit the target project.
 
+## Local 0.1.8 target retry — paused 2026-07-16
+
+The local candidate now completes zero-touch preparation, installs, and launches the selected
+debug variant on the API-36 emulator. This proves the minSdk-23 manifest fix. It does not yet prove
+working target edits.
+
+The retry uncovered these independent issues:
+
+| Finding | Evidence | Classification |
+|---|---|---|
+| Preparation was mistaken for an active session | `prepare` installed/launched and wrote the fingerprint, but no watcher process or `watching …` readiness line existed | needs documentation |
+| Reachable modules were omitted | Supplying an app id without an explicit module list bypassed discovery and watched only the conventional app module; omitting the redundant app id discovered the full reachable closure | needs a code change |
+| Coverage changed installed class shapes | The packaged debug APK contained JaCoCo's synthetic `$jacocoInit`, while watched Kotlin class outputs did not; ART rejected a body edit because method counts differed | needs a code change |
+| Compose libraries lacked function-key metadata | Zero-touch enabled `FunctionKeyMeta` only for the app module, so a library edit invalidated the whole tree and corrupted complex Compose state | needs a code change |
+| Newer Compose metadata was ignored | The target emits `FunctionKeyMeta` as a runtime-visible annotation; the engine read only the older runtime-invisible form | needs a code change |
+| Patch DEX ABI differs from the installed minSdk-23 APK | After targeted group invalidation worked, recomposition crashed with `NoSuchMethodError` for a Kotlin interface `$default` helper. The APK build had desugared the helper, while patch compilation forces D8 `--no-desugaring` | needs a code change |
+
+Implemented but uncommitted source changes at pause time:
+
+- The zero-touch bootstrap disables Android/unit-test coverage for its temporary app build.
+- Compose function-key metadata is enabled for every watched project applying the Compose plugin,
+  including Android libraries.
+- The engine extracts function keys from both runtime-visible and runtime-invisible annotations.
+- Host fixtures cover coverage-enabled packaging, Compose-library metadata, and the minSdk-23 AGP
+  8 feature module. A focused engine regression covers both annotation retention forms.
+
+Verification completed before the pause:
+
+- Bootstrap compilation, CLI distribution, and the engine test suite passed.
+- The full offline zero-touch host suite passed on AGP 9/JDK 21 and AGP 8/JDK 17.
+- The real target watcher reached `watching …` with 27 discovered modules and 1,251 classes.
+- After the annotation-reader fix, the edit reached `12 redefined, 21 groups invalidated`; device
+  logs then exposed the remaining patch-desugaring crash. Therefore the visual edit gate remains
+  **failed**, not partially passed.
+
+Pause state: the temporary target edit was restored, the watcher was stopped, and no target source
+change from the test remains. The target app process died during the deliberate failing gate; an
+older public sample app is foregrounded on the still-running emulator. Resume by fixing patch DEX
+desugaring/alignment, not by repeating preparation or changing the API-30 device floor. The plugin
+version lookup change and the API-30 runtime floor are unrelated to these failures.
+
+## Patch-desugaring resolution — 2026-07-16
+
+Patch DEX generation now matches the installed APK's desugaring boundary. The engine reads the
+installed package's declared minSdk, captures each watched Kotlin compilation's resolved library
+classpath during Gradle discovery, and runs D8 with desugaring enabled. File-per-class output
+keeps the class being redefined in a one-definition dex, while generated companion/backport
+classes are injected separately before redefinition.
+
+A focused engine regression proves that a minSdk-23 call to an interface `$default` helper is
+rewritten to the `$-CC` companion owner and that both the primary and auxiliary dexes each contain
+exactly one class definition.
+
+The real-target gate passed against the maintainer's active Android Studio checkout and its
+byte-for-byte matching installed APK. One watcher reached `watching …` with 27 modules, 1,251
+classes, installed minSdk 23, and 331 patch-classpath entries. A reversible body edit produced
+three injected desugaring backports followed by `hot-swapped: 12 redefined, 21 groups invalidated`.
+The frame visibly changed, the app PID remained stable, and the reverse edit produced the same
+successful swap signal. The maintainer's pre-existing source modification was restored exactly;
+the watcher was then stopped. No target identity, package identifier, local path, or screenshot is
+recorded here.
+
+Host verification passed 155 engine tests, protocol tests, CLI compile/distribution, packaged
+zero-touch distribution verification, and the AGP 9.2.1/JDK 21 host fixture. The AGP 8 fixture was
+skipped in this final run because `JAVA17_HOME` was unavailable; it had passed earlier in this same
+milestone before the patch-desugaring changes. JetBrains Plugin Verifier also reports the local
+0.1.8 candidate Compatible with all three configured IDE baselines; only the three pre-existing
+status-widget deprecation notices remain.
+
 ## Pending target-project matrix
 
-1. Install the local 0.1.8 candidate, prepare the target with zero-touch, and confirm the minSdk
-   manifest merger succeeds without a target modification.
-2. Run `verifyPlugin`, then publish 0.1.8 only after that local preparation succeeds.
-3. Start from the Marketplace plugin with normal user-facing settings and capture the full
+1. Publish 0.1.8 only after explicit maintainer approval.
+2. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
-4. Verify app-module body edit and state behavior.
-5. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
+3. Verify app-module body edit and state behavior.
+4. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
    a reachable non-app module where the target has one.
-6. After each result, record the plugin status/log line and a sanitized visual observation.
-7. Restore every temporary target edit before ending the trial.
+5. After each result, record the plugin status/log line and a sanitized visual observation.
+6. Restore every temporary target edit before ending the trial.
 
 ## Acceptance
 
@@ -154,7 +221,9 @@ update. Do not use a manifest override or edit the target project.
 - [x] No target edits, screenshots, credentials, package identifiers, or local paths committed.
 - [x] Source-level composite-build regression fixed and covered with packaged-payload AGP 9 and
       existing AGP 8/JDK 17 host coverage; root bootstrap-property rejection retained.
-- [ ] Local 0.1.8 candidate merges into the minSdk-23 target and reaches zero-touch preparation.
+- [x] Local 0.1.8 candidate merges into the minSdk-23 target and reaches zero-touch preparation.
+- [x] Patch DEX desugaring matches the installed APK and a real target edit survives targeted
+      recomposition with a visibly changed frame.
 - [ ] 0.1.8 verified and submitted only after the local merge/preparation check passes.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
       executed after a release contains both product fixes.

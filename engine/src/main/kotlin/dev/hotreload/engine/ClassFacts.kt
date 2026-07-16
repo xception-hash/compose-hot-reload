@@ -11,7 +11,8 @@ package dev.hotreload.engine
  *    ASM Textifier, constant pool indices resolved — so an unchanged body hashes equal
  *    across recompilations). Null for fields and abstract/native methods.
  *  - [MemberFacts.composeKey]: the FunctionKeyMeta key
- *    (`androidx.compose.runtime.internal.FunctionKeyMeta`, key/startOffset/endOffset)
+ *    (`androidx.compose.runtime.internal.FunctionKeyMeta`, key/startOffset/endOffset), whether
+ *    the Compose runtime emits it with CLASS or RUNTIME retention
  *    when present on the method; offsets are dropped — they shift on every edit and
  *    must not affect classification.
  */

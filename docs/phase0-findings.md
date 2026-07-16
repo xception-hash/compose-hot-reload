@@ -67,7 +67,10 @@ targeted invalidate → **UI updated, same PID, `remember` counter preserved**. 
 ### Agent (spike/toy-app/app/src/main/cpp/hotreload_agent.cpp)
 - `jvmti.h` vendored from AOSP `platform/art/openjdkjvmti/include/jvmti.h` (NDK doesn't ship one).
 - `Agent_OnAttach`: `GetEnv(JVMTI_VERSION_1_2)` then `AddCapabilities(can_redefine_classes, can_retransform_classes)` → both granted (err 0) on a debuggable app, attach-time.
-- **ART RedefineClasses takes single-class DEX bytes** (not JVM .class format). `d8 --no-desugaring --min-api 30 <one .class>` output works as-is → returned `JVMTI_ERROR_NONE`.
+- **ART RedefineClasses takes DEX bytes** (not JVM `.class` format). The original API-30
+  spike proved `d8 --no-desugaring --min-api 30 <one .class>` works. The product now keeps D8
+  desugaring enabled, uses the installed APK's minSdk, and supplies watched class outputs as
+  classpath so APKs below API 24 and their patches agree on interface `$-CC` helper ownership.
 
 ### Agent attach (app side)
 - `Debug.attachJvmtiAgent(lib, options, classLoader)` **rejects any '=' in the lib string**
@@ -94,8 +97,8 @@ On `androidx.compose.runtime.Recomposer$Companion` (instance via static `Compani
 
 ### Determinism flags
 Compile the app (and every patch) with `-Xlambdas=class -Xsam-conversions=class` so kotlinc emits
-lambda/SAM classes instead of invokedynamic; then a patch built with `d8 --no-desugaring` references
-the same synthetic shapes as the installed APK. (Without this, D8 desugars indy lambdas into
+lambda/SAM classes instead of invokedynamic; then patch D8 does not invent unstable lambda shapes.
+(Without this, D8 desugars indy lambdas into
 `$$ExternalSyntheticLambda*` classes whose names won't match across builds.)
 
 ### Group-key stability
