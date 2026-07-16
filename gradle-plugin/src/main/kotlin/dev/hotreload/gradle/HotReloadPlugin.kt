@@ -60,7 +60,7 @@ class HotReloadPlugin : Plugin<Project> {
             // Version must equal the release git tag verbatim (JitPack version == tag).
             // Shared by the build-type wiring below and the release tripwire's group/name
             // check so the coordinate is never duplicated.
-            val runtimeCoord = "com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0"
+            val runtimeCoord = "com.github.xception-hash.compose-hot-reload:runtime-client:0.1.6"
             val (runtimeGroup, runtimeName) = runtimeCoord.split(":")
 
             val android = project.extensions.getByType(ApplicationExtension::class.java)

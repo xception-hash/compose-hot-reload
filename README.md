@@ -124,11 +124,11 @@ dependencyResolutionManagement {
 In your **app** `build.gradle.kts`:
 ```kotlin
 plugins {
-    id("dev.hotreload") version "0.1.0"
+    id("dev.hotreload") version "0.1.6"
 }
 ```
 
-The plugin automatically adds the runtime-client AAR (`com.github.xception-hash.compose-hot-reload:runtime-client:0.1.0`) to your debug build — no manual dependency needed.
+The plugin automatically adds the runtime-client AAR (`com.github.xception-hash.compose-hot-reload:runtime-client:0.1.6`) to your debug build — no manual dependency needed.
 
 ### b) Build and install
 
@@ -352,7 +352,7 @@ Build the plugin zip:
 ```bash
 cd intellij-plugin && ./gradlew buildPlugin
 ```
-This produces `build/distributions/hotreload-intellij-plugin-0.1.0.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
+This produces `build/distributions/hotreload-intellij-plugin-0.1.6.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
 
 See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 
@@ -370,6 +370,8 @@ See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 - `tasks/` — Task specifications and progress tracking.
 
 ## 8. Status
+**0.1.6 — security hardening + project-agnostic release.** Adds socket peer-uid authorization and debuggable-only enforcement in the runtime client, project-agnostic configuration with Gradle discovery and IDE profiles, zero-touch `hotreload start`, and IDE plugin 0.1.6 (pre-Start environment preflight with surfaced fatal errors, Android SDK auto-discovery, bundled CLI).
+
 **0.1.0 — first public release.** Hot reload supports single-module and multi-module applications, resource edits, the AOSP LiveEdit interpreter for structural changes, and composable signature changes via lambda proxies. See the [Project Plan](docs/PLAN.md) for future milestones.
 
 ## 9. Troubleshooting
