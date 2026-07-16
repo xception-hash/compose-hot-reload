@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-16) — T33/T34 merged; plugin v0.1.6 published (T35)
+## Status (2026-07-16) — T33/T34/T35 merged; plugin v0.1.6 published
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -22,7 +22,7 @@ update it here, link it elsewhere.
 | T33 | Project-agnostic generalization: shared config model, Gradle discovery, profiles, zero-touch init-script mode (10 phases) | large | ✅ DONE 2026-07-15, MERGED 2026-07-16 (PR #19 `f674233`) — all 10 phases; CI matrix includes AGP 8 standalone-KGP flavored fixture and AGP 9 built-in Kotlin, and `start` is device-verified in configured and zero-touch modes |
 | Marketplace | Publish IntelliJ/Android Studio plugin to the JetBrains Marketplace | — | ✅ DONE — v0.1.4 approved + live |
 | T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
-| T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. PR #21 open (merge pending the maintainer) |
+| T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
 
 All engineering is DONE. Remaining items are optional housekeeping, none blocking:
