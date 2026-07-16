@@ -176,18 +176,11 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none
           disable-animations: true
-          script: |
-            test -n "${JAVA17_HOME:-}" || { echo "ERROR: JAVA17_HOME is required; refusing to skip the AGP 8/JDK 17 leg" >&2; exit 1; }
-            test -x "$JAVA17_HOME/bin/java" || { echo "ERROR: JAVA17_HOME has no java executable: $JAVA17_HOME" >&2; exit 1; }
-            "$JAVA17_HOME/bin/java" -version
-            set +e
-            ZERO_TOUCH_OFFLINE=1 JAVA17_HOME="$JAVA17_HOME" bash e2e/run-zero-touch.sh > zero-touch-compatibility.log 2>&1
-            code=$?
-            set -e
-            cat zero-touch-compatibility.log
-            if grep -Fq 'SKIP: AGP 8/JDK 17' zero-touch-compatibility.log; then echo 'ERROR: AGP 8/JDK 17 leg was skipped' >&2; exit 1; fi
-            grep -Fq 'PASS: AGP 8 zero-touch JDK 17 multi-module hot swap' zero-touch-compatibility.log || { echo 'ERROR: AGP 8/JDK 17 leg did not reach its device assertion' >&2; exit 1; }
-            exit "$code"
+          # A single-line invocation, not an inline multi-line block: the emulator-runner
+          # action splits `script` on newlines and runs each line as an independent `sh -c`
+          # process, so shell state (an exit code captured on one line) does not carry over
+          # to the next. See e2e/run-zero-touch-compatibility-gate.sh for the full logic.
+          script: bash e2e/run-zero-touch-compatibility-gate.sh
 
       - name: Upload zero-touch compatibility log
         if: failure()
