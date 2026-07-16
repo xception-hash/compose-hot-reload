@@ -69,6 +69,11 @@ intellijPlatform {
             "Spawns the hotreload CLI and shows live reload status in the status bar."
         changeNotes = """
             <ul>
+              <li><b>0.1.6</b> — Preflight now surfaces the real doctor output and a
+                  <b>Report on GitHub</b> action when the environment check can't run;
+                  auto-discovers the Android SDK (<code>local.properties</code> /
+                  <code>ANDROID_HOME</code> / platform default) for GUI-launched IDEs; expands
+                  <code>~</code> in path settings.</li>
               <li><b>0.1.5</b> — Added a pre-Start environment preflight: the plugin runs
                   <code>hotreload doctor</code> before launching and, if the environment is not
                   ready (missing Android SDK build-tools, no connected device, or the app is not

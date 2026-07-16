@@ -65,18 +65,24 @@ data class HotReloadWatchConfig(
     }
 
     companion object {
-        /** Preserve the old project XML surface exactly while introducing structured settings. */
-        fun from(state: HotReloadSettings.State, fallbackProjectDir: String): HotReloadWatchConfig = HotReloadWatchConfig(
-            cliLauncherPath = state.cliLauncherPath,
+        /** Preserve the old project XML surface exactly while introducing structured settings.
+         *  [home] defaults to the real user home; tests pass a fixed value so `~`-expansion is
+         *  deterministic. */
+        fun from(
+            state: HotReloadSettings.State,
+            fallbackProjectDir: String,
+            home: String = System.getProperty("user.home"),
+        ): HotReloadWatchConfig = HotReloadWatchConfig(
+            cliLauncherPath = expandUserHome(state.cliLauncherPath, home),
             projectDir = state.projectDir.ifBlank { fallbackProjectDir },
             profile = state.profile,
             appModule = state.appModule,
             appId = state.appId,
             variant = state.variant,
-            targetJdk = state.targetJdk,
+            targetJdk = expandUserHome(state.targetJdk, home),
             watchedModules = state.modules.ifBlank { "app" },
             device = state.device,
-            sdkPath = state.sdkPath,
+            sdkPath = expandUserHome(state.sdkPath, home),
             literals = state.literals,
             zeroTouch = state.zeroTouch,
             gradleArgs = state.gradleArgs.toList(),
@@ -96,3 +102,12 @@ fun renderCommand(tokens: List<String>): String = tokens.joinToString(" ") { tok
     if (token.matches(Regex("[A-Za-z0-9_./:=+@%,-]+"))) token
     else "'" + token.replace("'", "'\\\"'\\\"'") + "'"
 }
+
+/** Expand a leading ~ or ~/ to the given home dir. Only a leading bare ~ is handled
+ *  (paths are single tokens, never shell-expanded). Non-tilde paths pass through. */
+fun expandUserHome(path: String, home: String): String =
+    when {
+        path == "~" -> home
+        path.startsWith("~/") || path.startsWith("~\\") -> home + path.substring(1)
+        else -> path
+    }

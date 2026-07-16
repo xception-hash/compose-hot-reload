@@ -63,6 +63,32 @@ class HotReloadCommandTest {
         assertEquals(listOf("doctor", "--project", "/repo/app", "--module", "app"), config.doctorArguments())
     }
 
+    @Test fun `from expands a leading tilde in path-valued fields but leaves other fields untouched`() {
+        val state = HotReloadSettings.State().apply {
+            appId = "dev.example.app"
+            sdkPath = "~/Library/Android/sdk"
+            cliLauncherPath = "~/cli/bin/cli"
+            targetJdk = "~/jdks/17"
+            appModule = "~notexpanded"
+        }
+        val config = HotReloadWatchConfig.from(state, "/repo/app", home = "/home/u")
+
+        assertEquals("/home/u/Library/Android/sdk", config.sdkPath)
+        assertEquals("/home/u/cli/bin/cli", config.cliLauncherPath)
+        assertEquals("/home/u/jdks/17", config.targetJdk)
+        // Non-tilde and non-path fields pass through unchanged.
+        assertEquals("~notexpanded", config.appModule)
+
+        val absoluteState = HotReloadSettings.State().apply {
+            appId = "dev.example.app"
+            sdkPath = "/already/absolute"
+        }
+        assertEquals(
+            "/already/absolute",
+            HotReloadWatchConfig.from(absoluteState, "/repo/app", home = "/home/u").sdkPath,
+        )
+    }
+
     @Test fun `rendered command quotes tokens without changing their boundaries`() {
         assertEquals("cli watch --project '/repo with spaces' --gradle-arg '-Pname=two words'", renderCommand(
             listOf("cli", "watch", "--project", "/repo with spaces", "--gradle-arg", "-Pname=two words"),
