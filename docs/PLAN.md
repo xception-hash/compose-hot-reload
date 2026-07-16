@@ -1,13 +1,14 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-16) — T33 MERGED to main; v0.1.4 live on the Marketplace
+## Status (2026-07-16) — T33/T34 merged; plugin v0.1.6 published (T35)
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
 resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
 changes** incl. composables via lambda proxies, zero-touch `hotreload start`, IDE plugin with
-discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.4 is published
-and live on the JetBrains Marketplace**. Engineering is feature-complete; the backlog is empty.
+discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.6 is published
+to the JetBrains Marketplace** (0.1.4 live; 0.1.6 in moderation). Engineering is feature-complete;
+the backlog is optional housekeeping + one cosmetic follow-up (T36).
 Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
 update it here, link it elsewhere.
 
@@ -20,7 +21,9 @@ update it here, link it elsewhere.
 | 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies | unbounded | defer |
 | T33 | Project-agnostic generalization: shared config model, Gradle discovery, profiles, zero-touch init-script mode (10 phases) | large | ✅ DONE 2026-07-15, MERGED 2026-07-16 (PR #19 `f674233`) — all 10 phases; CI matrix includes AGP 8 standalone-KGP flavored fixture and AGP 9 built-in Kotlin, and `start` is device-verified in configured and zero-touch modes |
 | Marketplace | Publish IntelliJ/Android Studio plugin to the JetBrains Marketplace | — | ✅ DONE — v0.1.4 approved + live |
-| T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | 🔶 IN-REVIEW — host gates green (34 tests, verifyPlugin Compatible); device verify + Marketplace publish pending the maintainer |
+| T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
+| T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. PR #21 open (merge pending the maintainer) |
+| T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
 
 All engineering is DONE. Remaining items are optional housekeeping, none blocking:
 - **Release provenance:** only `0.1.0` is git-tagged; 0.1.1→0.1.4 shipped to the Marketplace
