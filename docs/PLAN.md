@@ -9,8 +9,10 @@ changes** incl. composables via lambda proxies, zero-touch `hotreload start`, ID
 discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.6 is approved
 and live on the JetBrains Marketplace**, and **release 0.1.6 is fully shipped**: git tag `0.1.6`,
 GitHub Release (signed plugin zip, marked latest), and JitPack serving all three artifacts at
-0.1.6 (verified by real resolution). Engineering is feature-complete; next up is a live
-production-code trial (findings → T37), plus optional housekeeping + one cosmetic follow-up (T36).
+0.1.6 (verified by real resolution). Engineering is feature-complete; **Phase F is in progress**:
+the Marketplace-plugin smoke passed on the multi-module fixture, and a public production-grade
+target trial remains (findings → T37). Optional housekeeping and one cosmetic follow-up (T36)
+remain separate.
 Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
 update it here, link it elsewhere.
 
@@ -26,6 +28,7 @@ update it here, link it elsewhere.
 | T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
 | T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
+| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-16 — Marketplace smoke on `samples/multi-module` passed (startup, body reload, sibling-state preservation); target-project trial is pending. See `tasks/T37-production-trial-findings.md`. |
 
 All engineering is DONE. Remaining items are optional housekeeping, none blocking:
 - **Release provenance:** ✅ DONE 2026-07-16 — tag `0.1.6` cut on `main` (PR #23 version bumps),
