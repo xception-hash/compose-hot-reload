@@ -86,6 +86,7 @@ project inputs change during inspect, configure, prepare, or watch.
 | AGP 8.12.3, standalone Kotlin Gradle Plugin 2.3.20, JDK 17 | `internalStage` flavored/custom debuggable variant; inspect, configure, prepare, and multi-module watch | [`e2e/fixtures/zero-touch/agp8`](../e2e/fixtures/zero-touch/agp8), `e2e/run-zero-touch.sh` |
 | Single and multi-module projects | AGP 9 is single-app-module; AGP 8 includes Android app/library modules plus a Kotlin/JVM dependency | `e2e/run-zero-touch.sh`, `e2e/run.sh`, `e2e/run-multi.sh` |
 | Gradle path differs from physical directory | `:mobile` is mapped to `applications/mobile` or `applications/phone`; AGP 8 also uses feature and shared directories | both zero-touch fixtures |
+| Composite build | AGP 9 includes and applies a minimal `build-logic` plugin; the included build receives no bootstrap instrumentation while the root `:mobile` app is instrumented | `e2e/fixtures/zero-touch/agp9`, `e2e/run-zero-touch.sh` |
 | Flavors, custom debuggable variants, and differing library variants | `qa` and `internalStage` fixture variants, including AGP 8 module variant selection | `e2e/run-zero-touch.sh` |
 | Configured integration | Single-module sample begins through `hotreload start`; multi-module sample is a configured watcher regression | `e2e/run.sh`, `e2e/run-multi.sh` |
 | Zero-touch integration | AGP 9 fixture begins from an absent app through `hotreload start`; the offline API 36 suite also covers AGP 8 with explicit JDK 17 | `ZERO_TOUCH_OFFLINE=1 JAVA17_HOME=… e2e/run-zero-touch.sh` |
@@ -106,6 +107,10 @@ continues to cover the configured default sample.
 - A literal update is a complete save operation when it succeeds. It advances the source baseline
   rather than compiling the same edit again; this avoids a redundant keyless swap that can disturb
   Compose state.
+- Gradle evaluates init scripts for each composite participant. Zero-touch uses Gradle's public
+  `gradle.parent` API to leave included builds inert before loading or validating root-only
+  bootstrap properties. The root build still validates every required bootstrap property and
+  instruments only its selected module closure.
 
 ## Current boundaries
 
@@ -113,6 +118,9 @@ continues to cover the configured default sample.
   covered by a fixture.
 - Kotlin Gradle scripts are covered. Groovy build scripts are not a claimed compatibility
   target because no Groovy fixture exists.
+- Included builds are intentionally not instrumented. Select app and dependency modules from the
+  invoked root build; code that belongs to an included `build-logic` build is outside the
+  zero-touch watched-module closure.
 - Non-debuggable/release variants and devices below API 30 are unsupported.
 - Variant source-set handling is exercised for the fixture variants above. A general
   multi-dimension flavor-to-source-set mapping is not yet covered by a dedicated fixture;

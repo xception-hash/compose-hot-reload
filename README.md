@@ -67,6 +67,10 @@ creates its ordinary `.gradle`, `.kotlin`, and `build` outputs; zero-touch mode 
 modify project inputs such as `settings.gradle`, module build files, source files,
 `local.properties`, or a project-local init script.
 
+Zero-touch also supports Gradle composite builds. The bundled bootstrap is inert for included
+builds such as `build-logic`; it instruments only the selected module closure in the invoked root
+build.
+
 ### Try it on the bundled sample (fastest way to see it work)
 Want to see hot reload before wiring it into your own app? This repo ships a ready-to-go sample
 (`samples/single-module`, app id `dev.hotreload.sample`) that already applies the plugin. With an

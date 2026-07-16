@@ -103,6 +103,12 @@ This covers the source-level composite-build regression only. The shipped 0.1.6 
 blocked until a new bundled CLI/plugin release contains the fix. The Marketplace production-target
 matrix has not been retried and is not claimed as passed.
 
+Source-level verification passed the packaged-payload host fixture on AGP 9/JDK 21 (including the
+applied composite plugin, APK instrumentation, non-debuggable APK cleanliness, target-tree
+immutability, and missing-root-property rejection) and the existing AGP 8/JDK 17 compatibility
+leg. The unchanged configured single- and multi-module device regressions also passed. These are
+not substitutes for the Marketplace production-target trial.
+
 ## Pending target-project matrix
 
 1. After the zero-touch included-build fix ships, start from the Marketplace plugin with normal
@@ -120,5 +126,7 @@ matrix has not been retried and is not claimed as passed.
       path is blocked before readiness by the included-build failure.
 - [x] Pending matrix recorded as blocked with exact sanitized evidence and classifications.
 - [x] No target edits, screenshots, credentials, package identifiers, or local paths committed.
+- [x] Source-level composite-build regression fixed and covered with packaged-payload AGP 9 and
+      existing AGP 8/JDK 17 host coverage; root bootstrap-property rejection retained.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
-      executed after the product fix.
+      executed after a release contains the product fix.
