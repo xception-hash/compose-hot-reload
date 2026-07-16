@@ -89,6 +89,20 @@ not receive the bootstrap properties, while retaining instrumentation for the se
 module allowlist. After that fix ships, repeat preparation and the full matrix with the same
 debuggable variant. The external target checkout was left clean.
 
+## Source-level resolution — 2026-07-16
+
+The source fix makes the bundled init script return immediately when Gradle identifies an
+included build through its public `gradle.parent` API. Root-build validation and instrumentation
+remain unchanged. The AGP 9 zero-touch fixture now includes and applies a minimal `build-logic`
+plugin, then verifies the packaged CLI payload can instrument the selected `:mobile` debug APK
+while the composite build evaluates normally. It also invokes the root build with that packaged
+init script but without bootstrap properties and requires the existing
+`zero-touch bootstrap: missing dev.hotreload.bootstrap.jar` failure.
+
+This covers the source-level composite-build regression only. The shipped 0.1.6 trial remains
+blocked until a new bundled CLI/plugin release contains the fix. The Marketplace production-target
+matrix has not been retried and is not claimed as passed.
+
 ## Pending target-project matrix
 
 1. After the zero-touch included-build fix ships, start from the Marketplace plugin with normal

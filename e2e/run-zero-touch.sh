@@ -259,6 +259,20 @@ bootstrap_gradle() {
     (cd "$project" && JAVA_HOME="$java_home" ./gradlew "${args[@]}" "$@")
 }
 
+assert_missing_root_bootstrap_rejected() {
+    local project="$1"
+    local java_home="$2"
+    local log="$FIXTURE_ROOT/missing-root-bootstrap.log"
+
+    if (cd "$project" && JAVA_HOME="$java_home" ./gradlew --no-configuration-cache \
+        --init-script "$BOOTSTRAP_DIR/zero-touch.init.gradle" :mobile:help) >"$log" 2>&1; then
+        fail "zero-touch init script accepted a root build without bootstrap properties"
+    fi
+    grep -Fq 'zero-touch bootstrap: missing dev.hotreload.bootstrap.jar' "$log" \
+        || { cat "$log" >&2; fail "missing root bootstrap property did not fail loudly"; }
+    assert_tree_clean "$project" "missing root bootstrap-property rejection"
+}
+
 assert_bootstrap_build() {
     local project="$1"
     local java_home="$2"
@@ -334,6 +348,7 @@ assert_no_configured_integration "$AGP9_PROJECT"
 echo "--- Host fixture: AGP 9.2.1 built-in Kotlin / JDK 21 ---"
 run_inspect "$AGP9_PROJECT" "$JAVA_HOME" "9.6.1" ":mobile" "qa"
 run_configure "$AGP9_PROJECT" "$JAVA_HOME" qa fixture-agp9
+assert_missing_root_bootstrap_rejected "$AGP9_PROJECT" "$JAVA_HOME"
 assert_plain_release_clean "$AGP9_PROJECT" "$JAVA_HOME" ":mobile:assembleRelease" '*/build/outputs/apk/release/*'
 assert_bootstrap_build "$AGP9_PROJECT" "$JAVA_HOME" ':mobile' ':mobile' qa ':mobile:assembleQa' qa
 assert_bootstrap_release_clean "$AGP9_PROJECT" "$JAVA_HOME" ':mobile' ':mobile' qa \
