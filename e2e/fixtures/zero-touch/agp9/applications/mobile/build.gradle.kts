@@ -10,7 +10,9 @@ android {
 
     defaultConfig {
         applicationId = "dev.hotreload.fixture.agp9"
-        minSdk = 30
+        // The injected runtime must merge into apps whose install floor predates hot reload's
+        // API-30 device requirement; it disables itself on older devices.
+        minSdk = 23
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"

@@ -356,7 +356,7 @@ Build the plugin zip:
 ```bash
 cd intellij-plugin && ./gradlew buildPlugin
 ```
-This produces `build/distributions/hotreload-intellij-plugin-0.1.7.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
+This produces `build/distributions/hotreload-intellij-plugin-0.1.8.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
 
 See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 

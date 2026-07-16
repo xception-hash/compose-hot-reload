@@ -1,22 +1,22 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-16) — release 0.1.6 shipped; Phase F target trial awaits a bundle containing the composite-build fix
+## Status (2026-07-16) — Marketplace 0.1.7 fixed composite builds; Phase F awaits local 0.1.8 minSdk-23 validation
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
 resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
 changes** incl. composables via lambda proxies, zero-touch `hotreload start`, IDE plugin with
-discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.6 is approved
-and live on the JetBrains Marketplace**, and **release 0.1.6 is fully shipped**: git tag `0.1.6`,
+discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.7 is approved
+and live on the JetBrains Marketplace** (0.1.6 is the latest full JitPack/GitHub release), and
+**release 0.1.6 is fully shipped**: git tag `0.1.6`,
 GitHub Release (signed plugin zip, marked latest), and JitPack serving all three artifacts at
 0.1.6 (verified by real resolution). Engineering is feature-complete; **Phase F is in progress**:
-the Marketplace-plugin smoke passed on the multi-module fixture, and a public production-grade
-target trial is blocked before app installation because the shipped zero-touch init script aborts
-when Gradle evaluates an included `build-logic` build without bootstrap project properties. The
-source-level fix is committed and covered by the AGP 9 composite fixture plus the existing AGP
-8/JDK 17 compatibility leg, but it is not in Marketplace 0.1.6. The full target matrix therefore
-has no live-edit evidence yet and must be retried only after a new bundle ships. Optional
-housekeeping and one cosmetic follow-up (T36) remain separate.
+the Marketplace-plugin smoke passed on the multi-module fixture. The first public production
+target blocker (the zero-touch init script aborting in an included `build-logic` build) is fixed
+in 0.1.7. The retry then exposed a second blocker: the runtime AAR declared minSdk 24 while the
+target declares 23. A local **0.1.8 candidate** lowers that merge floor to 23 while retaining its
+API-30 runtime guard; it must pass local target preparation before verifier/publish and the full
+matrix retry. Optional housekeeping and one cosmetic follow-up (T36) remain separate.
 Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
 update it here, link it elsewhere.
 
@@ -32,7 +32,7 @@ update it here, link it elsewhere.
 | T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
 | T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
-| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-16 — fixture Marketplace smoke passed; the supplied target is blocked before readiness by the Marketplace 0.1.6 bundled init script. Source fix `acd74d1` is covered for composite builds, but a new bundle must ship before the target matrix is rerun. See `tasks/T37-production-trial-findings.md`. |
+| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-16 — Marketplace 0.1.7 fixes the included-build bootstrap; retry exposed the runtime AAR minSdk-24 vs target-minSdk-23 merge conflict. Local 0.1.8 lowers the AAR floor to 23 and awaits local preparation before verifier/publish and matrix retry. See `tasks/T37-production-trial-findings.md`. |
 
 All engineering is DONE. Remaining items are optional housekeeping, none blocking:
 - **Release provenance:** ✅ DONE 2026-07-16 — tag `0.1.6` cut on `main` (PR #23 version bumps),

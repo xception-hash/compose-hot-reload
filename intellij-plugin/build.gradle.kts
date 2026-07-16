@@ -69,6 +69,8 @@ intellijPlatform {
             "Spawns the hotreload CLI and shows live reload status in the status bar."
         changeNotes = """
             <ul>
+              <li><b>0.1.8</b> — Zero-touch now supports apps with a minSdk of 23. Hot reload
+                  remains enabled only on API 30+ devices; older devices safely skip the runtime.</li>
               <li><b>0.1.7</b> — Zero-touch now supports projects with Gradle composite builds
                   (for example, an included <code>build-logic</code> build). The bundled
                   bootstrap is inert in included builds and continues to instrument the selected

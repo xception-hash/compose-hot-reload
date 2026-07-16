@@ -18,7 +18,7 @@ The tool supports two integration modes:
 
 Case-study reference point: a large layered app (Gradle 8.13, AGP 8.13.2, Kotlin 2.3.21,
 JDK 17, custom variants including flavored products, Gradle paths ≠ physical dirs,
-minSdk 24).
+minSdk 23).
 
 ## Spec
 

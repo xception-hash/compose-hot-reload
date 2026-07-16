@@ -14,7 +14,8 @@ android {
 
     defaultConfig {
         // Host apps may support older devices; the initializer disables itself below API 30.
-        minSdk = 24
+        // Keep the AAR consumable by API-23 apps so zero-touch never needs a manifest override.
+        minSdk = 23
         aarMetadata {
             // The runtime uses API-30 framework types but no compileSdk-36-only resources/APIs.
             // Keep the local zero-touch AAR consumable by projects compiling against API 30+.

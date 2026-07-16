@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.hotreload.fixture.agp8"
-        minSdk = 30
+        minSdk = 23
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"

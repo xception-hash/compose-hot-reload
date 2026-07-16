@@ -4,7 +4,7 @@ Assignee: maintainer + coordinator
 
 ## Goal
 
-Validate the JetBrains Marketplace 0.1.6 plugin and its bundled CLI against a public,
+Validate the JetBrains Marketplace plugin and its bundled CLI against a public,
 production-grade Android/Compose project. Record only sanitized technical findings and classify
 each result as **works**, **needs documentation**, or **needs a code change**.
 
@@ -109,15 +109,41 @@ immutability, and missing-root-property rejection) and the existing AGP 8/JDK 17
 leg. The unchanged configured single- and multi-module device regressions also passed. These are
 not substitutes for the Marketplace production-target trial.
 
+## Release retry and second compatibility finding — 2026-07-16
+
+Marketplace plugin 0.1.7 shipped the composite-build bootstrap fix and was approved. Retrying
+zero-touch preparation against the same target passed the former immediate
+`zero-touch bootstrap: missing dev.hotreload.bootstrap.jar` failure, then reached Android manifest
+merging. That exposed a second product compatibility issue:
+
+| Check | Result | Classification |
+|---|---|---|
+| Composite included-build bootstrap | Fixed in approved Marketplace 0.1.7 | works |
+| Runtime AAR manifest merge into a minSdk-23 app | Fails: runtime AAR declared minSdk 24 | needs a code change |
+
+The target's device requirement is not the issue: hot reload remains API 30+ only. The runtime
+initializer already returns before loading the API-30 hot-reload paths on older devices, so the
+AAR's install/merge floor can safely be 23. The source fix lowers that declared floor to 23 and
+changes both AGP 9 and AGP 8 zero-touch fixtures to minSdk 23. This is covered by a local plugin
+**0.1.8 candidate**; it is not yet published.
+
+Local validation completed: JBR/build-tools/API-36 preflight, rebuilt CLI distribution, and the
+plugin's `test` plus `buildPlugin` tasks. The 0.1.8 ZIP must be installed from disk and used for a
+fresh target `prepare --zero-touch` before running `verifyPlugin` and submitting a new Marketplace
+update. Do not use a manifest override or edit the target project.
+
 ## Pending target-project matrix
 
-1. After the zero-touch included-build fix ships, start from the Marketplace plugin with normal
-   user-facing settings and capture the full preflight/doctor result.
-2. Verify app-module body edit and state behavior.
-3. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
+1. Install the local 0.1.8 candidate, prepare the target with zero-touch, and confirm the minSdk
+   manifest merger succeeds without a target modification.
+2. Run `verifyPlugin`, then publish 0.1.8 only after that local preparation succeeds.
+3. Start from the Marketplace plugin with normal user-facing settings and capture the full
+   preflight/doctor result.
+4. Verify app-module body edit and state behavior.
+5. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
    a reachable non-app module where the target has one.
-4. After each result, record the plugin status/log line and a sanitized visual observation.
-5. Restore every temporary target edit before ending the trial.
+6. After each result, record the plugin status/log line and a sanitized visual observation.
+7. Restore every temporary target edit before ending the trial.
 
 ## Acceptance
 
@@ -128,5 +154,7 @@ not substitutes for the Marketplace production-target trial.
 - [x] No target edits, screenshots, credentials, package identifiers, or local paths committed.
 - [x] Source-level composite-build regression fixed and covered with packaged-payload AGP 9 and
       existing AGP 8/JDK 17 host coverage; root bootstrap-property rejection retained.
+- [ ] Local 0.1.8 candidate merges into the minSdk-23 target and reaches zero-touch preparation.
+- [ ] 0.1.8 verified and submitted only after the local merge/preparation check passes.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
-      executed after a release contains the product fix.
+      executed after a release contains both product fixes.
