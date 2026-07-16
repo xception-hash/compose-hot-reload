@@ -6,7 +6,7 @@ plugins {
 // Group = the JitPack coordinate (com.github.<user>.<repo>) so the samples' composite-build
 // substitution matches the exact dependency the gradle plugin injects for published consumers.
 group = "com.github.xception-hash.compose-hot-reload"
-version = "0.1.0"
+version = "0.1.6"
 
 android {
     namespace = "dev.hotreload.client"
