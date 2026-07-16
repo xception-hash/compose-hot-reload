@@ -1,13 +1,15 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-15) — T33 project-agnostic generalization DELIVERED
+## Status (2026-07-16) — T33 MERGED to main; v0.1.4 live on the Marketplace
 
-T01–T28 are done; the product works end-to-end (body edits, structural adds, multi-module,
+T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
+(PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
 resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
-changes** incl. composables via lambda proxies, IDE plugin, doctor, e2e 15/15). Engineering is
-~95 % complete. Remaining work is tracked in `tasks/T29–T30` and executed per
-`docs/OPUS-HANDOFF.md` (post-Fable playbook). This table is the ONE canonical roadmap — update
-it here, link it elsewhere.
+changes** incl. composables via lambda proxies, zero-touch `hotreload start`, IDE plugin with
+discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.4 is published
+and live on the JetBrains Marketplace**. Engineering is feature-complete; the backlog is empty.
+Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
+update it here, link it elsewhere.
 
 | # | Work | Size | Executor |
 |---|---|---|---|
@@ -15,10 +17,16 @@ it here, link it elsewhere.
 | 1 | ✅ DONE 2026-07-07 — `tasks/T29-release-v0.1.md` v0.1.0 tagged, GitHub Release, JitPack resolvable | — | done |
 | 2 | ✅ DONE 2026-07-06 — `tasks/T28-proxies-codegen.md` all 5 steps; checkpoints A/B/C + e2e case 15 validated live (Fable) | — | done |
 | 3 | ✅ DONE 2026-07-10 — `tasks/T30-robustness-leftovers.md` all 4 items: super/invokespecial verified, synchronized-block SIGABRT found + classifier MONITORENTER→Rebuild guard, jpg/jpeg supported, 9-patch/fonts documented unsupported | — | done |
-| 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies, marketplace | unbounded | defer |
-| T33 | Project-agnostic generalization: shared config model, Gradle discovery, profiles, zero-touch init-script mode (10 phases) | large | ✅ DONE 2026-07-15 — all 10 phases; CI matrix includes AGP 8 standalone-KGP flavored fixture and AGP 9 built-in Kotlin, and `start` is device-verified in configured and zero-touch modes |
+| 4 | Stretch (post-v0.1): Compose N-1 shims, suspend-lambda proxies | unbounded | defer |
+| T33 | Project-agnostic generalization: shared config model, Gradle discovery, profiles, zero-touch init-script mode (10 phases) | large | ✅ DONE 2026-07-15, MERGED 2026-07-16 (PR #19 `f674233`) — all 10 phases; CI matrix includes AGP 8 standalone-KGP flavored fixture and AGP 9 built-in Kotlin, and `start` is device-verified in configured and zero-touch modes |
+| Marketplace | Publish IntelliJ/Android Studio plugin to the JetBrains Marketplace | — | ✅ DONE — v0.1.4 approved + live |
+| T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | 🔶 IN-REVIEW — host gates green (34 tests, verifyPlugin Compatible); device verify + Marketplace publish pending the maintainer |
 
-Recommended order: T29 (ship v0.1) → T30.
+All engineering is DONE. Remaining items are optional housekeeping, none blocking:
+- **Release provenance:** only `0.1.0` is git-tagged; 0.1.1→0.1.4 shipped to the Marketplace
+  without git tags / GitHub Releases. Tag the current `main` + cut Releases if provenance matters.
+- **PatchServer wedge robustness:** re-arm `soTimeout` between sessions (long-standing nice-to-have).
+- Stretch item 4 above (Compose N-1 shims, suspend-lambda proxies) if the project is extended.
 
 ## Context
 

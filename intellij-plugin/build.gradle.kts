@@ -21,7 +21,10 @@ dependencies {
     intellijPlatform {
         // Build/run against IntelliJ IDEA Community; the plugin also loads in Android Studio
         // (it only uses core platform APIs: status bar, actions, project settings).
-        intellijIdeaCommunity(providers.gradleProperty("platformVersion").get())
+        // useInstaller = false: 2026.1.4 has no published download.jetbrains.com installer dmg
+        // yet, only a maven artifact in the intellij-repository — same reasoning as the
+        // pluginVerification ides() below.
+        intellijIdeaCommunity(providers.gradleProperty("platformVersion").get(), useInstaller = false)
     }
 
     // CliProtocol is pure Kotlin, so its tests are plain JUnit 5 (no platform fixture needed).
@@ -66,6 +69,12 @@ intellijPlatform {
             "Spawns the hotreload CLI and shows live reload status in the status bar."
         changeNotes = """
             <ul>
+              <li><b>0.1.5</b> — Added a pre-Start environment preflight: the plugin runs
+                  <code>hotreload doctor</code> before launching and, if the environment is not
+                  ready (missing Android SDK build-tools, no connected device, or the app is not
+                  running), shows an actionable notification with a <b>Start anyway</b> option
+                  instead of a raw CLI error. Also rebuilt against the 2026.1 IntelliJ platform and
+                  verified against the newest IDE builds.</li>
               <li><b>0.1.4</b> — Removed all use of internal IntelliJ plugin-descriptor APIs
                   (every <code>PluginManager</code> descriptor lookup became
                   <code>@ApiStatus.Internal</code> on 2026.2). The plugin version is now baked in at
@@ -118,16 +127,17 @@ intellijPlatform {
     // on, and 2026.x wasn't in the public IntelliJ maven repo yet — so a local verifyPlugin
     // against 2025.x stayed green while the Marketplace verifier (2026.2 RC, build 262.8665.176)
     // rejected the upload. 0.1.4 removed ALL platform plugin-descriptor APIs (see PluginInfo.kt).
-    // The 262 EAP line is now published to the snapshots repo, so the verifier list below pins
-    // the OLDEST supported line, the newest stable, and the Marketplace's own 262 build — keep
-    // the last entry tracking whatever line the Marketplace compat check runs.
+    // 0.1.5 moves the build target itself to 2026.1.4 (now published to the public IntelliJ
+    // maven repo), so the verifier list below pins the older 2025.1 line the plugin used to
+    // build against, the 2026.1.4 stable it builds against now, and the Marketplace's own 262
+    // build — keep the last entry tracking whatever line the Marketplace compat check runs.
     pluginVerification {
         ides {
-            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, providers.gradleProperty("platformVersion").get())
-            // useInstaller = false: resolve from the intellij-repository maven repo — the
-            // installer path (download.jetbrains.com dmg) doesn't carry these versions.
-            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, "2026.1.4", useInstaller = false)
-            // Exact build family the Marketplace verifier used for the 0.1.2 rejection.
+            // Older supported line (sinceBuild = 242) — the prior build target.
+            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, "2025.1", useInstaller = false)
+            // Newest stable = current build target (platformVersion).
+            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, providers.gradleProperty("platformVersion").get(), useInstaller = false)
+            // The Marketplace's own 262 build family.
             ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaCommunity, "262.8665.176-EAP-SNAPSHOT", useInstaller = false)
         }
     }

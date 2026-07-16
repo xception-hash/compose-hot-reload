@@ -37,6 +37,32 @@ class HotReloadCommandTest {
         )
     }
 
+    @Test fun `doctorArguments starts with the doctor head and carries the project dir`() {
+        val config = HotReloadWatchConfig(projectDir = "/repo/app")
+        val args = config.doctorArguments()
+        assertEquals("doctor", args.first())
+        assertTrue(args.containsAll(listOf("--project", "/repo/app")))
+    }
+
+    @Test fun `doctorArguments emits flags for appId, variant, device, sdk and zeroTouch`() {
+        val config = HotReloadWatchConfig(
+            projectDir = "/repo/app", appId = "dev.example.qa", variant = "qaDebug",
+            device = "emulator-5554", sdkPath = "/sdk", zeroTouch = true,
+        )
+        assertEquals(
+            listOf(
+                "doctor", "--project", "/repo/app", "--app-id", "dev.example.qa", "--variant", "qaDebug",
+                "--module", "app", "--device", "emulator-5554", "--sdk", "/sdk", "--zero-touch",
+            ),
+            config.doctorArguments(),
+        )
+    }
+
+    @Test fun `doctorArguments for a minimal config still emits module app`() {
+        val config = HotReloadWatchConfig(projectDir = "/repo/app")
+        assertEquals(listOf("doctor", "--project", "/repo/app", "--module", "app"), config.doctorArguments())
+    }
+
     @Test fun `rendered command quotes tokens without changing their boundaries`() {
         assertEquals("cli watch --project '/repo with spaces' --gradle-arg '-Pname=two words'", renderCommand(
             listOf("cli", "watch", "--project", "/repo with spaces", "--gradle-arg", "-Pname=two words"),

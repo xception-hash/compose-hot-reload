@@ -10,6 +10,7 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationInfo
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
@@ -42,6 +43,10 @@ class HotReloadService(private val project: Project) : Disposable {
     @Volatile
     private var stopping = false
 
+    /** True while an async preflight is running, so a second toggle doesn't double-launch. */
+    @Volatile
+    private var preflightInFlight = false
+
     /** Accumulates output between newlines — onTextAvailable may hand us partial lines. */
     private val lineBuffer = StringBuilder()
 
@@ -61,6 +66,69 @@ class HotReloadService(private val project: Project) : Disposable {
 
     @Synchronized
     fun start() {
+        if (isRunning || preflightInFlight) return
+        val settings = HotReloadSettings.getInstance(project).state
+        if (settings.skipPreflight) {
+            launch()
+            return
+        }
+        val config = HotReloadWatchConfig.from(settings, project.basePath.orEmpty())
+        preflightInFlight = true
+        setStatus(HotReloadStatus.STARTING.copy(detail = "checking environment…"))
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val result = runCatching { runDoctor(config) }
+            ApplicationManager.getApplication().invokeLater {
+                preflightInFlight = false
+                result.fold(
+                    onSuccess = { pf ->
+                        if (pf.ok) launch() else {
+                            setStatus(HotReloadStatus.OFF)
+                            balloonPreflight(pf)
+                        }
+                    },
+                    // Doctor could not even be run (e.g. no CLI launcher / bad config):
+                    // fall through to launch(), which surfaces the real ConfigError balloon.
+                    onFailure = { launch() },
+                )
+            }
+        }
+    }
+
+    /** Run `hotreload doctor` for [config] and parse its output. Runs off the EDT (called from a
+     *  pooled thread). May throw ConfigError from resolveLauncher — the caller treats that as
+     *  "could not preflight" and proceeds to launch(), surfacing the real error there. */
+    private fun runDoctor(config: HotReloadWatchConfig): PreflightResult {
+        val launcher = resolveLauncher(config)
+        val process = GeneralCommandLine(launcher.toString())
+            .withWorkDirectory(config.projectDir)
+            .withEnvironment("JAVA_HOME", System.getProperty("java.home"))
+            .withParameters(config.doctorArguments())
+            .createProcess()
+        val out = process.inputStream.readBytes().toString(Charsets.UTF_8)
+        val err = process.errorStream.readBytes().toString(Charsets.UTF_8)
+        val code = process.waitFor()
+        return HotReloadPreflight.parse(code, out + "\n" + err)
+    }
+
+    /** Warn (do not hard-block) when the preflight fails: list the problems and offer Start anyway. */
+    private fun balloonPreflight(pf: PreflightResult) {
+        val body = buildString {
+            append("The hot reload environment check found problems:\n")
+            pf.failures.forEach { append("• ").append(it).append('\n') }
+            append("\nFix these, or click \"Start anyway\" to launch regardless.")
+        }
+        val notification = NotificationGroupManager.getInstance()
+            .getNotificationGroup(NOTIFICATION_GROUP)
+            .createNotification("Hot reload preflight found problems", body, NotificationType.WARNING)
+        notification.addAction(NotificationAction.createSimple("Start anyway") {
+            notification.expire()
+            launch()
+        })
+        notification.notify(project)
+    }
+
+    @Synchronized
+    private fun launch() {
         if (isRunning) return
         outputHistory.clear()
         val settings = HotReloadSettings.getInstance(project).state
