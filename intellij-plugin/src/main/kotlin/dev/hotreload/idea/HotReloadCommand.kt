@@ -49,6 +49,21 @@ data class HotReloadWatchConfig(
         gradleArgs.filter { it.isNotBlank() }.forEach { add("--gradle-arg"); add(it) }
     }
 
+    /** Doctor shares watch's read-only config surface; used for the pre-Start preflight. */
+    fun doctorArguments(): List<String> = buildList {
+        add("doctor")
+        add("--project"); add(projectDir)
+        profile.takeIf { it.isNotBlank() }?.let { add("--profile"); add(it.trim()) }
+        appModule.takeIf { it.isNotBlank() }?.let { add("--app-module"); add(it.trim()) }
+        appId.takeIf { it.isNotBlank() }?.let { add("--app-id"); add(it.trim()) }
+        variant.takeIf { it.isNotBlank() }?.let { add("--variant"); add(it.trim()) }
+        targetJdk.takeIf { it.isNotBlank() }?.let { add("--project-java-home"); add(it.trim()) }
+        watchedModules.trim().ifBlank { "app" }.let { add("--module"); add(it) }
+        device.takeIf { it.isNotBlank() }?.let { add("--device"); add(it.trim()) }
+        sdkPath.takeIf { it.isNotBlank() }?.let { add("--sdk"); add(it.trim()) }
+        if (zeroTouch) add("--zero-touch")
+    }
+
     companion object {
         /** Preserve the old project XML surface exactly while introducing structured settings. */
         fun from(state: HotReloadSettings.State, fallbackProjectDir: String): HotReloadWatchConfig = HotReloadWatchConfig(

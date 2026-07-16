@@ -39,6 +39,7 @@ class HotReloadConfigurable(private val project: Project) : Configurable {
     private val sdk = JBTextField()
     private val literals = JCheckBox("Enable live-literal fast path")
     private val zeroTouch = JCheckBox("Use zero-touch bootstrap")
+    private val skipPreflight = JCheckBox("Skip environment preflight (advanced)")
     private val gradleArgs = JBTextArea(3, 44)
     private val advancedTokens = JBTextArea(3, 44)
     private val resolved = JBTextArea(3, 44).apply { isEditable = false; lineWrap = true; wrapStyleWord = false }
@@ -80,7 +81,7 @@ class HotReloadConfigurable(private val project: Project) : Configurable {
         add("Target project JDK:", targetJdk, "Passed as `--project-java-home`; blank uses the CLI JVM.")
         add("Device serial:", device, "Optional adb serial for more than one device.")
         add("SDK path:", sdk, "Blank uses ANDROID_HOME.")
-        add("Options:", JPanel().apply { add(literals); add(zeroTouch) })
+        add("Options:", JPanel().apply { add(literals); add(zeroTouch); add(skipPreflight) })
         add("Gradle args:", JBScrollPane(gradleArgs), "One exact argument per line; each becomes `--gradle-arg`.")
         add("Advanced raw overrides:", JBScrollPane(advancedTokens), "Append-only escape hatch: one exact CLI token per line (never shell-split).")
         add("Resolved command:", JBScrollPane(resolved), "Read-only preview of the exact token command Start will execute.")
@@ -90,7 +91,8 @@ class HotReloadConfigurable(private val project: Project) : Configurable {
         return panel!!
     }
 
-    override fun isModified(): Boolean = config() != HotReloadWatchConfig.from(state, project.basePath.orEmpty())
+    override fun isModified(): Boolean =
+        config() != HotReloadWatchConfig.from(state, project.basePath.orEmpty()) || skipPreflight.isSelected != state.skipPreflight
 
     override fun apply() {
         val value = config()
@@ -108,6 +110,7 @@ class HotReloadConfigurable(private val project: Project) : Configurable {
         state.zeroTouch = value.zeroTouch
         state.gradleArgs = value.gradleArgs.toMutableList()
         state.advancedTokens = value.advancedTokens.toMutableList()
+        state.skipPreflight = skipPreflight.isSelected
         // New settings are token based. Clear this field after its one-time legacy migration.
         state.extraArgs = ""
     }
@@ -119,6 +122,7 @@ class HotReloadConfigurable(private val project: Project) : Configurable {
         setCombo(variant, value.variant); setCombo(modules, value.watchedModules)
         targetJdk.text = value.targetJdk; device.text = value.device; sdk.text = value.sdkPath
         literals.isSelected = value.literals; zeroTouch.isSelected = value.zeroTouch
+        skipPreflight.isSelected = state.skipPreflight
         gradleArgs.text = value.gradleArgs.joinToString("\n")
         advancedTokens.text = value.advancedTokens.joinToString("\n")
         updatePreview()

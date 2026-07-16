@@ -33,6 +33,8 @@ class HotReloadSettings : PersistentStateComponent<HotReloadSettings.State> {
         var device: String = ""
         var literals: Boolean = false
         var zeroTouch: Boolean = false
+        /** Advanced opt-out: skip the pre-Start `hotreload doctor` preflight. */
+        var skipPreflight: Boolean = false
         /** One exact Gradle argument per item; emitted as repeatable `--gradle-arg`. */
         var gradleArgs: MutableList<String> = mutableListOf()
         /** Advanced append-only CLI tokens. Each item is one token, never shell-split. */
