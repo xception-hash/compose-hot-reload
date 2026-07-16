@@ -29,7 +29,7 @@ Implementation matched the design below; commit 9d329a8 (spec + settings doc in 
 - **PUBLISHED 2026-07-16:** `./gradlew publishPlugin` signed + uploaded 0.1.6 to JetBrains
   Marketplace (BUILD SUCCESSFUL; existing key reused). In moderation (updates to an approved
   plugin usually clear fast). **0.1.6 shipped instead of 0.1.5.**
-- **LEFT FOR JAY:** merge PR #21 (guard blocks main). That's the only open item.
+- **LEFT FOR THE MAINTAINER:** merge PR #21 (guard blocks main). That's the only open item.
 - **Known cosmetic (non-blocking):** IntelliJ renders notification bodies as HTML and collapses the
   `\n\nFix these…` separator onto the last bullet's line. Switch body separators to `<br>` for
   cleaner wrapping in a follow-up if desired.
