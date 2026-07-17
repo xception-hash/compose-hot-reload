@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-17) — local 0.1.8 passes source/device/verifier gates; maintainer dual-mode plugin smoke is next
+## Status (2026-07-17) — local 0.1.8 zero-touch plugin smoke passes; configured-mode smoke is next
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -16,8 +16,10 @@ target blocker (the zero-touch init script aborting in an included `build-logic`
 in 0.1.7. The retry then exposed a second blocker: the runtime AAR declared minSdk 24 while the
 target declares 23. Local **0.1.8** now fixes that merge floor plus the production-trial coverage,
 Compose-metadata, discovery, and patch-desugaring findings; source CLI device verification and
-Plugin Verifier pass. The next gate is the maintainer's Android Studio plugin smoke in both
-zero-touch and temporarily configured local-composite modes (T38), before any publication.
+Plugin Verifier pass. T38's zero-touch plugin half now passes (Ready, visible reversible edit,
+stable PID, Stop -> Off). The remaining gate is its temporarily configured local-composite mode,
+followed by restoration, before any publication. The large-target discovery UI can stall despite
+successful CLI inspection; it is a follow-up code defect, not a release bypass.
 Optional housekeeping and one cosmetic follow-up (T36) remain separate.
 Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
 update it here, link it elsewhere.
@@ -35,7 +37,7 @@ update it here, link it elsewhere.
 | T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
 | T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-17 — local 0.1.8 now prepares and hot-swaps the minSdk-23 target. JaCoCo shape drift, Compose-library metadata, visible `FunctionKeyMeta`, and patch DEX interface-helper desugaring are fixed and covered; the real-target body edit visibly passed twice with a stable process. Plugin Verifier is Compatible on all three configured IDE baselines; T38, approved publication, and the remaining Marketplace edit matrix are pending. See `tasks/T37-production-trial-findings.md`. |
-| T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | 📋 READY FOR NEXT SESSION — decision-complete manual checklist, exact restoration, and acceptance evidence in `tasks/T38-manual-plugin-dual-mode-smoke.md`; must pass before publication |
+| T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | 🚧 IN PROGRESS 2026-07-17 — zero-touch Mode A passed (Ready, reversible visible edit, stable PID, Stop -> Off); configured local-composite Mode B and final restoration remain before publication. Discovery UI stall on the large target is recorded as a code follow-up. |
 
 Core engineering is implemented. T38/T37 remain release-validation gates; other remaining items
 are optional housekeeping:

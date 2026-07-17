@@ -203,9 +203,12 @@ status-widget deprecation notices remain.
 
 ## Pending target-project matrix
 
-1. Complete the maintainer-run dual-mode plugin smoke in
-   [`T38`](T38-manual-plugin-dual-mode-smoke.md): local 0.1.8 through plugin zero-touch, then
-   configured mode with temporary local composite/plugin wiring, followed by exact restoration.
+1. Complete the remaining configured-mode half of the maintainer-run dual-mode plugin smoke in
+   [`T38`](T38-manual-plugin-dual-mode-smoke.md). Its local-0.1.8 zero-touch half now passes:
+   Ready, visible reversible edit, stable PID, and Stop -> Off. The large-target discovery UI can
+   stall despite successful CLI inspection; this needs a code fix, while the configured smoke can
+   use manually entered verified settings in the meantime. Then perform the temporary local
+   composite/plugin wiring and exact restoration.
 2. Publish 0.1.8 only after the T38 smoke passes and the maintainer gives explicit approval.
 3. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
@@ -228,7 +231,8 @@ status-widget deprecation notices remain.
 - [x] Patch DEX desugaring matches the installed APK and a real target edit survives targeted
       recomposition with a visibly changed frame.
 - [x] Local 0.1.8 passes Plugin Verifier on all three configured IDE baselines.
-- [ ] T38 manual plugin zero-touch and configured-integration smoke passes before submission.
+- [ ] T38 manual plugin configured-integration smoke and final restoration pass before submission
+      (the zero-touch half passed 2026-07-17; its discovery UI defect is recorded in T38).
 - [ ] 0.1.8 submitted only after explicit maintainer approval.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
       executed after a release contains both product fixes.

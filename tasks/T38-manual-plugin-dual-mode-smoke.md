@@ -1,6 +1,6 @@
 # T38: Manual Android Studio plugin smoke — zero-touch and configured integration
 
-Status: TODO (ready for the maintainer's next session, 2026-07-17)
+Status: IN PROGRESS (Mode A zero-touch PASS; Mode B configured integration remains, 2026-07-17)
 Assignee: maintainer, manually in Android Studio with the API-30+ device visible
 Recommended model: Gemini 3.5 Flash (Low), only for organizing already-captured logs/docs
 Fallback model: GPT-OSS 120B (Medium)
@@ -114,7 +114,10 @@ Open Settings > Tools > Compose Hot Reload:
 
 - CLI launcher: blank, proving the plugin's bundled CLI is used.
 - Project dir: the actual `$TARGET_ROOT` checkout.
-- Refresh discovery, then explicitly select app module `:app` and variant `demoDebug`.
+- Refresh discovery, then explicitly select app module `:app` and variant `demoDebug`. If the
+  current candidate remains on `Discovering…` for this large target, do not repeatedly refresh:
+  record it as the discovery UI defect below, close/reopen settings, and enter the already
+  verified app/variant/id/module-closure values manually.
 - Application id: the value discovered for that exact app/variant; do not record it in this repo.
 - Watched modules: accept the discovered reachable closure.
 - Device: `$DEVICE` when more than one device is visible.
@@ -143,6 +146,25 @@ Open Settings > Tools > Compose Hot Reload:
 
 Record sanitized results in the T38 Results section below. Screenshots/logs may stay in `/tmp` but
 must not be committed.
+
+### Mode A result — 2026-07-17
+
+The maintainer completed the local 0.1.8 plugin zero-touch smoke against the real Android Studio
+target:
+
+- Matching zero-touch `prepare` built, installed, launched, and wrote a fingerprint.
+- Plugin Start reached Ready with the bundled CLI, preflight enabled, and zero-touch enabled.
+- A reversible body-only edit visibly applied, then visibly reverted; the app PID stayed stable
+  across both reloads.
+- Plugin Stop returned to Off.
+
+One plugin defect was found: on this large target, Refresh discovery remained on `Discovering…`
+even though the bundled CLI's non-mutating `inspect --json --zero-touch` completed successfully.
+The discovery service drains process stdout before stderr, which can deadlock when Gradle emits
+enough diagnostics. This is a **needs-code-change** issue, not a target configuration failure.
+The smoke continued with the verified reachable module closure entered manually. A malformed
+whitespace-containing module entry caused a fingerprint refusal until the exact comma-separated
+closure was saved; do not use `--ignore-fingerprint` as a workaround.
 
 ## Mode B — plugin configured integration using this local checkout
 
@@ -240,9 +262,9 @@ successfully.
 
 ## Acceptance
 
-- [ ] Preflight passes and the installed Android Studio plugin is local candidate 0.1.8.
-- [ ] Zero-touch plugin Start reaches Ready using the actual Android Studio target checkout.
-- [ ] Zero-touch temporary edit and reverse-edit both visibly succeed with a stable PID.
+- [x] Preflight passes and the installed Android Studio plugin is local candidate 0.1.8.
+- [x] Zero-touch plugin Start reaches Ready using the actual Android Studio target checkout.
+- [x] Zero-touch temporary edit and reverse-edit both visibly succeed with a stable PID.
 - [ ] Configured local-composite preparation succeeds with zero-touch absent.
 - [ ] Configured plugin Start reaches Ready, and the same edit/reverse-edit visibly succeeds with
       a stable PID.
@@ -258,8 +280,9 @@ successfully.
 
 | Check | Result | Evidence/classification |
 |---|---|---|
-| Zero-touch preflight/Ready | PENDING | |
-| Zero-touch edit/reverse/PID | PENDING | |
+| Zero-touch preflight/Ready | PASS | Bundled local 0.1.8 CLI; zero-touch and preflight enabled. |
+| Zero-touch edit/reverse/PID | PASS | Both visible reloads succeeded; PID was unchanged. |
+| Discovery refresh | FAIL — needs code change | UI remained `Discovering…` while the equivalent bundled CLI inspect completed; manual exact closure was used. |
 | Configured sync/prepare/Ready | PENDING | |
 | Configured edit/reverse/PID | PENDING | |
 | Stop/no watcher | PENDING | |
