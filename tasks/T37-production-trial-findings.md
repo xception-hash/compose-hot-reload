@@ -239,19 +239,24 @@ older AGP line; that scaffold was deliberately left untouched.
 A fresh bounded configured prepare and matching doctor on the production target passed, including
 the runtime handshake. Inspection of the resulting APK confirmed that it contains no JaCoCo
 synthetic method. The rebuilt local candidate's bundled CLI reached `watching` with the bounded
-app/library pair. Its temporary marker did not reach watched Kotlin output because the detached
-terminal watcher did not receive filesystem events, and macOS denied IDE UI automation. The marker
-was restored and the watcher was stopped; no configured edit/reverse, widget transition, or UI
-Stop result is claimed. Per T38, temporary target wiring and local composite compatibility
-scaffolding remain pending the manual UI retry.
+app/library pair. The Android Studio watcher then received a saved body-only marker in the watched
+configured Compose library and reported `Reloading → Ready`, but the marker was absent from that
+library's watched Kotlin output and the visible frame remained unchanged. The installed foreground
+app was verified to byte-match the configured target APK, so this is not an installation or
+fingerprint issue. `WatchSession` always invokes the app module compile task; in this target that
+task does not compile the changed library. This is a **needs-code-change** multi-module
+compile-routing defect. Restore the marker and stop the watcher; do not claim configured
+edit/reverse, widget transition, or UI Stop. Per T38, temporary target wiring and local composite
+compatibility scaffolding remain pending the fix and retry.
 
 ## Pending target-project matrix
 
-1. Repeat the Mode B half of [`T38`](T38-manual-plugin-dual-mode-smoke.md) through Android Studio
-   after a matching configured `prepare`. Zero-touch Mode A remains PASS; configured coverage,
-   prepare, doctor, and bundled-CLI Ready are verified, but the required UI edit/reverse/Stop gate
-   remains unclaimed. The large-target discovery UI can also stall despite successful CLI
-   inspection; use the verified manual settings rather than repeatedly refreshing.
+1. Fix configured multi-module compile routing: a saved watched library source must invoke its
+   module's selected Kotlin compile task (while retaining correct batching/app dependency behavior),
+   then add a regression proving the library class output changes and hot-swaps. Repeat the Mode B
+   half of [`T38`](T38-manual-plugin-dual-mode-smoke.md) through Android Studio only after that
+   fix and a matching configured `prepare`. The large-target discovery UI can also stall despite
+   successful CLI inspection; use the verified manual settings rather than repeatedly refreshing.
 2. Publish only after T38 passes and the maintainer gives explicit approval.
 3. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.

@@ -1,6 +1,6 @@
 # T38: Manual Android Studio plugin smoke — zero-touch and configured integration
 
-Status: IN PROGRESS (Mode A PASS; Mode B coverage/prepare/doctor PASS; UI edit/reverse/restore remain, 2026-07-18)
+Status: BLOCKED (Mode A PASS; Mode B coverage/prepare/doctor PASS; configured library compile routing needs a fix, 2026-07-18)
 Assignee: maintainer, manually in Android Studio with the API-30+ device visible
 Recommended model: Gemini 3.5 Flash (Low), only for organizing already-captured logs/docs
 Fallback model: GPT-OSS 120B (Medium)
@@ -270,10 +270,13 @@ proves that a Reloading batch ends in Rebuild Needed.
 A rebuilt local candidate passed plugin tests/build and all pinned Plugin Verifier targets. A fresh
 matching configured prepare plus doctor passed on the bounded target, and the produced APK was
 verified free of JaCoCo synthetic methods. The bundled candidate CLI reached `watching` with the
-same app/library pair. This was **not** the required UI verdict: macOS denied IDE UI automation,
-and the detached direct watcher did not receive its temporary marker filesystem event. The marker
-was restored and the watcher stopped. Do not mark the edit/reverse/PID/Stop gate passed, and do
-not remove the temporary wiring or composite scaffolding yet.
+same app/library pair. The actual Android Studio watcher received a saved marker in the watched
+library and showed `Reloading → Ready`, but the changed text was absent from the library Kotlin
+output and the visible target frame remained unchanged. The installed foreground APK was verified
+to byte-match the configured target output. This is a product defect: the watch loop compiles only
+the app module task, which does not compile this changed library. Restore the marker and stop the
+watcher. Do not mark the edit/reverse/PID/Stop gate passed, and do not remove temporary wiring or
+composite scaffolding until per-changed-module compile routing is fixed and the smoke is repeated.
 
 ## Restoration and final state
 
@@ -340,8 +343,8 @@ not remove the temporary wiring or composite scaffolding yet.
 | Configured plugin Ready | PASS | The plugin reached Ready with zero-touch unchecked after matching prepare. |
 | Configured coverage / fresh prepare / doctor | PASS | Direct plugin coverage disablement applied before variant finalization; fresh bounded prepare and runtime handshake passed; APK inspection found no JaCoCo synthetic method. |
 | Configured bundled-CLI Ready | PASS | Rebuilt candidate reached `watching` with zero-touch absent and the bounded app/library pair. |
-| Configured edit/reverse/PID | PENDING — manual UI retry | Coverage blocker is fixed, but this session cannot claim the edit/reverse: a detached direct watcher missed filesystem events and macOS denied IDE UI automation. |
-| Stop/no watcher | PARTIAL | The direct watcher was stopped; Android Studio Stop -> Off remains part of the pending UI retry. |
+| Configured edit/reverse/PID | BLOCKED — needs code change | A saved marker in the watched configured library reaches Reloading -> Ready but does not enter library Kotlin output or the visible frame; the app-only compile task does not compile the changed library. |
+| Stop/no watcher | PARTIAL | Stop and restore the current marker after recording the failure; Android Studio Stop -> Off remains part of the post-fix retry. |
 | Exact source/Gradle restoration | PENDING | |
 
 ## Out of scope
