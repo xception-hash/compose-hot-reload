@@ -1,5 +1,5 @@
 # T37: Phase F — Marketplace-plugin production-grade trial findings
-Status: IN PROGRESS (2026-07-16)
+Status: IN PROGRESS (2026-07-18)
 Assignee: maintainer + coordinator
 
 ## Goal
@@ -201,17 +201,58 @@ milestone before the patch-desugaring changes. JetBrains Plugin Verifier also re
 0.1.8 candidate Compatible with all three configured IDE baselines; only the three pre-existing
 status-widget deprecation notices remain.
 
+## Configured-mode coverage parity blocker — 2026-07-17
+
+T38 Mode B reached the plugin's Ready state after a fresh matching configured `prepare`, but two
+reversible body-edit attempts both stuck the widget on `reloading`. Device logs showed ART error
+67 for a generated Compose/list lambda: the installed definition had four declared methods while
+the patch had three. The one-method delta is JaCoCo instrumentation.
+
+This explains why the local 0.1.8 **zero-touch** half passed while configured Mode B failed. The
+zero-touch bootstrap disables Android and unit-test coverage before variants are finalized, so the
+installed APK and watched Kotlin outputs have matching class shapes. The ordinary configured
+`dev.hotreload` plugin does not currently apply that safeguard; the target's debug APK remains
+coverage-instrumented after Kotlin writes the output the engine uses for patch D8.
+
+Required product work before retrying configured Mode B: mirror the bootstrap's public
+coverage-disable behavior in the configured plugin, add a configured-mode regression, and ensure
+a device `Response.Failure` leaves the IDE widget in a clear error/rebuild-needed state rather
+than indefinitely `reloading`. This is not a target setup, module-selection, fingerprint, or
+loading-UI problem. Stop the watcher and restore any temporary marker before applying the fix and
+running another matching configured `prepare`.
+
+## Configured-mode coverage remediation — 2026-07-18
+
+The direct `dev.hotreload` plugin now disables Android and unit-test coverage through the public
+`androidComponents.finalizeDsl` lifecycle, matching zero-touch before variants are finalized. The
+configured single-module fixture deliberately enables both coverage modes and its configured
+regression rejects any packaged `$jacocoInit` shape. `Response.Failure` from the device is now
+translated by the watch loop into the existing `cannot hot-swap:` plus reinstall contract, and a
+plugin parser regression proves that this terminal output changes `Reloading` to `Rebuild Needed`.
+
+Host engine/protocol/CLI gates, Gradle-plugin compilation, IntelliJ-plugin tests/build, and Plugin
+Verifier all passed; Verifier reported compatibility on the three configured IDE baselines with
+only the known status-widget deprecations. The fixture's full configured emulator gate could not
+assemble while the documented temporary runtime-client composite is aligned to the real target's
+older AGP line; that scaffold was deliberately left untouched.
+
+A fresh bounded configured prepare and matching doctor on the production target passed, including
+the runtime handshake. Inspection of the resulting APK confirmed that it contains no JaCoCo
+synthetic method. The rebuilt local candidate's bundled CLI reached `watching` with the bounded
+app/library pair. Its temporary marker did not reach watched Kotlin output because the detached
+terminal watcher did not receive filesystem events, and macOS denied IDE UI automation. The marker
+was restored and the watcher was stopped; no configured edit/reverse, widget transition, or UI
+Stop result is claimed. Per T38, temporary target wiring and local composite compatibility
+scaffolding remain pending the manual UI retry.
+
 ## Pending target-project matrix
 
-1. Complete the remaining manual half of the configured-mode maintainer-run dual-mode plugin
-   smoke in [`T38`](T38-manual-plugin-dual-mode-smoke.md). Its local-0.1.8 zero-touch half now
-   passes: Ready, visible reversible edit, stable PID, and Stop -> Off. Configured local-composite
-   wiring, Gradle sync, and matching prepare now also pass; the APK was installed/launched and the
-   configured fingerprint replaced the zero-touch one. The remaining evidence is plugin
-   Start -> Ready, reversible visible edit and reverse-edit with a stable PID, Stop -> Off, and
-   exact restoration. The large-target discovery UI can stall despite successful CLI inspection;
-   use the already verified manual settings rather than repeatedly refreshing.
-2. Publish 0.1.8 only after the T38 smoke passes and the maintainer gives explicit approval.
+1. Repeat the Mode B half of [`T38`](T38-manual-plugin-dual-mode-smoke.md) through Android Studio
+   after a matching configured `prepare`. Zero-touch Mode A remains PASS; configured coverage,
+   prepare, doctor, and bundled-CLI Ready are verified, but the required UI edit/reverse/Stop gate
+   remains unclaimed. The large-target discovery UI can also stall despite successful CLI
+   inspection; use the verified manual settings rather than repeatedly refreshing.
+2. Publish only after T38 passes and the maintainer gives explicit approval.
 3. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
 4. Verify app-module body edit and state behavior.
@@ -233,8 +274,9 @@ status-widget deprecation notices remain.
 - [x] Patch DEX desugaring matches the installed APK and a real target edit survives targeted
       recomposition with a visibly changed frame.
 - [x] Local 0.1.8 passes Plugin Verifier on all three configured IDE baselines.
-- [ ] T38 manual plugin configured-integration smoke and final restoration pass before submission
-      (the zero-touch half passed 2026-07-17; its discovery UI defect is recorded in T38).
+- [ ] Configured-plugin coverage parity plus T38 configured-integration edit/reverse and final
+      restoration pass before submission (zero-touch passed 2026-07-17; discovery and configured
+      coverage defects are recorded in T38).
 - [ ] 0.1.8 submitted only after explicit maintainer approval.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
       executed after a release contains both product fixes.

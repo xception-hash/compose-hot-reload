@@ -76,7 +76,17 @@ class HotReloadPlugin : Plugin<Project> {
             // `<name>Implementation` configurations. Flavored variants inherit build-type
             // configs, so flavors need nothing extra.
             androidComponents.finalizeDsl { ext ->
-                ext.buildTypes.filter { it.isDebuggable }.forEach { bt ->
+                ext.buildTypes.forEach { bt ->
+                    // JaCoCo instruments classes while packaging, after Kotlin writes the
+                    // class directory the engine watches. A patch compiled from that directory
+                    // then lacks JaCoCo's synthetic members (for example `$jacocoInit`), and
+                    // ART rejects an otherwise body-only redefine because the installed and
+                    // patch method shapes differ. Hot reload is debug-only, so coverage must be
+                    // disabled before variants finalize, including when a convention plugin
+                    // enabled it in the target build.
+                    bt.enableAndroidTestCoverage = false
+                    bt.enableUnitTestCoverage = false
+                    if (!bt.isDebuggable) return@forEach
                     project.dependencies.add("${bt.name}Implementation", runtimeCoord)
                 }
             }

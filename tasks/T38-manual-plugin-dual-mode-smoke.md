@@ -1,6 +1,6 @@
 # T38: Manual Android Studio plugin smoke — zero-touch and configured integration
 
-Status: IN PROGRESS (Mode A PASS; Mode B configured prepare PASS; manual Ready/edit/restore remain, 2026-07-17)
+Status: IN PROGRESS (Mode A PASS; Mode B coverage/prepare/doctor PASS; UI edit/reverse/restore remain, 2026-07-18)
 Assignee: maintainer, manually in Android Studio with the API-30+ device visible
 Recommended model: Gemini 3.5 Flash (Low), only for organizing already-captured logs/docs
 Fallback model: GPT-OSS 120B (Medium)
@@ -238,6 +238,43 @@ original version.
    `$default`/`$-CC`, redefine-shape, or recomposition errors.
 7. Press Stop and require widget `off`.
 
+### Configured-mode coverage regression — 2026-07-17
+
+The Mode B live gate was attempted twice after a matching configured `prepare`, with the
+plugin settings above (bundled CLI, `:app` plus the bounded Compose feature, selected debug
+variant, one device, and **zero-touch unchecked**). Both edits reached the device but then
+stuck the widget on `reloading`.
+
+Device evidence identifies the cause: ART rejected a generated Compose/list lambda because its
+declared method count changed from four in the installed APK to three in the patch. This is the
+one-method JaCoCo shape drift previously fixed for zero-touch: the bootstrap deliberately
+disables Android/unit-test coverage before variants are finalized, whereas the ordinary
+configured `dev.hotreload` plugin currently does not. The target's configured debug APK is
+therefore coverage-instrumented after Kotlin writes the class outputs watched by the engine.
+
+This is a **product-code blocker**, not a bad module list, a stale fingerprint, or loading UI.
+Do not keep retrying body edits in Mode B. The next implementation task must make the configured
+plugin apply the same public coverage-disable behavior as the zero-touch bootstrap, add a
+configured-mode regression, and make a device `Response.Failure` leave the IDE widget in an
+actionable error/rebuild-needed state instead of indefinitely `reloading`. After that fix, reverse
+the temporary marker, run a fresh matching configured `prepare`, and repeat the Mode B gate.
+
+### Coverage remediation and bounded retry — 2026-07-18
+
+Configured `dev.hotreload` now disables Android/unit-test coverage through public
+`androidComponents.finalizeDsl`, and the configured fixture explicitly enables both coverage modes
+before the plugin removes them. Its regression rejects any `$jacocoInit` in the packaged APK. A
+device `Response.Failure` now prints the stable rebuild contract; the plugin parser regression
+proves that a Reloading batch ends in Rebuild Needed.
+
+A rebuilt local candidate passed plugin tests/build and all pinned Plugin Verifier targets. A fresh
+matching configured prepare plus doctor passed on the bounded target, and the produced APK was
+verified free of JaCoCo synthetic methods. The bundled candidate CLI reached `watching` with the
+same app/library pair. This was **not** the required UI verdict: macOS denied IDE UI automation,
+and the detached direct watcher did not receive its temporary marker filesystem event. The marker
+was restored and the watcher stopped. Do not mark the edit/reverse/PID/Stop gate passed, and do
+not remove the temporary wiring or composite scaffolding yet.
+
 ## Restoration and final state
 
 1. Remove only the T38 additions from target settings/module Gradle files. Do not use a broad
@@ -268,8 +305,9 @@ original version.
 - No `reloading` after save: confirm the exact Android Studio checkout and watched-module list.
 - `NoSuchMethodError` mentioning an interface `$default` helper or `$-CC`: record as a regression
   of commit `778d378`; preserve the full plugin output history and device logcat.
-- ART redefine member-count/shape rejection: verify coverage is disabled in zero-touch and the
-  configured APK/class outputs were built from the same target checkout.
+- ART redefine member-count/shape rejection in configured mode: this is the known coverage
+  parity blocker above. Stop the watcher, restore the temporary marker, and fix the direct
+  `dev.hotreload` plugin; do not workaround it by checking zero-touch or ignoring fingerprints.
 - Recomposition failure: preserve the last-good frame, restore the edit, and record the first
   exception; do not hide it with reinstall before evidence is saved.
 - Configured mode succeeds only with zero-touch still checked: invalid result; repeat after a
@@ -299,9 +337,11 @@ original version.
 | Zero-touch edit/reverse/PID | PASS | Both visible reloads succeeded; PID was unchanged. |
 | Discovery refresh | FAIL — needs code change | UI remained `Discovering…` while the equivalent bundled CLI inspect completed; manual exact closure was used. |
 | Configured sync/prepare | PASS | Bounded local composites/plugins synced; matching configured prepare installed, launched, and wrote a replacement fingerprint. |
-| Configured plugin Ready | PENDING | Resume with zero-touch unchecked; do not edit before Ready. |
-| Configured edit/reverse/PID | PENDING | |
-| Stop/no watcher | PENDING | |
+| Configured plugin Ready | PASS | The plugin reached Ready with zero-touch unchecked after matching prepare. |
+| Configured coverage / fresh prepare / doctor | PASS | Direct plugin coverage disablement applied before variant finalization; fresh bounded prepare and runtime handshake passed; APK inspection found no JaCoCo synthetic method. |
+| Configured bundled-CLI Ready | PASS | Rebuilt candidate reached `watching` with zero-touch absent and the bounded app/library pair. |
+| Configured edit/reverse/PID | PENDING — manual UI retry | Coverage blocker is fixed, but this session cannot claim the edit/reverse: a detached direct watcher missed filesystem events and macOS denied IDE UI automation. |
+| Stop/no watcher | PARTIAL | The direct watcher was stopped; Android Studio Stop -> Off remains part of the pending UI retry. |
 | Exact source/Gradle restoration | PENDING | |
 
 ## Out of scope

@@ -14,6 +14,24 @@ echo "--- Installing app ---"
 adb shell am force-stop dev.hotreload.sample >/dev/null 2>&1 || true
 (cd "$REPO_ROOT/samples/single-module" && ./gradlew -q :app:installDebug)
 
+# The fixture enables both Android and unit-test coverage in its debug build type. The
+# configured dev.hotreload plugin must disable those public DSL flags before variants
+# finalize; otherwise JaCoCo adds `$jacocoInit` only to packaged DEX and ART rejects a
+# later patch whose watched Kotlin class has a different method shape.
+CONFIGURED_APK=$(find "$REPO_ROOT/samples/single-module/app/build/outputs/apk/debug" -name '*.apk' -type f | head -1)
+if [ -z "$CONFIGURED_APK" ]; then
+    echo "FAIL: configured coverage regression could not locate debug APK"
+    exit 1
+fi
+CONFIGURED_DEX_DIR=$(mktemp -d)
+unzip -qq "$CONFIGURED_APK" 'classes*.dex' -d "$CONFIGURED_DEX_DIR"
+if "$ANDROID_HOME/build-tools/36.0.0/dexdump" -d "$CONFIGURED_DEX_DIR"/classes*.dex 2>/dev/null | grep -Fq '$jacocoInit'; then
+    echo "FAIL: configured APK contains JaCoCo-instrumented class shapes"
+    exit 1
+fi
+rm -rf "$CONFIGURED_DEX_DIR"
+echo "PASS: configured coverage disabled before packaging"
+
 echo "--- Launching app ---"
 adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 sleep 3

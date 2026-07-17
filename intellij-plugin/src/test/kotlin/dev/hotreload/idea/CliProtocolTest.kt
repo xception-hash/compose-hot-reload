@@ -107,6 +107,17 @@ class CliProtocolTest {
         assertEquals(HotReloadState.REBUILD_NEEDED, s.state)
     }
 
+    @Test fun `device rejection leaves Reloading for actionable Rebuild-needed`() {
+        val s = advanceAll(
+            "changed: Counter.kt",
+            "cannot hot-swap: device error 67: redefine rejected",
+            "run a full install (e.g. ./gradlew :app:installDebug), relaunch, then restart watch",
+            from = ready(),
+        )
+        assertEquals(HotReloadState.REBUILD_NEEDED, s.state)
+        assertTrue(s.detail!!.contains("device error 67"))
+    }
+
     @Test fun `literal fallback line is benign`() {
         val before = ready()
         val s = CliProtocol.advance(before, "literal fast path failed (boom) — falling back to full swap")

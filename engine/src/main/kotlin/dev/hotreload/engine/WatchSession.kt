@@ -138,7 +138,21 @@ class WatchSession(private val config: Config) {
                 val roots = sourceRoots + resDirs.filter { Files.isDirectory(it) }
 
                 SourceWatcher(roots) { changedSources ->
-                    snapshot = onSave(changedSources, gradle, dexer, device, resources, snapshot)
+                    try {
+                        snapshot = onSave(changedSources, gradle, dexer, device, resources, snapshot)
+                    } catch (failure: DeviceCallException) {
+                        // A Response.Failure means the device rejected the patch. The old
+                        // snapshot remains intentionally so no failed bytes become the new
+                        // baseline. More importantly, print the stable rebuild contract rather
+                        // than letting SourceWatcher's generic exception handler leave IDE
+                        // clients indefinitely on "Reloading".
+                        println("cannot hot-swap: ${failure.message}")
+                        if (config.project.integrationMode == IntegrationMode.ZERO_TOUCH) {
+                            println("run 'hotreload prepare --zero-touch' with the same project options, then restart watch")
+                        } else {
+                            println("run a full install (e.g. ./gradlew ${modules.first().installTask}), relaunch, then restart watch")
+                        }
+                    }
                 }.use { watcher ->
                     watcher.start()
                     // AFTER start(): "watching" is the e2e/IDE readiness gate — printing it
