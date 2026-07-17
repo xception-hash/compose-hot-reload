@@ -1,6 +1,6 @@
 # T38: Manual Android Studio plugin smoke — zero-touch and configured integration
 
-Status: IN PROGRESS (Mode A zero-touch PASS; Mode B configured integration remains, 2026-07-17)
+Status: IN PROGRESS (Mode A PASS; Mode B configured prepare PASS; manual Ready/edit/restore remain, 2026-07-17)
 Assignee: maintainer, manually in Android Studio with the API-30+ device visible
 Recommended model: Gemini 3.5 Flash (Low), only for organizing already-captured logs/docs
 Fallback model: GPT-OSS 120B (Medium)
@@ -211,6 +211,21 @@ From `$HOTRELOAD_ROOT`, omit `--zero-touch` and restrict discovery to the config
 This matching configured prepare must replace the zero-touch APK/fingerprint, install, and launch
 successfully.
 
+### Mode B setup and prepare result — 2026-07-17
+
+The bounded target wiring was added to the intended app plus one reachable Compose feature module.
+The target Gradle sync and the matching configured `prepare` both passed: the APK installed,
+launched, and replaced the prior zero-touch fingerprint. No watcher was started and no Mode B
+plugin Start or source edit has happened yet.
+
+Two compatibility adjustments are temporarily present only in the local product checkout for this
+smoke. The standalone runtime-client composite must have a root-project name distinct from its
+Android subproject, otherwise Gradle type-safe project accessors generate duplicate accessors. Its
+AGP declaration must also temporarily match the target's AGP 9.0 line; Gradle rejects a composite
+with mixed AGP versions. These are findings to assess separately, not a T38 product-code fix, and
+both local changes must be restored before final cleanup. The target wrapper remains at its
+original version.
+
 ### Android Studio settings and live check
 
 1. Refresh discovery and retain the same app/variant/application id.
@@ -265,7 +280,7 @@ successfully.
 - [x] Preflight passes and the installed Android Studio plugin is local candidate 0.1.8.
 - [x] Zero-touch plugin Start reaches Ready using the actual Android Studio target checkout.
 - [x] Zero-touch temporary edit and reverse-edit both visibly succeed with a stable PID.
-- [ ] Configured local-composite preparation succeeds with zero-touch absent.
+- [x] Configured local-composite preparation succeeds with zero-touch absent.
 - [ ] Configured plugin Start reaches Ready, and the same edit/reverse-edit visibly succeeds with
       a stable PID.
 - [ ] Plugin Stop returns to Off after both modes; no duplicate/leaked watcher remains.
@@ -283,7 +298,8 @@ successfully.
 | Zero-touch preflight/Ready | PASS | Bundled local 0.1.8 CLI; zero-touch and preflight enabled. |
 | Zero-touch edit/reverse/PID | PASS | Both visible reloads succeeded; PID was unchanged. |
 | Discovery refresh | FAIL — needs code change | UI remained `Discovering…` while the equivalent bundled CLI inspect completed; manual exact closure was used. |
-| Configured sync/prepare/Ready | PENDING | |
+| Configured sync/prepare | PASS | Bounded local composites/plugins synced; matching configured prepare installed, launched, and wrote a replacement fingerprint. |
+| Configured plugin Ready | PENDING | Resume with zero-touch unchecked; do not edit before Ready. |
 | Configured edit/reverse/PID | PENDING | |
 | Stop/no watcher | PENDING | |
 | Exact source/Gradle restoration | PENDING | |

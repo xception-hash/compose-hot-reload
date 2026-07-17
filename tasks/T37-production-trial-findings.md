@@ -203,12 +203,14 @@ status-widget deprecation notices remain.
 
 ## Pending target-project matrix
 
-1. Complete the remaining configured-mode half of the maintainer-run dual-mode plugin smoke in
-   [`T38`](T38-manual-plugin-dual-mode-smoke.md). Its local-0.1.8 zero-touch half now passes:
-   Ready, visible reversible edit, stable PID, and Stop -> Off. The large-target discovery UI can
-   stall despite successful CLI inspection; this needs a code fix, while the configured smoke can
-   use manually entered verified settings in the meantime. Then perform the temporary local
-   composite/plugin wiring and exact restoration.
+1. Complete the remaining manual half of the configured-mode maintainer-run dual-mode plugin
+   smoke in [`T38`](T38-manual-plugin-dual-mode-smoke.md). Its local-0.1.8 zero-touch half now
+   passes: Ready, visible reversible edit, stable PID, and Stop -> Off. Configured local-composite
+   wiring, Gradle sync, and matching prepare now also pass; the APK was installed/launched and the
+   configured fingerprint replaced the zero-touch one. The remaining evidence is plugin
+   Start -> Ready, reversible visible edit and reverse-edit with a stable PID, Stop -> Off, and
+   exact restoration. The large-target discovery UI can stall despite successful CLI inspection;
+   use the already verified manual settings rather than repeatedly refreshing.
 2. Publish 0.1.8 only after the T38 smoke passes and the maintainer gives explicit approval.
 3. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
