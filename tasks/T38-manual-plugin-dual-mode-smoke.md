@@ -299,6 +299,20 @@ Do not perform another manual edit, remove wiring/scaffolding, or restore the ta
 [`T39`](T39-configured-library-compose-capture-crash.md) is the required reproduce/fix plan. Only
 after T39's gates pass may the exact Mode B sequence be repeated once.
 
+### Repeat-save result after the local T39 candidate — 2026-07-18
+
+The T39 batch-D8 candidate was force-rebuilt and reinstalled; the engine JAR inside Android
+Studio's installed plugin was verified equal to the newly rebuilt CLI engine. A fresh matching
+configured prepare/install followed. The first visible library body edit applied, but later
+body-only saves did not visibly update the rendered frame, including after plugin Stop/Start.
+Device evidence may still show successful redefine batches and zero Compose errors, so the IDE
+state and ART acknowledgement cannot be accepted as the visual gate. This rules out the stale ZIP,
+APK reinstall, and one-shot watcher-start explanations.
+
+No further ad-hoc edit attempts are authorized. T39 must first extend its deterministic fixture to
+prove two sequential visible values in one watcher session, then diagnose/fix the repeat-save
+failure. The post-fix manual retry must use two distinct edits before restoration.
+
 ## Restoration and final state
 
 1. Remove only the T38 additions from target settings/module Gradle files. Do not use a broad
@@ -364,7 +378,7 @@ after T39's gates pass may the exact Mode B sequence be repeated once.
 | Configured plugin Ready | PASS | The plugin reached Ready with zero-touch unchecked after matching prepare. |
 | Configured coverage / fresh prepare / doctor | PASS | Direct plugin coverage disablement applied before variant finalization; fresh bounded prepare and runtime handshake passed; APK inspection found no JaCoCo synthetic method. |
 | Configured bundled-CLI Ready | PASS | Rebuilt candidate reached `watching` with zero-touch absent and the bounded app/library pair. |
-| Configured edit/reverse/PID | BLOCKED — needs code change | Per-module routing compiled and patched the library, but Compose threw a state-to-function capture cast failure in a lazy item lambda. No reverse or stable-PID success is claimed. |
+| Configured edit/reverse/PID | BLOCKED — needs code change | The current local engine/plugin applied the first visible library edit, but later saves did not visibly update even after Stop/Start; ART can still acknowledge redefines without a rendered change. T39 must prove/fix two sequential visible saves. |
 | Stop/no watcher | PASS for failure containment | Android Studio Stop ended the failed watcher; a fresh watcher-stopped clean install was healthy. Final Mode B Stop remains part of the post-fix retry. |
 | Exact source/Gradle restoration | PENDING | |
 

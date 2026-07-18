@@ -1,5 +1,23 @@
 # Opus 4.8 handoff — post-2026-07-07 playbook
 
+## Current continuation — GPT-5.6 Sol: configured repeat-save blocker (2026-07-18)
+
+Read `.agents/STATUS.md` newest entries first, then
+`tasks/T39-configured-library-compose-capture-crash.md`. T39 is the authoritative,
+decision-complete next-session task. Before dispatching, run `agy models`; if available, invoke
+`scripts/delegate.sh tasks/T39-configured-library-compose-capture-crash.md "GPT-5.6 Sol"` with no
+implicit model. Do not use Claude Opus 4.6.
+
+The real configured Android Studio gate currently behaves as follows: a fresh matching install and
+the current rebuilt plugin apply the first visible library body edit, but later saves in that same
+watcher session do not visibly update, even after Stop/Start. The installed plugin engine was
+SHA-verified against the rebuilt CLI engine. Device logs may show successful class redefinition and
+zero Compose errors, so neither ART acknowledgement nor widget Ready is acceptance. The existing
+single-edit configured fixture passes; extend it to make and visibly assert two sequential edits
+before proposing a product fix. Do not use APK/plugin reinstalls as a workaround, repeat manual
+target edits ad hoc, remove temporary smoke scaffolding, publish, or push. The coordinator reviews
+the diff and runs the final bounded device/IDE gate.
+
 Fable access ended 2026-07-07. Everything Fable-class is done and written down; this file is the
 operating manual for finishing the project with **Opus 4.8 + Gemini/agy + the maintainer**. The roadmap
 table lives in `docs/PLAN.md` (status header) — ONE canonical copy, do not duplicate it here.

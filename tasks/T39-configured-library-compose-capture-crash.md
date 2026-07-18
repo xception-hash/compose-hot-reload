@@ -1,21 +1,23 @@
 # T39: Diagnose and fix configured-library Compose capture corruption
 
-Status: IN PROGRESS — deterministic configured regression and batch-D8 fix landed locally 2026-07-18; fresh Mode B retry remains
-Assignee: maintainer / coordinator (engine and Compose-patch semantics stay with the coordinator)
-Recommended model: Gemini 3.1 Pro (Low), only for a decision-complete fixture or evidence-collection subtask
-Fallback model: GPT-OSS 120B (Medium), only for the same bounded non-core subtask
+Status: BLOCKED — the focused batch-D8 regression passes, but the real configured-plugin repeat-edit gate still fails (2026-07-18)
+Assignee: GPT-5.6 Sol next session (engine/Compose-patch diagnosis); coordinator reviews all code and runs final device gates
+Recommended model: GPT-5.6 Sol
+Fallback model: GPT-OSS 120B (Medium), only for mechanical evidence collection or a pre-specified fixture change
 
 ## Dispatch
 
-Do not dispatch the core diagnosis or patch design. If the coordinator first extracts a mechanical,
-decision-complete fixture-only subtask, it may be delegated with:
+Before dispatching in a future session, run `agy models` and verify GPT-5.6 Sol is available; do
+not select an implicit/default model and do not use Claude Opus 4.6. The intended next-session
+dispatch is:
 
 ```bash
-scripts/delegate.sh tasks/T39-configured-library-compose-capture-crash.md "Gemini 3.1 Pro (Low)"
+scripts/delegate.sh tasks/T39-configured-library-compose-capture-crash.md "GPT-5.6 Sol"
 ```
 
-Do not use Claude Opus 4.6; its quota remains unavailable. Re-run `agy models` immediately before
-any future dispatch.
+The worker must not publish, push, modify the production target outside the bounded reversible
+marker, or accept the result solely from host tests. The coordinator remains responsible for the
+diff review and final device/IDE check.
 
 ## Goal
 
@@ -55,36 +57,59 @@ patch and was healthy, so this is a patch-path regression rather than a baseline
   installed into Android Studio for this milestone. Install that candidate and perform exactly one
   fresh Android Studio Mode B edit/revert/PID/Stop retry before restoring T38 scaffolding.
 
+## Repeat-edit blocker — 2026-07-18
+
+- The plugin ZIP was force-rebuilt after the batch-D8 commit and the engine JAR installed in
+  Android Studio was verified byte-for-byte equal to the current rebuilt CLI engine. This is not
+  the earlier stale-local-ZIP incident.
+- After a fresh matching configured prepare/install, the first visible body-only library edit
+  applied. Later body-only saves in the same watcher session did not visibly update, including
+  after the user stopped and started the plugin watcher again. Reinstalling the APK/plugin is not
+  a valid workaround; it has already been done for this observation.
+- During the observed session, device logs recorded successful 12-class redefine batches and
+  zero Compose recomposition errors. A captured frame showed the first marker. This establishes
+  a distinction the current fixture misses: ART/device acknowledgement is insufficient proof that
+  a later source value reaches the rendered composition.
+- The emulator was subsequently shut down and all hot-reload/Gradle/Kotlin background daemons were
+  removed. A clean API-36 emulator is available for the next controlled reproduction. No watcher
+  remains. Do not make more ad-hoc manual edits before instrumentation captures the first and
+  second save separately.
+
 ## Spec
 
 1. Preserve the failed attempt as evidence. Do not perform another ad-hoc Android Studio marker
-   retry before a deterministic host/device regression exists.
+   retry before a deterministic host/device regression distinguishes the first and second saves.
 2. Establish a minimal configured multi-module reproducer using the existing sample or a new
    bounded fixture. It must contain a Compose library composable whose lazy/list item lambda
    captures both state and an event callback, and it must reproduce a body-only library edit after
    a matching configured install.
-3. Instrument only the engine test/reproducer as needed to capture, for every changed class:
-   baseline and post-compile class facts, selected module/task, patch class list, classifier plan,
-   and generated primary/support dex ownership. Do not log application source, package identity,
-   or arbitrary source text in tracked output.
-4. Compare the baseline installed class set with the direct library compile output and the patch
+3. Extend the deterministic configured reproducer to make two distinct, sequential body edits in
+   the same watched library session, then prove that **both** rendered values appear, the callback
+   remains type-correct after each, and the PID remains stable. A first-edit-only pass is no
+   longer sufficient.
+4. Instrument only the engine test/reproducer as needed to capture, for every changed class and
+   for each save ordinal: baseline/post-compile class facts, selected module/task, patch class
+   list, classifier plan, generated primary/support dex ownership, and the exact device response.
+   Do not log application source, package identity, or arbitrary source text in tracked output.
+5. Compare the baseline installed class set with the direct library compile output and the patch
    class set. Determine whether the failure arises from incomplete task routing/order, an
    inconsistent compiler output set, lambda/support-class omission, D8 desugaring ownership, or
    Compose invalidation/interpreter routing.
-5. Implement the smallest fix that preserves one debounced Gradle invocation per Kotlin batch,
+6. Implement the smallest fix that preserves one debounced Gradle invocation per Kotlin batch,
    selected-variant module tasks, Gradle-managed dependency ordering, existing app-module behavior,
    one-definition-per-redefined-class DEX, desugaring injection, debuggable-only guards, and the
    existing rebuild-needed handling.
-6. Add focused coverage proving the library Kotlin output changes, the patch hot-swaps, the
-   captured state/callback remains type-correct, the UI visibly changes, and the PID remains stable.
-   Do not treat an app compile as evidence that the library compiled.
-7. Run the relevant engine/CLI/plugin gates and Plugin Verifier. The sample device gate may run
+7. Add focused coverage proving each sequential library Kotlin output change, both patch hot-swaps,
+   both visible UI values, type-correct captured state/callback after each, and stable PID. Do not
+   treat an app compile as evidence that the library compiled.
+8. Run the relevant engine/CLI/plugin gates and Plugin Verifier. The sample device gate may run
    only after its AGP line is compatible with the retained smoke scaffold; do not alter the
    scaffold merely to make that gate pass.
-8. Rebuild and reinstall the local candidate. Then perform exactly one fresh matching configured
-   Mode B Android Studio retry: Ready -> library marker edit -> Ready with visible change -> revert
-   -> Ready -> stable PID -> Stop/Off.
-9. Only if that retry passes, perform T38's surgical target/scaffold restoration, matching
+9. Rebuild and reinstall the local candidate. Then perform exactly one fresh matching configured
+   Mode B Android Studio retry: Ready -> first library marker edit -> visible value A -> second
+   distinct marker edit -> visible value B -> restore the baseline -> Ready -> stable PID ->
+   Stop/Off. Capture the device/log signal after each leg.
+10. Only if that retry passes, perform T38's surgical target/scaffold restoration, matching
    zero-touch preparation, and sanitized documentation close-out. Publishing and pushing remain
    separately unauthorized.
 
@@ -112,8 +137,8 @@ adb shell getprop ro.build.version.sdk
 (cd intellij-plugin && unset JAVA_HOME && source ../scripts/env.sh && ./gradlew test buildPlugin verifyPlugin)
 ```
 
-The focused configured multi-module regression must prove a library output change and a successful
-hot swap of the capture-heavy composable. Then execute the exact T38 Mode B manual gate once, with
-the candidate rebuilt from this checkout. Require visible edit and revert, stable PID, Stop/Off,
-no capture/type exception, and no leaked watcher. Only then use T38's recorded restoration and
-baseline-comparison commands.
+The focused configured multi-module regression must prove two sequential library output changes
+and successful visible swaps of the capture-heavy composable in one watcher session. Then execute
+the exact T38 Mode B manual gate once with the candidate rebuilt from this checkout. Require both
+distinct visible edits plus restoration, stable PID, Stop/Off, no capture/type exception, and no
+leaked watcher. Only then use T38's recorded restoration and baseline-comparison commands.

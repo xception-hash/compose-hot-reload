@@ -270,10 +270,24 @@ The watcher is Off; temporary target wiring and local compatibility scaffolding 
 Do not repeat the manual edit or restore the scaffolding yet. [`T39`](T39-configured-library-compose-capture-crash.md)
 defines the required deterministic reproducer, patch-set comparison, fix, and gates.
 
+## Configured repeat-save failure — 2026-07-18
+
+The local candidate was force-rebuilt after the T39 coupled-D8 change and the engine embedded in
+the Android Studio-installed plugin was confirmed to match the rebuilt CLI engine. After a fresh
+matching configured prepare/install, the first visible body edit applied. Later saves in the same
+configured watcher session did not visibly update the frame, even after Stop/Start. Device logs
+can still record successful redefine batches and zero Compose errors; those signals are therefore
+not sufficient acceptance evidence.
+
+This is not resolved by reinstalling the APK or plugin. T39 is now blocked until its deterministic
+configured regression applies two distinct sequential edits in one session and proves both values
+render. Do not retry the real target manually, restore the temporary scaffolding, publish, or push
+until that regression and the revised T38 gate pass.
+
 ## Pending target-project matrix
 
 1. Complete [`T39`](T39-configured-library-compose-capture-crash.md): reproduce and fix the
-   configured library patch capture failure, then repeat the Mode B half of
+   configured library repeat-save failure, then repeat the Mode B half of
    [`T38`](T38-manual-plugin-dual-mode-smoke.md) exactly once after a matching configured prepare.
    The large-target discovery UI can also stall despite successful CLI inspection; use the
    verified manual settings rather than repeatedly refreshing.

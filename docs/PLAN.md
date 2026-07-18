@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-18) — configured library capture regression covered; Mode B retry pending
+## Status (2026-07-18) — configured plugin repeat-edit regression blocks Phase F
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -23,12 +23,14 @@ The direct configured plugin now disables Android/unit-test coverage in the same
 also checks that packaged DEX contains no JaCoCo shape additions. Device-response failures now
 emit the stable rebuild contract, which moves the IDE out of Reloading. A fresh bounded configured
 prepare and doctor pass, and its APK is JaCoCo-free. Per-module compile routing is now locally
-implemented and host-verified. The one subsequent Android Studio Mode B retry compiled and patched
-the watched Compose library, but Compose then reported a state-object-to-function capture cast
-failure in a lazy item lambda. A watcher-stopped clean install was healthy, so this is a
-patch-specific capture-corruption defect, not an APK or fingerprint issue. T39 defines the
-required reproduction and fix before another manual retry. The large-target discovery UI can also
-stall despite successful CLI inspection; it is a separate follow-up defect.
+implemented and host-verified. Its focused configured capture fixture now passes after a coupled
+batch-D8 change, but the real Android Studio Mode B gate remains blocked: the first library body
+edit visibly applies, while later saves in the same watcher session do not visibly update even
+after Stop/Start. The installed bundle was verified current; device logs can report successful
+redefines with zero Compose errors, so ART acknowledgement is not enough acceptance evidence.
+T39 now requires a deterministic two-sequential-save reproduction and fix before another manual
+retry. The large-target discovery UI can also stall despite successful CLI inspection; it is a
+separate follow-up defect.
 Optional housekeeping and one cosmetic follow-up (T36) remain separate.
 Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
 update it here, link it elsewhere.
@@ -45,9 +47,9 @@ update it here, link it elsewhere.
 | T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
 | T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
-| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-18 — coverage parity and per-module compile routing are host-verified; fresh bounded prepare and JaCoCo-free APK verification pass. The one configured library patch attempt corrupts a Compose lambda capture at runtime; see T39 and `tasks/T37-production-trial-findings.md`. |
-| T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | 🚧 BLOCKED 2026-07-18 — Mode A passed; Mode B fresh prepare/Ready passed and the library now compiles/patches, but the one retry hit a Compose capture cast failure. Reproduce and fix T39 before another retry or restoration. |
-| T39 | Configured watched-library patch corrupts a Compose lazy-item capture after a body edit | medium | 🚧 IN PROGRESS 2026-07-18 — deterministic configured AGP-9.0 library fixture now proves Kotlin output change, visible body swap, type-correct post-swap lazy-item callback, and stable PID. D8 now compiles the coupled patch set in one invocation so support dex ownership is consistent. Required fresh Android Studio Mode B retry remains. |
+| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 BLOCKED 2026-07-18 — configured first edit passes but repeat edits do not visibly update despite successful device redefine responses; see T39 and `tasks/T37-production-trial-findings.md`. |
+| T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | 🚧 BLOCKED 2026-07-18 — Mode A passed; Mode B setup/first visible edit pass, but subsequent configured saves do not visibly update. T39 must prove/fix sequential saves before another retry or restoration. |
+| T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | 🚧 BLOCKED 2026-07-18 — focused single-edit fixture passes with coupled batch D8, but the real plugin’s first edit succeeds and later saves do not visibly apply. Next session: GPT-5.6 Sol implements a deterministic two-save regression, diagnoses, then reruns the bounded Mode B gate. |
 
 Core engineering is implemented. T38/T37 remain release-validation gates; other remaining items
 are optional housekeeping:
