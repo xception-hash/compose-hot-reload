@@ -39,8 +39,8 @@ drain pattern and must be fixed by the same shared collector.
 3. Preserve stream separation. In particular, do not use `redirectErrorStream(true)`: discovery's
    stdout is a clean JSON document, while stderr can contain arbitrary Gradle diagnostics.
 4. Do not introduce a production timeout. A legitimate first Gradle configuration on a large
-   project may take minutes. Existing background-thread and `invokeLater` ownership must remain
-   unchanged.
+   project may take minutes. Work remains off the EDT; the completion callback must use the
+   initiating Settings dialog's modality so it is not deferred until that dialog closes.
 5. Each reader task must destroy the child before rethrowing a stream-read failure so the parent's
    `waitFor()` cannot remain blocked. On caller interruption, cancel both reader tasks and terminate
    the child when it is still alive. Restore the calling thread's interrupt flag when applicable,
@@ -114,3 +114,25 @@ before stdout. `verifyPlugin` must report Compatible for all three pinned IDE ba
 internal-API usages, and no findings beyond the three already-known status-widget deprecations.
 The Android Studio gate above must then pass on the large target before T40 is marked DONE. Review
 the complete diff and run the standing privacy checks before committing. Do not publish or push.
+
+## Outcome — DONE 2026-07-18
+
+The original sequential `readBytes()` calls were replaced by `ProcessOutputCollector`, which starts
+dedicated stdout and stderr readers before `waitFor()`, preserves the streams separately, and
+terminates the child on reader failure or caller interruption. Discovery still parses only stdout;
+Doctor still passes stdout, a newline, and stderr to `HotReloadPreflight.parse`.
+
+`ProcessOutputCollectorTest` launches a real child JVM. Its primary case writes exactly 2 MiB to
+stderr before stdout, the ordering that wedges the old code; the test verifies complete stderr,
+the later stdout token, and exit code. A separate nonzero-exit case proves stream separation.
+
+The live test exposed one additional UI bug: the discovery result was posted using the default
+IntelliJ modality, which deferred it until the modal Settings dialog closed. The configurable now
+captures `ModalityState.current()` and delivers the existing EDT callback in that dialog's
+modality. This is why a completed inspection had still displayed `Discovering…`.
+
+Verified: required device preflight; collector regression; `:cli:installDist`; plugin
+`test --rerun-tasks buildPlugin`; Plugin Verifier Compatible on 2025.1, 2026.1.4, and 262 (only
+the three known status-widget deprecations); and `git diff --check`. On the large target, Refresh
+discovered two modules, a matching zero-touch prepare resolved the deliberate fingerprint refusal,
+Doctor was all OK, Start reached Ready, and Stop reached Off. No watcher remained.

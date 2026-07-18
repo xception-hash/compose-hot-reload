@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-18) — dual-mode smoke passes; discovery reliability gates the Phase F matrix
+## Status (2026-07-18) — Phase F is ready for approved 0.1.8 publication
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -31,12 +31,13 @@ sequential library saves with capture/callback checks and stable PID. The real A
 Mode B gate also passes first edit, second edit, restoration, stable PID, and Stop -> Off. T38 is
 complete: its temporary target wiring and local compatibility scaffold were removed, only the
 maintainer-owned source baseline remains, a matching zero-touch prepare installed/launched the
-clean target, the plugin setting is back on zero-touch, and the widget is Off. The large-target
-discovery UI can still stall despite successful CLI inspection. T40 is the last known local 0.1.8
-UX blocker: discovery and Doctor drain child stdout before stderr and can deadlock when a noisy
-Gradle build fills the stderr pipe. T40 will replace both paths with one concurrent,
-stream-separating collector and prove it with a real pipe-saturation regression before the
-maintainer is asked to approve publication.
+clean target, the plugin setting is back on zero-touch, and the widget is Off. T40 is complete:
+discovery and Doctor now drain child stdout/stderr concurrently and retain stream separation; a
+real 2 MiB stderr-before-stdout child regression prevents the pipe deadlock. The live retry found
+and fixed the Settings-modal callback deferral too. Refresh discovered two modules, matching
+Doctor passed, Start reached Ready, and Stop returned Off. The next required authority is explicit
+maintainer approval to publish 0.1.8; only then run the remaining Marketplace production edit
+matrix.
 Optional housekeeping and one cosmetic follow-up (T36) remain separate. After the T40/T37 release
 gates, remaining items are optional housekeeping (see below). This table is the ONE canonical
 roadmap — update it here, link it elsewhere.
