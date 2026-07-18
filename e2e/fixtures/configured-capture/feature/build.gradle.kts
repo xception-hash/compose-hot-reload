@@ -8,7 +8,7 @@ android {
     namespace = "dev.hotreload.capture.feature"
     compileSdk = 36
 
-    defaultConfig { minSdk = 30 }
+    defaultConfig { minSdk = 23 }
     buildFeatures { compose = true }
 }
 

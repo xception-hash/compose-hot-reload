@@ -85,6 +85,20 @@ wait_for_hotswap() {
     done
 }
 
+interpreted_count() {
+    grep -c 'interpreted:' "$WATCH_LOG" || true
+}
+
+wait_for_interpret() {
+    local previous_count="$1" started=$(date +%s)
+    until [ "$(interpreted_count)" -gt "$previous_count" ]; do
+        if (( $(date +%s) - started > 90 )); then
+            echo "interpret timed out"; tail -n 80 "$WATCH_LOG"; exit 1
+        fi
+        sleep 1
+    done
+}
+
 feature_output_hash() {
     find "$FEATURE_CLASSES" -name '*.class' -type f -print0 |
         sort -z |
@@ -93,7 +107,10 @@ feature_output_hash() {
         awk '{print $1}'
 }
 
-scripts/emulator-up.sh
+DEVICE_COUNT=$(adb devices | awk 'NR > 1 && $2 == "device" { count++ } END { print count + 0 }')
+[ "$DEVICE_COUNT" -eq 1 ] || { echo "expected exactly one connected device, found $DEVICE_COUNT"; exit 1; }
+DEVICE_API=$(adb shell getprop ro.build.version.sdk | tr -d '\r')
+[ "$DEVICE_API" -ge 30 ] || { echo "device API must be at least 30, found $DEVICE_API"; exit 1; }
 kill_watch
 echo "--- Installing configured capture fixture ---"
 adb uninstall "$PKG" >/dev/null 2>&1 || true
@@ -103,6 +120,10 @@ FEATURE_ITEM_CLASS="$FEATURE_CLASSES/dev/hotreload/capture/feature/CaptureCardKt
 [ -f "$FEATURE_ITEM_CLASS" ] || { echo "captured item class missing"; exit 1; }
 javap -v -p "$FEATURE_ITEM_CLASS" | LC_ALL=C grep -q 'androidx.compose.runtime.internal.FunctionKeyMeta' || {
     echo "configured Compose library is missing FunctionKeyMeta"; exit 1;
+}
+FEATURE_OWNER_CLASS="$FEATURE_CLASSES/dev/hotreload/capture/feature/CaptureCardKt.class"
+javap -c -p "$FEATURE_OWNER_CLASS" | LC_ALL=C grep -q 'InterfaceMethod.*LazyStaggeredGridScope.item\$default' || {
+    echo "fixture is missing the raw interface default-helper call"; exit 1;
 }
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null
 sleep 2
@@ -137,6 +158,19 @@ AFTER=$(feature_output_hash)
 [ "$BEFORE" != "$AFTER" ] || { echo "library output did not change after second save"; exit 1; }
 assert_ui 'Capture changed two:'
 assert_capture_increment
+
+echo "--- Adding structural helper around interface default-argument call ---"
+HOTSWAPS=$(hot_swap_count)
+perl -0pi -e 's/Text\("Capture changed two: \$count"\)/Text(captureLabel(count))/; s/private fun LazyStaggeredGridScope\.captureItem/private fun captureLabel(count: Int) = "Capture structural: \$count"\n\nprivate fun LazyStaggeredGridScope.captureItem/' "$SOURCE"
+wait_for_hotswap "$HOTSWAPS"
+assert_ui 'Capture structural:'
+
+echo "--- Removing structural helper through interpreter ---"
+INTERPRETED=$(interpreted_count)
+perl -0pi -e 's/private fun captureLabel\(count: Int\) = "Capture structural: \$count"\n\n//; s/Text\(captureLabel\(count\)\)/Text("Capture reverted: \$count")/' "$SOURCE"
+wait_for_interpret "$INTERPRETED"
+assert_ui 'Capture reverted:'
+assert_capture_increment
 [ "$(adb shell pidof "$PKG")" = "$INITIAL_PID" ] || { echo "PID changed"; exit 1; }
 ! grep -q 'recomposition failed:' "$WATCH_LOG" || { tail -n 80 "$WATCH_LOG"; exit 1; }
-echo "PASS: configured library capture hot swaps"
+echo "PASS: configured library capture and structural reversion hot swaps"

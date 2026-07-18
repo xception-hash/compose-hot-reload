@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-18) — 0.1.8 live; Phase F structural-reversion fix remains
+## Status (2026-07-18) — 0.1.8 live; Phase F structural/signature retry remains
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -38,9 +38,12 @@ and fixed the Settings-modal callback deferral too. Refresh discovered two modul
 Doctor passed, Start reached Ready, and Stop returned Off. The signed **0.1.8** update is approved
 on JetBrains Marketplace and [PR #25](https://github.com/xception-hash/compose-hot-reload/pull/25)
 is merged. The Marketplace production retry passes preparation/Doctor/Start, app and library body
-edits, live literals, and watched XML resources. A structural helper addition applies, but its
-reversion crashes in interpreter resolution of Kotlin interface default-argument helpers and leaves
-the IDE Reloading. Fix that regression before retrying structural reversion and signature changes.
+edits, live literals, and watched XML resources. Its structural-reversion failure was an ABI gap:
+the interpreter received raw JVM calls to interface static helpers while the minSdk-23 APK had
+moved those helpers to D8 `$-CC` companions. Interpreted payloads now receive the same owner rewrite
+as compiled patches. A target-shaped minSdk-23 configured device gate passes two body saves,
+structural addition, structural removal through the interpreter, callback use, and stable PID.
+Rebuild/install the local plugin and repeat the production structural and signature checks.
 Optional housekeeping and one cosmetic follow-up (T36) remain separate. After the T40/T37 release
 gates, remaining items are optional housekeeping (see below). This table is the ONE canonical
 roadmap — update it here, link it elsewhere.
@@ -57,7 +60,7 @@ roadmap — update it here, link it elsewhere.
 | T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
 | T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
-| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-18 — Marketplace 0.1.8 approved and PR #25 merged. Preparation/Doctor/Start, app/library bodies, live literals, and watched XML pass; structural reversion crashes in Kotlin default-argument interpreter resolution. Fix, cover, then retry structural and signature cases. |
+| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-18 — Marketplace 0.1.8 approved and PR #25 merged. Preparation/Doctor/Start, app/library bodies, live literals, and watched XML pass. The minSdk-23 interface-helper interpreter ABI fix and deterministic device regression pass locally; rebuild/install the local plugin, then retry production structural reversion and signature cases. |
 | T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
 | T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
 | T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | ✅ DONE 2026-07-18 — concurrent stream-separating collector and deterministic 2 MiB real-child regression; the Settings-modal callback now returns to the active dialog. Plugin host gates pass, and large-target Refresh discovered 2 modules, Start reached Ready, and Stop returned Off. |

@@ -356,6 +356,26 @@ target until interpreter/proxy invocation resolution is fixed and covered by a r
 Remaining T37 work: implement that fix, repeat the structural-addition/reversion and signature
 checks from a fresh process, then record the final Stop-to-Off observation and target cleanup.
 
+## Structural-reversion interpreter ABI fix — 2026-07-18
+
+The interpreter path sent Kotlin's raw JVM `.class` bytes to the device. For a minSdk-23 APK, D8
+has moved static interface methods, including `item$default`, to generated `$-CC` companions. The
+compiled patch path already performs that rewrite, but interpreted instructions still named the
+original interface and reflection therefore failed against the installed ABI.
+
+`InterpreterBytecodeAdapter` now rewrites `INVOKESTATIC` interface owners to their `$-CC`
+companions only below API 24 before both interpreted and support classes cross the protocol. A
+focused ASM test proves that ordinary static calls and interface instance calls remain unchanged.
+The configured capture fixture now pins minSdk 23, asserts that its raw Kotlin owner contains the
+staggered-grid `item$default` interface call, then exercises two body saves, structural helper
+addition, and helper removal through `interpreted:`. The device gate passes with visible changes,
+a working captured callback after removal, and one stable PID.
+
+Host evidence also passes: protocol tests, the full engine suite, CLI distribution build, IntelliJ
+tests/package build, and Plugin Verifier on all three pinned IDEs. Remaining T37 work is to install
+the rebuilt local plugin and repeat the production-target structural addition/reversion plus
+signature-change checks from a fresh process; the Marketplace 0.1.8 result remains historical.
+
 ## Acceptance
 
 - [x] Public production-grade target cloned and safely inspected; target inputs remain clean.
@@ -378,5 +398,7 @@ checks from a fresh process, then record the final Stop-to-Off observation and t
 - [x] PR #25 merged and Marketplace 0.1.8 approved.
 - [x] Marketplace-bundled zero-touch prepare/Doctor/Start plus reversible app-body,
       library-body, live-literal, and watched-XML resource gates pass with visible results.
-- [ ] Structural addition/reversion and signature-change gates: reversion crashes in Kotlin
-      interface default-argument interpreter resolution; fix and regression coverage required.
+- [x] Local minSdk-23 structural addition/reversion regression passes through the interpreter with
+      the raw staggered-grid interface helper call, visible output, callback use, and stable PID.
+- [ ] Rebuilt-plugin production structural addition/reversion and signature-change gates still
+      require one fresh Android Studio retry and final Stop/Off cleanup.

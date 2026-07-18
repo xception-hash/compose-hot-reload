@@ -141,7 +141,7 @@ class WatchSession(private val config: Config) {
 
                 SourceWatcher(roots) { changedSources ->
                     try {
-                        snapshot = onSave(changedSources, gradle, dexer, device, resources, snapshot)
+                        snapshot = onSave(changedSources, gradle, dexer, patchMinApi, device, resources, snapshot)
                     } catch (failure: DeviceCallException) {
                         // A Response.Failure means the device rejected the patch. The old
                         // snapshot remains intentionally so no failed bytes become the new
@@ -184,6 +184,7 @@ class WatchSession(private val config: Config) {
         changedSources: Set<Path>,
         gradle: GradleCompiler,
         dexer: DexCompiler,
+        patchMinApi: Int,
         device: DeviceClient,
         resources: ResourceSwapper,
         snapshot: Map<String, SnapshotEntry>,
@@ -214,7 +215,7 @@ class WatchSession(private val config: Config) {
         // Code first, then resources (spec): a mixed batch redefines classes before the
         // resource overlay so both are in place when the tree recomposes.
         if (ktChanges.isNotEmpty() && !literalPushed) {
-            val result = swapClasses(ktChanges, gradle, dexer, device, snapshot, t0)
+            val result = swapClasses(ktChanges, gradle, dexer, patchMinApi, device, snapshot, t0)
                 // Compile failed or rebuild required: keep the old baseline. The resource
                 // swap is skipped too (assembleDebug shares the failing compile) but stays
                 // pending, so the fix-and-save retries it.
@@ -239,6 +240,7 @@ class WatchSession(private val config: Config) {
         changedSources: Collection<Path>,
         gradle: GradleCompiler,
         dexer: DexCompiler,
+        patchMinApi: Int,
         device: DeviceClient,
         snapshot: Map<String, SnapshotEntry>,
         t0: Long,
@@ -341,7 +343,17 @@ class WatchSession(private val config: Config) {
                 }
 
                 if (plan.interpret.isNotEmpty() || plan.support.isNotEmpty()) {
-                    applyInterpret(plan.interpret, plan.support, plan.groupIds, changed, snapshot, dexer, device, t0)
+                    applyInterpret(
+                        plan.interpret,
+                        plan.support,
+                        plan.groupIds,
+                        changed,
+                        snapshot,
+                        dexer,
+                        patchMinApi,
+                        device,
+                        t0,
+                    )
                 }
 
                 val what = buildList {
@@ -373,6 +385,7 @@ class WatchSession(private val config: Config) {
         changed: Map<String, SnapshotEntry>,
         baseline: Map<String, SnapshotEntry>,
         dexer: DexCompiler,
+        patchMinApi: Int,
         device: DeviceClient,
         t0: Long,
     ) {
@@ -394,7 +407,10 @@ class WatchSession(private val config: Config) {
         }
         fun bytesOf(fqcns: List<String>) = fqcns.map { fqcn ->
             val internal = fqcn.replace('.', '/')
-            ClassBytes(internal, changed.getValue(internal).bytes)
+            ClassBytes(
+                internal,
+                InterpreterBytecodeAdapter.adapt(changed.getValue(internal).bytes, patchMinApi),
+            )
         }
         // Support classes (T28) are NOT primed — the interpreter registers them proxy-flagged
         // and interpreted NEW replaces their instances with Proxies.* VM proxies.
