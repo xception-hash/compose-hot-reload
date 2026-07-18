@@ -24,6 +24,22 @@ target-shaped configured device gate passes structural addition and interpreted 
 visible result, working callback, and stable PID. T37 remains in progress only for a rebuilt local
 plugin retry of the production structural and signature cases. Never push directly to `main`.
 
+Do **not** restart the completed production matrix from the beginning. In the next session:
+
+1. Install the rebuilt local `hotreload-intellij-plugin-0.1.8.zip` and restart Android Studio.
+2. Keep the recorded zero-touch app/variant/module/literals settings unchanged. Use that local
+   bundle's CLI for one fresh matching `prepare`, so the retry starts in a clean app process.
+3. Start once and wait for Ready. Repeat only structural helper addition, its reversion, and the
+   previously blocked composable-signature change/reversion. Require a visible result for every
+   leg, `interpreted:` for the removals/signature path, no Error/Reloading hang or recomposition
+   exception, and one stable PID.
+4. Stop and require Off with no watcher leak. Restore the target source exactly and run matching
+   preparation once more if needed to leave a clean installed baseline.
+
+Preparation/Doctor/Start, app/library body edits, live literals, and watched XML already passed
+with the Marketplace bundle. Repeat them only if the persisted configuration changes or the fresh
+matching preparation/Doctor baseline itself fails.
+
 Fable access ended 2026-07-07. Everything Fable-class is done and written down; this file is the
 operating manual for finishing the project with **Opus 4.8 + Gemini/agy + the maintainer**. The roadmap
 table lives in `docs/PLAN.md` (status header) — ONE canonical copy, do not duplicate it here.

@@ -376,6 +376,29 @@ tests/package build, and Plugin Verifier on all three pinned IDEs. Remaining T37
 the rebuilt local plugin and repeat the production-target structural addition/reversion plus
 signature-change checks from a fresh process; the Marketplace 0.1.8 result remains historical.
 
+### Next-session resume point
+
+Do not repeat the completed body/literal/resource matrix. Resume from the exact failed boundary:
+
+1. Install `intellij-plugin/build/distributions/hotreload-intellij-plugin-0.1.8.zip` and restart
+   Android Studio. Preserve the existing zero-touch app, variant, explicit module list, literals
+   choice, and other persisted options.
+2. With the newly installed local bundle, run one matching zero-touch preparation and confirm the
+   target source is at its helper-free baseline. This clean process is required because injected
+   interpreter/support classes cannot be replaced inside an already-patched process.
+3. Start the plugin once and wait for Ready. Perform only the reversible structural helper
+   addition and reversion, followed by the previously blocked composable-signature change and
+   reversion. For every leg record the stable plugin log signal and sanitized visible result.
+   Require `interpreted:` where routed through the interpreter, no crash/recomposition failure,
+   no persistent Reloading/Error state, and the same PID throughout.
+4. Stop and require Off plus no watcher process. Restore the source exactly. If the test injected
+   structural/support classes, finish with one matching preparation so the installed app is a
+   clean baseline for the next session.
+
+Only fall back to rerunning Doctor or earlier body/literal/XML cases if the persisted configuration
+changed, matching preparation fails, or evidence shows the installed APK no longer matches the
+saved settings.
+
 ## Acceptance
 
 - [x] Public production-grade target cloned and safely inspected; target inputs remain clean.
