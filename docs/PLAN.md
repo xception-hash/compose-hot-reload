@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-18) — configured repeat edits and dual-mode smoke pass; Phase F matrix remains
+## Status (2026-07-18) — dual-mode smoke passes; discovery reliability gates the Phase F matrix
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -32,10 +32,14 @@ Mode B gate also passes first edit, second edit, restoration, stable PID, and St
 complete: its temporary target wiring and local compatibility scaffold were removed, only the
 maintainer-owned source baseline remains, a matching zero-touch prepare installed/launched the
 clean target, the plugin setting is back on zero-touch, and the widget is Off. The large-target
-discovery UI can still stall despite successful CLI inspection; it is a separate follow-up defect.
-Optional housekeeping and one cosmetic follow-up (T36) remain separate.
-Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
-update it here, link it elsewhere.
+discovery UI can still stall despite successful CLI inspection. T40 is the last known local 0.1.8
+UX blocker: discovery and Doctor drain child stdout before stderr and can deadlock when a noisy
+Gradle build fills the stderr pipe. T40 will replace both paths with one concurrent,
+stream-separating collector and prove it with a real pipe-saturation regression before the
+maintainer is asked to approve publication.
+Optional housekeeping and one cosmetic follow-up (T36) remain separate. After the T40/T37 release
+gates, remaining items are optional housekeeping (see below). This table is the ONE canonical
+roadmap — update it here, link it elsewhere.
 
 | # | Work | Size | Executor |
 |---|---|---|---|
@@ -49,12 +53,13 @@ update it here, link it elsewhere.
 | T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
 | T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
-| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-18 — T39 fixed configured repeat saves and T38 is complete; publication still requires explicit approval, then the remaining production edit matrix. |
+| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-18 — T39/T38 pass; complete T40, then obtain explicit publication approval and run the remaining Marketplace production edit matrix. |
 | T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
 | T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
+| T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | 📋 QUEUED 2026-07-18 — `tasks/T40-intellij-process-output-deadlock.md`; shared concurrent stdout/stderr collector, deterministic real-child regression, Plugin Verifier, then one large-target Android Studio gate. |
 
-Core engineering is implemented. T37 remains the release-validation gate; other remaining items
-are optional housekeeping:
+Core engineering is implemented. T40 and T37 remain the release-validation gates; other remaining
+items are optional housekeeping:
 - **Release provenance:** ✅ DONE 2026-07-16 — tag `0.1.6` cut on `main` (PR #23 version bumps),
   GitHub Release 0.1.6 with the signed plugin zip (marked latest), JitPack serves all three
   artifacts at 0.1.6 (verified by real resolution from a scratch project). Intermediate versions

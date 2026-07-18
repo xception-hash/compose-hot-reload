@@ -1,6 +1,6 @@
 # Opus 4.8 handoff — post-2026-07-07 playbook
 
-## Current continuation — T38/T39 done; T37 production matrix remains (2026-07-18)
+## Current continuation — execute T40 before the T37 Marketplace matrix (2026-07-18)
 
 Read `.agents/STATUS.md` newest entries first, then T38 and T39. T39 is DONE: configured mode now
 enables Compose FunctionKeyMeta in every Compose module, and both the Kotlin-2.3 two-save fixture
@@ -11,9 +11,27 @@ Verifier baselines pass.
 T38 cleanup is also complete: temporary target composite/plugin wiring and the two local
 runtime-client compatibility edits were removed; only the maintainer-owned target source baseline
 remains. Matching zero-touch prepare/install/launch passed, zero-touch is selected, and the widget
-is Off. The product worktree is clean. Do not publish or push without explicit approval. T37's
-remaining Marketplace production edit matrix is next; the large-target discovery deadlock remains
-a separate product follow-up.
+is Off. The product worktree was clean at the T38 close-out. Do not publish or push without explicit
+approval.
+
+T40 is next. Read `tasks/T40-intellij-process-output-deadlock.md` and implement its fixed design:
+one shared pure-JVM collector must drain child stdout and stderr concurrently while keeping them
+separate, and both Refresh discovery and Doctor/preflight must use it. The regression must launch a
+real child JVM that writes at least 2 MiB to stderr before stdout, which deterministically wedges
+the current sequential implementation. Do not add a production timeout or merge the streams.
+
+The 2026-07-18 recommended delegated model is Gemini 3.1 Pro (Low), with GPT-OSS 120B (Medium) as
+the different-family fallback. Re-run `agy models` first, then if still available use:
+
+```bash
+scripts/delegate.sh tasks/T40-intellij-process-output-deadlock.md "Gemini 3.1 Pro (Low)"
+```
+
+External delegation may reject this checkout because private `.agents/` material is present. Do
+not bypass that protection; execute locally or use a built-in worker for a bounded mechanical
+subtask. After coordinator review, host tests, Plugin Verifier, and the one large-target Android
+Studio discovery/preflight gate pass, request explicit approval to publish 0.1.8. Only after
+publication run T37's remaining Marketplace production edit matrix.
 
 Fable access ended 2026-07-07. Everything Fable-class is done and written down; this file is the
 operating manual for finishing the project with **Opus 4.8 + Gemini/agy + the maintainer**. The roadmap

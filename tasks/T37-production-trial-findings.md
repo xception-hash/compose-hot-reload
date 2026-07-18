@@ -301,16 +301,35 @@ Off without a leaked watcher. T39 is complete. T38 then removed the temporary ta
 local compatibility scaffold, retained only the maintainer-owned source baseline, ran a matching
 zero-touch prepare/install/launch, restored the zero-touch plugin setting, and left the widget Off.
 
+## Discovery process-output deadlock — queued as T40
+
+The large-target Refresh discovery attempt remained at `Discovering…`, while the exact bundled
+CLI `inspect --json --zero-touch` control completed and returned valid discovery data. This rules
+out Gradle inspection itself and isolates the failure to the IDE integration.
+
+Inspection of the plugin found a deterministic pipe deadlock: the discovery service reads stdout
+to EOF before reading stderr and waiting for the child. A noisy Gradle child can fill its stderr
+pipe and block before closing stdout, while the parent waits forever for stdout EOF. The
+Doctor/preflight path repeats the same sequential drain pattern. This is a **plugin process-I/O
+defect**, not a target compatibility or CLI discovery defect.
+
+[`T40`](T40-intellij-process-output-deadlock.md) is the decision-complete implementation plan. It
+requires one shared concurrent collector that preserves stdout/stderr separation, a real child-JVM
+pipe-saturation regression, Plugin Verifier, and one clean large-target Android Studio discovery
+and preflight gate. Complete T40 before requesting approval to publish 0.1.8; then run the remaining
+Marketplace production matrix.
+
 ## Pending target-project matrix
 
-1. Publish only after the maintainer gives explicit approval.
-2. Start from the Marketplace plugin with normal user-facing settings and capture the full
+1. Complete T40's host, Plugin Verifier, and large-target Android Studio discovery/preflight gates.
+2. Publish only after the maintainer gives explicit approval.
+3. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
-3. Verify app-module body edit and state behavior.
-4. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
+4. Verify app-module body edit and state behavior.
+5. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
    a reachable non-app module where the target has one.
-5. After each result, record the plugin status/log line and a sanitized visual observation.
-6. Restore every temporary target edit before ending the trial.
+6. After each result, record the plugin status/log line and a sanitized visual observation.
+7. Restore every temporary target edit before ending the trial.
 
 ## Acceptance
 
@@ -329,6 +348,8 @@ zero-touch prepare/install/launch, restored the zero-touch plugin setting, and l
       source restoration, stable PID, and Stop/Off pass.
 - [x] T38 target Gradle wiring/local compatibility scaffold removed and a matching zero-touch
       preparation restored before submission.
+- [ ] T40 concurrent process-output fix passes its deterministic regression, Plugin Verifier, and
+      large-target Android Studio discovery/preflight gate.
 - [ ] 0.1.8 submitted only after explicit maintainer approval.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
       executed after a release contains both product fixes.

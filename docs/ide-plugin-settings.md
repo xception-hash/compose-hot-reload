@@ -23,6 +23,13 @@ stay editable — if discovery fails or your build is unusual, type values by ha
 opening a project, and again whenever you add/rename a module or variant. It never modifies your
 build.
 
+**Known 0.1.8-candidate issue:** on a large build that emits enough Gradle diagnostics, the current
+plugin can remain on `Discovering…` because it drains the inspection process's stdout before its
+stderr. This is tracked as T40. Until that fix ships, do not press Refresh repeatedly. Run the
+plugin's bundled `cli inspect --project <dir> --json` command (add `--zero-touch` when selected)
+from a terminal and enter the returned app module, variant, application id, and module closure in
+the editable fields. This note should be removed when T40 passes its large-target IDE gate.
+
 ## Fields
 
 | Field | CLI flag | What it does | Leave blank / default |

@@ -390,7 +390,7 @@ session and reached Ready.
 |---|---|---|
 | Zero-touch preflight/Ready | PASS | Bundled local 0.1.8 CLI; zero-touch and preflight enabled. |
 | Zero-touch edit/reverse/PID | PASS | Both visible reloads succeeded; PID was unchanged. |
-| Discovery refresh | FAIL — needs code change | UI remained `Discovering…` while the equivalent bundled CLI inspect completed; manual exact closure was used. |
+| Discovery refresh | FAIL — T40 queued | UI remained `Discovering…` while the equivalent bundled CLI inspect completed; manual exact closure was used. T40 owns the shared concurrent process-output fix and large-target retry. |
 | Configured sync/prepare | PASS | Bounded local composites/plugins synced; matching configured prepare installed, launched, and wrote a replacement fingerprint. |
 | Configured plugin Ready | PASS | The plugin reached Ready with zero-touch unchecked after matching prepare. |
 | Configured coverage / fresh prepare / doctor | PASS | Direct plugin coverage disablement applied before variant finalization; fresh bounded prepare and runtime handshake passed; APK inspection found no JaCoCo synthetic method. |
