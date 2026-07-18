@@ -3,6 +3,7 @@ package dev.hotreload.idea
 import com.google.gson.Gson
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -85,7 +86,11 @@ object DiscoveryParser {
 /** Runs non-mutating Gradle discovery outside the EDT and returns a schema-v1 choice model. */
 @Service(Service.Level.PROJECT)
 class HotReloadDiscoveryService(private val project: Project) {
-    fun refresh(config: HotReloadWatchConfig, callback: (Result<DiscoveryChoices>) -> Unit) {
+    fun refresh(
+        config: HotReloadWatchConfig,
+        modalityState: ModalityState,
+        callback: (Result<DiscoveryChoices>) -> Unit,
+    ) {
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = runCatching {
                 require(config.projectDir.isNotBlank()) { "project dir is not set" }
@@ -101,7 +106,9 @@ class HotReloadDiscoveryService(private val project: Project) {
                 check(output.exitCode == 0) { (stderr.ifBlank { stdout }).trim().ifBlank { "hotreload inspect failed" } }
                 DiscoveryParser.parse(stdout)
             }
-            ApplicationManager.getApplication().invokeLater { callback(result) }
+            // Refresh is initiated from the modal Settings dialog. The default modality would
+            // defer this callback until that dialog closes, leaving its status at Discovering.
+            ApplicationManager.getApplication().invokeLater({ callback(result) }, modalityState)
         }
     }
 

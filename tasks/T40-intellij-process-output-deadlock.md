@@ -1,6 +1,6 @@
 # T40: Eliminate IntelliJ process-output deadlocks
 
-Status: IN-REVIEW — host implementation and acceptance gates pass (2026-07-18); Android Studio large-target gate pending
+Status: DONE — host gates and large-target Android Studio discovery/Doctor/Start/Stop gate pass (2026-07-18)
 Assignee: unassigned; coordinator reviews the diff and runs all acceptance gates
 Recommended model: Gemini 3.1 Pro (Low)
 Fallback model: GPT-OSS 120B (Medium)
