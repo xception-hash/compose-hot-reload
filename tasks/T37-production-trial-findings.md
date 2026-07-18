@@ -249,14 +249,34 @@ compile-routing defect. Restore the marker and stop the watcher; do not claim co
 edit/reverse, widget transition, or UI Stop. Per T38, temporary target wiring and local composite
 compatibility scaffolding remain pending the fix and retry.
 
+## Configured library patch capture failure — 2026-07-18
+
+The locally rebuilt candidate includes per-changed-module Kotlin compile routing: a watched
+library batch uses its selected Kotlin task rather than assuming the app task covers it. Focused
+engine coverage proves library-only routing, and the multi-module device gate was strengthened to
+require the library class output hash to change before accepting a hot swap. Engine/protocol/CLI
+gates, plugin tests/build, and all pinned Plugin Verifier baselines passed. The fixture device gate
+could not assemble because the intentionally retained local composite scaffold uses the production
+target's older AGP line; the scaffold was not changed just to run that fixture.
+
+A fresh bounded configured prepare then passed and the plugin performed its single Android Studio
+Mode B retry. The library patch was compiled and delivered: the runtime injected desugaring support
+and redefined the changed class set. Compose then captured a `ClassCastException` in a lazy item
+lambda, treating a state object as a function value. This is a patch-path failure: after Stop, a
+clean uninstall/install/launch with no watcher was healthy and showed no redefine/injection
+activity. The failure is neither a stale APK nor the earlier app-only compile omission.
+
+The watcher is Off; temporary target wiring and local compatibility scaffolding remain in place.
+Do not repeat the manual edit or restore the scaffolding yet. [`T39`](T39-configured-library-compose-capture-crash.md)
+defines the required deterministic reproducer, patch-set comparison, fix, and gates.
+
 ## Pending target-project matrix
 
-1. Fix configured multi-module compile routing: a saved watched library source must invoke its
-   module's selected Kotlin compile task (while retaining correct batching/app dependency behavior),
-   then add a regression proving the library class output changes and hot-swaps. Repeat the Mode B
-   half of [`T38`](T38-manual-plugin-dual-mode-smoke.md) through Android Studio only after that
-   fix and a matching configured `prepare`. The large-target discovery UI can also stall despite
-   successful CLI inspection; use the verified manual settings rather than repeatedly refreshing.
+1. Complete [`T39`](T39-configured-library-compose-capture-crash.md): reproduce and fix the
+   configured library patch capture failure, then repeat the Mode B half of
+   [`T38`](T38-manual-plugin-dual-mode-smoke.md) exactly once after a matching configured prepare.
+   The large-target discovery UI can also stall despite successful CLI inspection; use the
+   verified manual settings rather than repeatedly refreshing.
 2. Publish only after T38 passes and the maintainer gives explicit approval.
 3. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
@@ -279,9 +299,9 @@ compatibility scaffolding remain pending the fix and retry.
 - [x] Patch DEX desugaring matches the installed APK and a real target edit survives targeted
       recomposition with a visibly changed frame.
 - [x] Local 0.1.8 passes Plugin Verifier on all three configured IDE baselines.
-- [ ] Configured-plugin coverage parity plus T38 configured-integration edit/reverse and final
+- [ ] T39 capture-corruption fix plus T38 configured-integration edit/reverse and final
       restoration pass before submission (zero-touch passed 2026-07-17; discovery and configured
-      coverage defects are recorded in T38).
+      patch defects are recorded in T38).
 - [ ] 0.1.8 submitted only after explicit maintainer approval.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
       executed after a release contains both product fixes.

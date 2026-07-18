@@ -198,17 +198,30 @@ PASSED=$((PASSED + 1))
 echo "PASS: multi-core-body"
 
 # Case 2: multi-feature-composable
-# Edit FeatureCard's label. Expect targeted group invalidation (NOT whole-tree)
-# AND UI shows the edit.
+# Tap the library-owned control, then edit FeatureCard's label. This lazy item
+# lambda captures both the state-backed count and its separately-created callback.
+# Expect targeted group invalidation (NOT whole-tree), the visible edit, and the
+# captured state to remain type-correct and intact.
 echo "Running case: multi-feature-composable"
+tap_button "Feature count:"
+assert_ui 'Feature count: 1'
 hotswap_count=$(grep -c "hot-swapped:" "$WATCH_LOG" || true)
+FEATURE_CLASS=$(find "$REPO_ROOT/samples/multi-module/feature/build/intermediates/built_in_kotlinc" -type f -name 'FeatureCardKt.class' | head -1)
+[ -n "$FEATURE_CLASS" ] || { echo "FAIL: feature Kotlin output missing before edit"; exit 1; }
+FEATURE_CLASS_HASH=$(shasum -a 256 "$FEATURE_CLASS" | awk '{print $1}')
 perl -pi -e 's/"FeatureCard: /"FeatureX: /' "$FEATURE_CARD"
 wait_for_hotswap "$hotswap_count"
+# A watched library edit must update its own Kotlin output. This guards against relying on
+# :app:compileDebugKotlin to refresh an independently changed library.
+FEATURE_CLASS_HASH_AFTER=$(shasum -a 256 "$FEATURE_CLASS" | awk '{print $1}')
+[ "$FEATURE_CLASS_HASH" != "$FEATURE_CLASS_HASH_AFTER" ] \
+    || { echo "FAIL: feature Kotlin output did not change after its watched edit"; tail -n 20 "$WATCH_LOG"; exit 1; }
 # Feature is an Android/Compose module → expect targeted invalidation.
 # Check for 'groups invalidated' in log lines AFTER the latest hot-swap.
 grep -q "groups invalidated" "$WATCH_LOG" \
     || { echo "FAIL: expected 'groups invalidated' in watch log"; tail -n 20 "$WATCH_LOG"; exit 1; }
 assert_ui 'FeatureX:'
+assert_ui 'Feature count: 1'
 assert_pid
 PASSED=$((PASSED + 1))
 echo "PASS: multi-feature-composable"

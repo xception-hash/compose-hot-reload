@@ -8,6 +8,7 @@ import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.writeBytes
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
@@ -52,6 +53,34 @@ class DexCompilerTest {
         }
     }
 
+    @Test
+    fun `batch D8 gives coupled inputs one primary each and one shared support dex`() {
+        val root = Files.createTempDirectory("dex-compiler-batch-")
+        try {
+            val classes = root.resolve("classes").createDirectories()
+            val owner = "dev/hotreload/engine/dexfixture/Defaults"
+            writeInterface(classes, owner)
+            val caller = writeCaller(classes, owner)
+            val secondCaller = writeCaller(classes, owner, "SecondCaller")
+
+            val output = DexCompiler(d8(), minApi = 23, classpath = listOf(classes))
+                .dexOutputs(listOf(classes.resolve("$owner.class"), caller, secondCaller))
+
+            assertEquals(
+                setOf(owner, "dev/hotreload/engine/dexfixture/Caller", "dev/hotreload/engine/dexfixture/SecondCaller"),
+                output.primaryDexes.keys,
+            )
+            assertTrue(output.primaryDexes.values.all { classDefCount(it) == 1 })
+            assertEquals(
+                setOf("dev.hotreload.engine.dexfixture.Defaults\$-CC"),
+                output.syntheticDexes.keys,
+            )
+            assertTrue(output.syntheticDexes.values.all { classDefCount(it) == 1 })
+        } finally {
+            Files.walk(root).sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists)
+        }
+    }
+
     private fun writeInterface(root: Path, owner: String) {
         val writer = ClassWriter(0)
         writer.visit(
@@ -79,8 +108,8 @@ class DexCompilerTest {
         writeClass(root, owner, writer.toByteArray())
     }
 
-    private fun writeCaller(root: Path, interfaceOwner: String): Path {
-        val owner = "dev/hotreload/engine/dexfixture/Caller"
+    private fun writeCaller(root: Path, interfaceOwner: String, simpleName: String = "Caller"): Path {
+        val owner = "dev/hotreload/engine/dexfixture/$simpleName"
         val writer = ClassWriter(0)
         writer.visit(
             Opcodes.V1_8,

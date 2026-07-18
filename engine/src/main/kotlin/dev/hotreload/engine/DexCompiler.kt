@@ -27,6 +27,15 @@ class DexCompiler(
         val syntheticDexes: Map<String, ByteArray>,
     )
 
+    /**
+     * D8 output for a coupled patch set. Every requested input owns exactly one primary DEX;
+     * desugaring support DEXes are produced once from the complete input set.
+     */
+    data class BatchOutput(
+        val primaryDexes: Map<String, ByteArray>,
+        val syntheticDexes: Map<String, ByteArray>,
+    )
+
     init {
         require(minApi > 0) { "minApi must be positive: $minApi" }
     }
@@ -57,9 +66,22 @@ class DexCompiler(
     fun dexOne(classFile: Path): ByteArray = dexOneOutput(classFile).primaryDex
 
     fun dexOneOutput(classFile: Path): Output {
+        val internalName = ClassReader(classFile.readBytes()).className
+        val batch = dexOutputs(listOf(classFile))
+        return Output(batch.primaryDexes.getValue(internalName), batch.syntheticDexes)
+    }
+
+    /**
+     * Dex every changed primary together. This is essential for compiler-generated lambda
+     * families: running D8 per class lets each invocation independently choose support-class
+     * ownership, while an ART patch injects those support definitions into one classloader.
+     */
+    fun dexOutputs(classFiles: Collection<Path>): BatchOutput {
+        require(classFiles.isNotEmpty()) { "at least one class file is required" }
         val tmpDir = Files.createTempDirectory("d8-")
         try {
-            val internalName = ClassReader(classFile.readBytes()).className
+            val inputs = classFiles.distinct()
+            val internalNames = inputs.associateWith { ClassReader(it.readBytes()).className }
             val command = buildList {
                 add(d8.toString())
                 // ART redefine accepts exactly one class definition. Default desugaring may emit
@@ -69,7 +91,8 @@ class DexCompiler(
                 classpath.distinct().forEach { entry ->
                     addAll(listOf("--classpath", entry.toString()))
                 }
-                addAll(listOf("--output", tmpDir.toString(), classFile.toString()))
+                addAll(listOf("--output", tmpDir.toString()))
+                addAll(inputs.map(Path::toString))
             }
             val process = ProcessBuilder(command)
                 .redirectErrorStream(false)
@@ -81,9 +104,15 @@ class DexCompiler(
                 throw IllegalStateException("d8 exited with code $exitCode: $stderr")
             }
 
-            val primary = tmpDir.resolve("$internalName.dex")
+            val primaries = internalNames.values.associateWith { internalName ->
+                tmpDir.resolve("$internalName.dex").readBytes()
+            }
             val synthetics = Files.walk(tmpDir).use { files ->
-                files.filter { Files.isRegularFile(it) && it.fileName.toString().endsWith(".dex") && it != primary }
+                files.filter { file ->
+                    Files.isRegularFile(file) &&
+                        file.fileName.toString().endsWith(".dex") &&
+                        file !in internalNames.values.map { tmpDir.resolve("$it.dex") }
+                }
                     .iterator()
                     .asSequence()
                     .associate { file ->
@@ -94,7 +123,7 @@ class DexCompiler(
                         binaryName to file.readBytes()
                     }
             }
-            return Output(primary.readBytes(), synthetics)
+            return BatchOutput(primaries, synthetics)
         } finally {
             // Clean up temp dir
             Files.walk(tmpDir).sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }

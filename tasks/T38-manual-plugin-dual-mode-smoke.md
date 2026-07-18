@@ -1,6 +1,6 @@
 # T38: Manual Android Studio plugin smoke — zero-touch and configured integration
 
-Status: BLOCKED (Mode A PASS; Mode B coverage/prepare/doctor PASS; configured library compile routing needs a fix, 2026-07-18)
+Status: BLOCKED (Mode A PASS; Mode B compile routing works, but the single retry corrupts a Compose capture at runtime, 2026-07-18)
 Assignee: maintainer, manually in Android Studio with the API-30+ device visible
 Recommended model: Gemini 3.5 Flash (Low), only for organizing already-captured logs/docs
 Fallback model: GPT-OSS 120B (Medium)
@@ -278,6 +278,27 @@ the app module task, which does not compile this changed library. Restore the ma
 watcher. Do not mark the edit/reverse/PID/Stop gate passed, and do not remove temporary wiring or
 composite scaffolding until per-changed-module compile routing is fixed and the smoke is repeated.
 
+### Per-module routing retry: Compose capture failure — 2026-07-18
+
+Per-module compile routing was implemented locally: the owning watched library's selected Kotlin
+task runs in the debounced batch, while Gradle retains one invocation for task ordering. Focused
+engine coverage asserts a library-only batch does not rely on the app task; the multi-module device
+gate now also requires the library Kotlin output hash to change before accepting the hot swap.
+Engine/protocol/CLI distribution gates, plugin tests/build, and all pinned Plugin Verifier targets
+passed. The fixture device gate was not run because the required retained compatibility scaffold is
+incompatible with that fixture's newer AGP line.
+
+After a fresh matching configured prepare, the one permitted Android Studio Mode B retry compiled
+and delivered the library patch. The runtime injected desugaring support and redefined the changed
+classes, then Compose reported a capture `ClassCastException` in a lazy item lambda: a state object
+was treated as a function. Stop was used to end the watcher. A subsequent watcher-stopped clean
+uninstall/install/launch was healthy and showed no patch activity, proving this is a patch-specific
+runtime defect rather than a baseline install failure.
+
+Do not perform another manual edit, remove wiring/scaffolding, or restore the target yet.
+[`T39`](T39-configured-library-compose-capture-crash.md) is the required reproduce/fix plan. Only
+after T39's gates pass may the exact Mode B sequence be repeated once.
+
 ## Restoration and final state
 
 1. Remove only the T38 additions from target settings/module Gradle files. Do not use a broad
@@ -343,8 +364,8 @@ composite scaffolding until per-changed-module compile routing is fixed and the 
 | Configured plugin Ready | PASS | The plugin reached Ready with zero-touch unchecked after matching prepare. |
 | Configured coverage / fresh prepare / doctor | PASS | Direct plugin coverage disablement applied before variant finalization; fresh bounded prepare and runtime handshake passed; APK inspection found no JaCoCo synthetic method. |
 | Configured bundled-CLI Ready | PASS | Rebuilt candidate reached `watching` with zero-touch absent and the bounded app/library pair. |
-| Configured edit/reverse/PID | BLOCKED — needs code change | A saved marker in the watched configured library reaches Reloading -> Ready but does not enter library Kotlin output or the visible frame; the app-only compile task does not compile the changed library. |
-| Stop/no watcher | PARTIAL | Stop and restore the current marker after recording the failure; Android Studio Stop -> Off remains part of the post-fix retry. |
+| Configured edit/reverse/PID | BLOCKED — needs code change | Per-module routing compiled and patched the library, but Compose threw a state-to-function capture cast failure in a lazy item lambda. No reverse or stable-PID success is claimed. |
+| Stop/no watcher | PASS for failure containment | Android Studio Stop ended the failed watcher; a fresh watcher-stopped clean install was healthy. Final Mode B Stop remains part of the post-fix retry. |
 | Exact source/Gradle restoration | PENDING | |
 
 ## Out of scope
