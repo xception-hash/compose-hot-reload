@@ -6,7 +6,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
-import java.nio.charset.StandardCharsets
 
 /** Schema-v1 wire model emitted by `hotreload inspect --json`. Keep this independent of engine. */
 data class DiscoveryReportJson(
@@ -96,10 +95,11 @@ class HotReloadDiscoveryService(private val project: Project) {
                     .withEnvironment("JAVA_HOME", System.getProperty("java.home"))
                     .withParameters(config.inspectArguments())
                 val process = command.createProcess()
-                val output = process.inputStream.readBytes().toString(StandardCharsets.UTF_8)
-                val errors = process.errorStream.readBytes().toString(StandardCharsets.UTF_8)
-                check(process.waitFor() == 0) { (errors.ifBlank { output }).trim().ifBlank { "hotreload inspect failed" } }
-                DiscoveryParser.parse(output)
+                val output = ProcessOutputCollector.collect(process)
+                val stdout = output.stdout.toString(Charsets.UTF_8)
+                val stderr = output.stderr.toString(Charsets.UTF_8)
+                check(output.exitCode == 0) { (stderr.ifBlank { stdout }).trim().ifBlank { "hotreload inspect failed" } }
+                DiscoveryParser.parse(stdout)
             }
             ApplicationManager.getApplication().invokeLater { callback(result) }
         }

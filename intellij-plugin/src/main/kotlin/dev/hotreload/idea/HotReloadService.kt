@@ -105,10 +105,11 @@ class HotReloadService(private val project: Project) : Disposable {
             .withEnvironment(sdkEnv(config))
             .withParameters(config.doctorArguments())
             .createProcess()
-        val out = process.inputStream.readBytes().toString(Charsets.UTF_8)
-        val err = process.errorStream.readBytes().toString(Charsets.UTF_8)
-        val code = process.waitFor()
-        return HotReloadPreflight.parse(code, out + "\n" + err)
+        val output = ProcessOutputCollector.collect(process)
+        return HotReloadPreflight.parse(
+            output.exitCode,
+            output.stdout.toString(Charsets.UTF_8) + "\n" + output.stderr.toString(Charsets.UTF_8),
+        )
     }
 
     /** Auto-discover the Android SDK for injection as ANDROID_HOME, but only when the user gave

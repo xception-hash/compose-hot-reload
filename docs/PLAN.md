@@ -56,7 +56,7 @@ roadmap — update it here, link it elsewhere.
 | T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-18 — T39/T38 pass; complete T40, then obtain explicit publication approval and run the remaining Marketplace production edit matrix. |
 | T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
 | T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
-| T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | 📋 QUEUED 2026-07-18 — `tasks/T40-intellij-process-output-deadlock.md`; shared concurrent stdout/stderr collector, deterministic real-child regression, Plugin Verifier, then one large-target Android Studio gate. |
+| T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | 🚧 IN REVIEW 2026-07-18 — shared concurrent, stream-separating collector and deterministic 2 MiB real-child regression pass; CLI distribution, plugin tests/package, and Plugin Verifier are green. One large-target Android Studio discovery/Doctor gate remains. |
 
 Core engineering is implemented. T40 and T37 remain the release-validation gates; other remaining
 items are optional housekeeping:
