@@ -322,8 +322,11 @@ Start reached Ready, and Stop returned Off. T40 is complete.
 
 ## Pending target-project matrix
 
-1. Publish only after the maintainer gives explicit approval.
-2. Start from the Marketplace plugin with normal user-facing settings and capture the full
+1. The maintainer approved publication and the signed 0.1.8 update was submitted to JetBrains
+   Marketplace. Wait for it to become available before this user-facing matrix; its source is in
+   [PR #25](https://github.com/xception-hash/compose-hot-reload/pull/25), which still needs its
+   required checks and review before merge.
+2. Start from the available Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
 3. Verify app-module body edit and state behavior.
 4. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
@@ -350,6 +353,7 @@ Start reached Ready, and Stop returned Off. T40 is complete.
       preparation restored before submission.
 - [x] T40 concurrent process-output and Settings-modality fixes pass the deterministic regression,
       Plugin Verifier, and large-target discovery/Doctor/Start/Stop gate.
-- [ ] 0.1.8 submitted only after explicit maintainer approval.
+- [x] 0.1.8 submitted after explicit maintainer approval; Marketplace availability remains an
+      external follow-up, and PR #25 awaits required checks/review.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
       executed after a release contains both product fixes.

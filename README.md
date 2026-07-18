@@ -358,6 +358,9 @@ cd intellij-plugin && ./gradlew buildPlugin
 ```
 This produces `build/distributions/hotreload-intellij-plugin-0.1.8.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
 
+Version 0.1.8 has been submitted to the JetBrains Marketplace. Until that update is available,
+install this verified ZIP from disk to use its fixes.
+
 See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 
 ## 7. Repo layout
