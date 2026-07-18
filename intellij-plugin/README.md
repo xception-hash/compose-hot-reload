@@ -8,8 +8,8 @@ of truth (see `tasks/T26-ide-plugin-mvp.md`).
 It targets IntelliJ IDEA Community but uses only core platform APIs, so it also loads in
 Android Studio.
 
-Release status: version 0.1.8 has been submitted to JetBrains Marketplace. Until the update is
-available there, install the built ZIP from disk.
+Release status: version 0.1.8 is approved and available on JetBrains Marketplace. During local
+development, install the built ZIP from disk when testing an unreleased change.
 
 ## What it gives you
 

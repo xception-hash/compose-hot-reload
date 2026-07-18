@@ -1,6 +1,6 @@
 # Opus 4.8 handoff — post-2026-07-07 playbook
 
-## Current continuation — await 0.1.8 availability, PR #25 checks, then finish T37 (2026-07-18)
+## Current continuation — fix T37 structural reversion, then finish its matrix (2026-07-18)
 
 Read `.agents/STATUS.md` newest entries first, then T37 through T40. T39 is DONE: configured mode now
 enables Compose FunctionKeyMeta in every Compose module, and both the Kotlin-2.3 two-save fixture
@@ -15,12 +15,13 @@ is Off. T40 is also DONE: concurrent stream collection prevents noisy Gradle chi
 the Settings-modal callback now updates the initiating dialog. Its large-target discovery, Doctor,
 Start, and Stop gate passed.
 
-The signed 0.1.8 plugin update was submitted to JetBrains Marketplace after host tests, packaging,
-Plugin Verifier, and signing passed. Its source is in
-[PR #25](https://github.com/xception-hash/compose-hot-reload/pull/25), which is awaiting required
-checks and review; never push directly to `main`. Once the Marketplace update is available, run
-T37's remaining target-project edit matrix and record sanitized results. Do not claim the update
-is live until JetBrains makes it available.
+The signed 0.1.8 plugin update is approved on JetBrains Marketplace and its source
+[PR #25](https://github.com/xception-hash/compose-hot-reload/pull/25) is merged. The Marketplace
+retry passes preparation/Doctor/Start, app/library body edits, live literals, and watched XML
+resources. Structural-helper reversion crashes in interpreter resolution of a Kotlin interface
+default-argument helper and leaves the IDE Reloading. T37 therefore remains in progress: fix and
+regress that case before retrying structural reversion and signature changes. Never push directly
+to `main`.
 
 Fable access ended 2026-07-07. Everything Fable-class is done and written down; this file is the
 operating manual for finishing the project with **Opus 4.8 + Gemini/agy + the maintainer**. The roadmap

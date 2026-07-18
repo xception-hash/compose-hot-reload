@@ -320,19 +320,41 @@ dialog. Delivering it in the initiating dialog's modality fixed the stuck label.
 and Plugin Verifier pass; the large-target Refresh discovered two modules, matching Doctor passed,
 Start reached Ready, and Stop returned Off. T40 is complete.
 
-## Pending target-project matrix
+## Marketplace 0.1.8 production retry — 2026-07-18
 
-1. The maintainer approved publication and the signed 0.1.8 update was submitted to JetBrains
-   Marketplace. Wait for it to become available before this user-facing matrix; its source is in
-   [PR #25](https://github.com/xception-hash/compose-hot-reload/pull/25), which still needs its
-   required checks and review before merge.
-2. Start from the available Marketplace plugin with normal user-facing settings and capture the full
-   preflight/doctor result.
-3. Verify app-module body edit and state behavior.
-4. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
-   a reachable non-app module where the target has one.
-5. After each result, record the plugin status/log line and a sanitized visual observation.
-6. Restore every temporary target edit before ending the trial.
+PR #25 is merged and the 0.1.8 Marketplace update is approved. The retry used the
+Marketplace-installed bundle, its bundled CLI, one API-36 emulator, and a public
+production-grade Compose target. Fresh zero-touch preparation built, installed, launched, and
+fingerprinted the selected debuggable variant; Doctor passed the Java, SDK/tool, device,
+zero-touch-project, debuggable-app, and protocol-v8 runtime-handshake checks.
+
+| Check | Result | Classification |
+|---|---|---|
+| Marketplace-plugin Start after matching preparation | Reached Ready | works |
+| Reversible app-module composable body edit | Visible update and reversal; PID stable | works |
+| Reversible reachable-library composable body edit | Visible update and reversal; PID stable | works |
+| Live-literal fast path | Fresh literals-enabled preparation; direct Kotlin literal update and reversal worked | works |
+| XML string resource in a watched module | Visible update and reversal worked | works |
+| XML resource in an unwatched reachable module | No watcher event, as expected: the persisted list named only two modules | needs documentation |
+| Structural helper addition | Addition visibly applied | works (addition only) |
+| Structural helper removal/reversion | Interpreter crashed the app and the IDE remained Reloading | needs a code change |
+| Composable signature change | Not run after the structural-reversion crash | blocked by code change |
+
+The resource observation is configuration scope, not an engine defect: after adding the resource
+owner to the explicit watched-module list and running matching preparation, the same XML edit
+worked. The settings UI should make it clear that an explicit list limits both source and resource
+roots; Refresh discovery does not itself make a manually retained list part of an active session.
+
+The structural reversion is a product defect. The addition applied through structural redefinition,
+but removal routed through the interpreter and crashed at Kotlin interface default-argument
+resolution. The sanitized exception was an inability to find `item$default(...)` on a Compose
+staggered-grid scope despite the underlying `item(...)` interface method being present. The
+watcher was stopped, the temporary source change was confirmed absent, and fresh matching
+preparation restored a clean launched process. Do not repeat structural or signature edits on this
+target until interpreter/proxy invocation resolution is fixed and covered by a regression.
+
+Remaining T37 work: implement that fix, repeat the structural-addition/reversion and signature
+checks from a fresh process, then record the final Stop-to-Off observation and target cleanup.
 
 ## Acceptance
 
@@ -353,7 +375,8 @@ Start reached Ready, and Stop returned Off. T40 is complete.
       preparation restored before submission.
 - [x] T40 concurrent process-output and Settings-modality fixes pass the deterministic regression,
       Plugin Verifier, and large-target discovery/Doctor/Start/Stop gate.
-- [x] 0.1.8 submitted after explicit maintainer approval; Marketplace availability remains an
-      external follow-up, and PR #25 awaits required checks/review.
-- [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
-      executed after a release contains both product fixes.
+- [x] PR #25 merged and Marketplace 0.1.8 approved.
+- [x] Marketplace-bundled zero-touch prepare/Doctor/Start plus reversible app-body,
+      library-body, live-literal, and watched-XML resource gates pass with visible results.
+- [ ] Structural addition/reversion and signature-change gates: reversion crashes in Kotlin
+      interface default-argument interpreter resolution; fix and regression coverage required.
