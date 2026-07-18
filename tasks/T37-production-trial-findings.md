@@ -1,5 +1,5 @@
 # T37: Phase F — Marketplace-plugin production-grade trial findings
-Status: IN PROGRESS (2026-07-18)
+Status: DONE (2026-07-18; local validation complete)
 Assignee: maintainer + coordinator
 
 ## Goal
@@ -376,28 +376,19 @@ tests/package build, and Plugin Verifier on all three pinned IDEs. Remaining T37
 the rebuilt local plugin and repeat the production-target structural addition/reversion plus
 signature-change checks from a fresh process; the Marketplace 0.1.8 result remains historical.
 
-### Next-session resume point
+### Final local-plugin retry — 2026-07-18
 
-Do not repeat the completed body/literal/resource matrix. Resume from the exact failed boundary:
+The rebuilt local plugin was installed and used with the preserved matching zero-touch settings.
+A fresh preparation installed and launched a clean APK. The previously observed structural
+addition/reversion visibly updated the emulator on both saves; its only remaining defect was that
+the widget did not recognize the successful `interpreted:` terminal line. The plugin parser now
+classifies that line as Ready, with a focused regression and full plugin verification.
 
-1. Install `intellij-plugin/build/distributions/hotreload-intellij-plugin-0.1.8.zip` and restart
-   Android Studio. Preserve the existing zero-touch app, variant, explicit module list, literals
-   choice, and other persisted options.
-2. With the newly installed local bundle, run one matching zero-touch preparation and confirm the
-   target source is at its helper-free baseline. This clean process is required because injected
-   interpreter/support classes cannot be replaced inside an already-patched process.
-3. Start the plugin once and wait for Ready. Perform only the reversible structural helper
-   addition and reversion, followed by the previously blocked composable-signature change and
-   reversion. For every leg record the stable plugin log signal and sanitized visible result.
-   Require `interpreted:` where routed through the interpreter, no crash/recomposition failure,
-   no persistent Reloading/Error state, and the same PID throughout.
-4. Stop and require Off plus no watcher process. Restore the source exactly. If the test injected
-   structural/support classes, finish with one matching preparation so the installed app is a
-   clean baseline for the next session.
-
-Only fall back to rerunning Doctor or earlier body/literal/XML cases if the persisted configuration
-changed, matching preparation fails, or evidence shows the installed APK no longer matches the
-saved settings.
+A deliberately narrow, visible composable-signature test then passed: a leaf composable gained a
+defaulted size parameter and its caller supplied a larger value, visibly enlarging the on-screen
+icons. Removing that parameter and restoring the original size also passed visibly and returned
+the widget to Ready. The app process remained stable throughout. Stop returned the widget to Off,
+no watcher remained, and the target source was restored exactly.
 
 ## Acceptance
 
@@ -423,5 +414,6 @@ saved settings.
       library-body, live-literal, and watched-XML resource gates pass with visible results.
 - [x] Local minSdk-23 structural addition/reversion regression passes through the interpreter with
       the raw staggered-grid interface helper call, visible output, callback use, and stable PID.
-- [ ] Rebuilt-plugin production structural addition/reversion and signature-change gates still
-      require one fresh Android Studio retry and final Stop/Off cleanup.
+- [x] Rebuilt-plugin production structural addition/reversion and visible narrow
+      composable-signature change/reversion pass, followed by stable PID, Stop/Off, no watcher,
+      and exact target-source restoration.
