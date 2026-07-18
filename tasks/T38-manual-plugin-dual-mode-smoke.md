@@ -1,6 +1,6 @@
 # T38: Manual Android Studio plugin smoke — zero-touch and configured integration
 
-Status: CLEANUP (Mode A and Mode B live gates PASS; temporary wiring/scaffold restoration remains, 2026-07-18)
+Status: DONE (Mode A and Mode B live gates plus exact cleanup PASS, 2026-07-18)
 Assignee: maintainer, manually in Android Studio with the API-30+ device visible
 Recommended model: Gemini 3.5 Flash (Low), only for organizing already-captured logs/docs
 Fallback model: GPT-OSS 120B (Medium)
@@ -377,12 +377,12 @@ session and reached Ready.
 - [x] Configured plugin Start reaches Ready, and two sequential edits plus restoration visibly succeed with
       a stable PID.
 - [x] Plugin Stop returns to Off after both modes; no duplicate/leaked watcher remains.
-- [ ] Source bytes and full target diff exactly match the saved pre-test baseline.
-- [ ] Target Gradle wiring is removed and the installed app is returned to matching zero-touch
+- [x] Source bytes match the maintainer-owned baseline and the target has no temporary Gradle diff.
+- [x] Target Gradle wiring is removed and the installed app is returned to matching zero-touch
       preparation.
-- [ ] T37 findings, `docs/PLAN.md`, `.agents/STATUS.md`, and `.claude/HANDOFF.md` are updated with
+- [x] T37 findings, `docs/PLAN.md`, `.agents/STATUS.md`, and the tracked handoff are updated with
       sanitized results. No target identity, package id, local path, or screenshot is committed.
-- [ ] Nothing is pushed or published without a separate explicit maintainer instruction.
+- [x] Nothing is pushed or published without a separate explicit maintainer instruction.
 
 ## Results (fill next session)
 
@@ -397,7 +397,7 @@ session and reached Ready.
 | Configured bundled-CLI Ready | PASS | Rebuilt candidate reached `watching` with zero-touch absent and the bounded app/library pair. |
 | Configured edit/reverse/PID | PASS | First edit, distinct second edit, and source/frame restoration all rendered in one Android Studio-owned watcher session; PID stayed stable. |
 | Stop/no watcher | PASS | Android Studio Stop returned to Off; process inspection found no leaked watcher. |
-| Exact source/Gradle restoration | PARTIAL | Source bytes and generated lambda returned to their exact baseline hashes; temporary Gradle wiring/scaffold removal remains. |
+| Exact source/Gradle restoration | PASS | Source bytes/generated lambda returned to baseline; target Gradle wiring and local compatibility scaffold were removed; matching zero-touch prepare/install/launch and setting restoration passed. |
 
 ## Out of scope
 

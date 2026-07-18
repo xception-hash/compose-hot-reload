@@ -1,6 +1,6 @@
 # Opus 4.8 handoff — post-2026-07-07 playbook
 
-## Current continuation — T39 done; finish T38 cleanup (2026-07-18)
+## Current continuation — T38/T39 done; T37 production matrix remains (2026-07-18)
 
 Read `.agents/STATUS.md` newest entries first, then T38 and T39. T39 is DONE: configured mode now
 enables Compose FunctionKeyMeta in every Compose module, and both the Kotlin-2.3 two-save fixture
@@ -8,10 +8,12 @@ and the real Android Studio first/second/restoration gate pass with stable PID. 
 without a watcher leak. Core/distribution, Gradle-plugin, IntelliJ build/tests, and all three Plugin
 Verifier baselines pass.
 
-Next, complete only T38's recorded cleanup: surgically remove its temporary target composite/plugin
-wiring, restore the two local runtime-client compatibility edits, prove the saved target source/diff
-baseline, run a matching zero-touch prepare, and leave the plugin stopped with zero-touch selected.
-Do not publish or push. The large-target discovery deadlock remains a separate product follow-up.
+T38 cleanup is also complete: temporary target composite/plugin wiring and the two local
+runtime-client compatibility edits were removed; only the maintainer-owned target source baseline
+remains. Matching zero-touch prepare/install/launch passed, zero-touch is selected, and the widget
+is Off. The product worktree is clean. Do not publish or push without explicit approval. T37's
+remaining Marketplace production edit matrix is next; the large-target discovery deadlock remains
+a separate product follow-up.
 
 Fable access ended 2026-07-07. Everything Fable-class is done and written down; this file is the
 operating manual for finishing the project with **Opus 4.8 + Gemini/agy + the maintainer**. The roadmap

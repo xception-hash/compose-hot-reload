@@ -297,23 +297,20 @@ item lambda. In one watcher session it requires two distinct library output hash
 values, a type-correct captured callback after each edit, and stable PID. It passes. After a fresh
 matching configured prepare, the real Android Studio plugin also visibly applied the first and
 second library edits, restored the original frame byte-for-byte, retained one PID, and stopped to
-Off without a leaked watcher. T39 is complete; only T38's target-wiring/scaffold removal and
-matching zero-touch preparation remain before continuing this trial's broader edit matrix.
+Off without a leaked watcher. T39 is complete. T38 then removed the temporary target wiring and
+local compatibility scaffold, retained only the maintainer-owned source baseline, ran a matching
+zero-touch prepare/install/launch, restored the zero-touch plugin setting, and left the widget Off.
 
 ## Pending target-project matrix
 
-1. Complete [`T38`](T38-manual-plugin-dual-mode-smoke.md) cleanup: remove its temporary target
-   wiring and local compatibility scaffold, run matching zero-touch preparation, and leave the
-   plugin stopped with zero-touch selected. The large-target discovery UI can still stall despite
-   successful CLI inspection; use the verified manual settings rather than repeatedly refreshing.
-2. Publish only after T38 passes and the maintainer gives explicit approval.
-3. Start from the Marketplace plugin with normal user-facing settings and capture the full
+1. Publish only after the maintainer gives explicit approval.
+2. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
-4. Verify app-module body edit and state behavior.
-5. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
+3. Verify app-module body edit and state behavior.
+4. Verify literal edit, XML/resource edit, structural addition, signature change, and an edit in
    a reachable non-app module where the target has one.
-6. After each result, record the plugin status/log line and a sanitized visual observation.
-7. Restore every temporary target edit before ending the trial.
+5. After each result, record the plugin status/log line and a sanitized visual observation.
+6. Restore every temporary target edit before ending the trial.
 
 ## Acceptance
 
@@ -330,7 +327,7 @@ matching zero-touch preparation remain before continuing this trial's broader ed
 - [x] Local 0.1.8 passes Plugin Verifier on all three configured IDE baselines.
 - [x] T39 capture/repeat-save fix plus T38 configured-integration first edit, second edit,
       source restoration, stable PID, and Stop/Off pass.
-- [ ] T38 target Gradle wiring/local compatibility scaffold removed and a matching zero-touch
+- [x] T38 target Gradle wiring/local compatibility scaffold removed and a matching zero-touch
       preparation restored before submission.
 - [ ] 0.1.8 submitted only after explicit maintainer approval.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix

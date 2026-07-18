@@ -95,7 +95,8 @@ Studio-owned watcher applied first and second production-library edits visibly. 
 generated lambda then returned to their exact baseline hashes, the original frame returned, the
 PID stayed stable, and Android Studio Stop returned to Off with no watcher leak. Core engine,
 protocol, CLI distribution, Gradle-plugin build, IntelliJ tests/build, and Plugin Verifier on all
-three pinned IDEs pass. T38 owns the remaining temporary target/scaffold cleanup.
+three pinned IDEs pass. T38 subsequently removed the temporary target/scaffold changes and restored
+the matching zero-touch install, setting, and Off state.
 
 ## Spec
 
