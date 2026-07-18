@@ -39,6 +39,7 @@ object CliProtocol {
     private const val READY_BANNER = "watching "               // "watching <roots> (N classes)"
     private const val SAVE_STARTED = "changed: "               // WatchSession.onSave (printed after a leading \n)
     private const val SWAPPED = "hot-swapped: "                // "... in Nms"
+    private const val INTERPRETED = "interpreted: "            // "... (Nms)"
     private const val RESOURCE_SWAPPED = "resource-swapped: "  // "... in Nms"
     private const val LITERAL_PUSHED = "literal-pushed: "      // "... in Nms"
     private const val NO_CHANGES = "no bytecode changes"       // "no bytecode changes (Nms)"
@@ -84,7 +85,8 @@ object CliProtocol {
                 prev.copy(state = HotReloadState.RELOADING, detail = line, firstErrorLine = null)
 
             // --- successful swap: back to Ready, clear the error tally, flash the latency ---
-            line.startsWith(SWAPPED) || line.startsWith(RESOURCE_SWAPPED) || line.startsWith(LITERAL_PUSHED) ->
+            line.startsWith(SWAPPED) || line.startsWith(INTERPRETED) ||
+                line.startsWith(RESOURCE_SWAPPED) || line.startsWith(LITERAL_PUSHED) ->
                 prev.copy(
                     state = HotReloadState.READY,
                     errorCount = 0,

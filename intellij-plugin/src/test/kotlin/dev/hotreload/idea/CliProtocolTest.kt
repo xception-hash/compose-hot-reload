@@ -79,6 +79,16 @@ class CliProtocolTest {
         assertEquals(0, s.errorCount)
     }
 
+    @Test fun `interpreted completion is Ready with latency`() {
+        val s = advanceAll(
+            "changed: ForYouScreen.kt",
+            "interpreted: 1 changed class (91ms)",
+            from = ready(),
+        )
+        assertEquals(HotReloadState.READY, s.state)
+        assertEquals(91L, s.lastLatencyMs)
+    }
+
     @Test fun `resource-swapped is Ready with latency`() {
         val s = CliProtocol.advance(ready(), "resource-swapped: hotreload-overlay-x-1 in 640ms")
         assertEquals(HotReloadState.READY, s.state)

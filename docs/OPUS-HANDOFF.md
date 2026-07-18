@@ -1,8 +1,8 @@
 # Opus 4.8 handoff — post-2026-07-07 playbook
 
-## Current continuation — await 0.1.8 availability, PR #25 checks, then finish T37 (2026-07-18)
+## Current continuation — T37 complete; optional follow-ups remain (2026-07-18)
 
-Read `.agents/STATUS.md` newest entries first, then T37 through T40. T39 is DONE: configured mode now
+Read `.agents/STATUS.md` newest entries first. T37 through T40 are DONE. T39 is DONE: configured mode now
 enables Compose FunctionKeyMeta in every Compose module, and both the Kotlin-2.3 two-save fixture
 and the real Android Studio first/second/restoration gate pass with stable PID. Stop returned to Off
 without a watcher leak. Core/distribution, Gradle-plugin, IntelliJ build/tests, and all three Plugin
@@ -15,12 +15,16 @@ is Off. T40 is also DONE: concurrent stream collection prevents noisy Gradle chi
 the Settings-modal callback now updates the initiating dialog. Its large-target discovery, Doctor,
 Start, and Stop gate passed.
 
-The signed 0.1.8 plugin update was submitted to JetBrains Marketplace after host tests, packaging,
-Plugin Verifier, and signing passed. Its source is in
-[PR #25](https://github.com/xception-hash/compose-hot-reload/pull/25), which is awaiting required
-checks and review; never push directly to `main`. Once the Marketplace update is available, run
-T37's remaining target-project edit matrix and record sanitized results. Do not claim the update
-is live until JetBrains makes it available.
+The signed 0.1.8 plugin update is approved on JetBrains Marketplace and its source
+[PR #25](https://github.com/xception-hash/compose-hot-reload/pull/25) is merged. The Marketplace
+retry passes preparation/Doctor/Start, app/library body edits, live literals, and watched XML
+resources. The structural-helper reversion crash is fixed locally: raw interpreter bytecode now
+rewrites static interface owners to D8's minSdk-23 `$-CC` ABI, matching compiled patches. The
+target-shaped configured device gate passes structural addition and interpreted removal with a
+visible result, working callback, and stable PID. The rebuilt local plugin then passed the
+production structural add/revert and a visible narrow composable-signature add/revert, retained a
+stable PID, returned to Ready after each successful completion, and finished at Stop -> Off with
+no watcher and exact source restoration. T37 is complete. Never push directly to `main`.
 
 Fable access ended 2026-07-07. Everything Fable-class is done and written down; this file is the
 operating manual for finishing the project with **Opus 4.8 + Gemini/agy + the maintainer**. The roadmap
