@@ -51,8 +51,9 @@ patch and was healthy, so this is a patch-path regression rather than a baseline
   primary definition per redefined class while generating each desugaring support DEX from the
   complete coupled patch set; focused host coverage asserts that ownership contract.
 - Required engine/protocol/CLI distribution and plugin verifier gates pass. This is not T39
-  acceptance yet: rebuild/install the local candidate and perform exactly one fresh Android Studio
-  Mode B edit/revert/PID/Stop retry before restoring T38 scaffolding.
+  acceptance yet: the local `buildPlugin` package was produced and verified, but has not been
+  installed into Android Studio for this milestone. Install that candidate and perform exactly one
+  fresh Android Studio Mode B edit/revert/PID/Stop retry before restoring T38 scaffolding.
 
 ## Spec
 
