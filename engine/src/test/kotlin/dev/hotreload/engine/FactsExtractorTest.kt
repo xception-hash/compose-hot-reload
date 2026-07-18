@@ -37,7 +37,7 @@ class FactsExtractorTest {
             if (method.composeKey != null) {
                 val av = mv.visitAnnotation(
                     "Landroidx/compose/runtime/internal/FunctionKeyMeta;",
-                    false, // invisible annotation (CLASS retention)
+                    method.composeKeyVisible,
                 )
                 av.visit("key", method.composeKey)
                 av.visit("startOffset", 0)
@@ -75,6 +75,7 @@ class FactsExtractorTest {
         val access: Int = Opcodes.ACC_PUBLIC,
         val isAbstract: Boolean = false,
         val composeKey: Int? = null,
+        val composeKeyVisible: Boolean = false,
         val instructions: List<(org.objectweb.asm.MethodVisitor) -> Unit> = emptyList(),
     )
 
@@ -152,6 +153,25 @@ class FactsExtractorTest {
         val facts = FactsExtractor.extract(bytes)
         val counter = facts.members.first { it.id == "Counter(Landroidx/compose/runtime/Composer;I)V" }
         assertEquals(-96578675, counter.composeKey)
+    }
+
+    @Test
+    fun `compose key is extracted from visible FunctionKeyMeta annotation`() {
+        val bytes = generateClass(
+            methods = listOf(
+                MethodSpec(
+                    "Counter",
+                    "(Landroidx/compose/runtime/Composer;I)V",
+                    Opcodes.ACC_PUBLIC,
+                    composeKey = 1355415482,
+                    composeKeyVisible = true,
+                ),
+            ),
+        )
+
+        val facts = FactsExtractor.extract(bytes)
+        val counter = facts.members.first { it.id == "Counter(Landroidx/compose/runtime/Composer;I)V" }
+        assertEquals(1355415482, counter.composeKey)
     }
 
     @Test

@@ -23,6 +23,7 @@
             "install": null
           },
           "classOutputDirs": ["app/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes"],
+          "compileClasspath": [".gradle/transforms/release-dependency.jar"],
           "sourceDirs": ["app/src/main/kotlin"],
           "resDirs": ["app/src/main/res"],
           "apkOutputDir": "app/build/outputs/apk/release",
@@ -40,6 +41,7 @@
             "install": ":app:installStageDebug"
           },
           "classOutputDirs": ["app/build/intermediates/built_in_kotlinc/stageDebug/compileStageDebugKotlin/classes"],
+          "compileClasspath": [".gradle/transforms/stage-debug-dependency.jar"],
           "sourceDirs": ["app/src/main/kotlin", "app/src/stage/kotlin", "app/src/stageDebug/kotlin"],
           "resDirs": ["app/src/main/res", "app/src/stage/res"],
           "apkOutputDir": "app/build/outputs/apk/stage/debug",
@@ -76,6 +78,7 @@
       "pluginIds": ["org.jetbrains.kotlin.jvm", "dev.hotreload"],
       "jvm": {
         "classOutputDirs": ["core/build/classes/kotlin/main"],
+        "compileClasspath": [".gradle/caches/kotlin-stdlib.jar"],
         "sourceDirs": ["core/src/main/kotlin"],
         "projectDependencies": []
       }

@@ -8,6 +8,9 @@ of truth (see `tasks/T26-ide-plugin-mvp.md`).
 It targets IntelliJ IDEA Community but uses only core platform APIs, so it also loads in
 Android Studio.
 
+Release status: version 0.1.8 has been submitted to JetBrains Marketplace. Until the update is
+available there, install the built ZIP from disk.
+
 ## What it gives you
 
 - **Status-bar widget** — `Hot Reload: off / starting… / ready (Nms) / reloading… / error(n) /

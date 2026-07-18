@@ -21,6 +21,13 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            // Regression fixture: dev.hotreload must disable both coverage modes in
+            // androidComponents.finalizeDsl so packaged class shapes match watched Kotlin
+            // outputs. e2e/run.sh inspects the installed debug APK for `$jacocoInit`.
+            enableAndroidTestCoverage = true
+            enableUnitTestCoverage = true
+        }
         create("qa") {
             initWith(getByName("debug"))
             isDebuggable = true

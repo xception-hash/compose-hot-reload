@@ -1,6 +1,7 @@
 package dev.hotreload.idea
 
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
@@ -133,7 +134,7 @@ class HotReloadConfigurable(private val project: Project) : Configurable {
     private fun refreshDiscovery() {
         loading = true
         discoveryStatus.text = "Discovering (Gradle runs outside the IDE UI thread)…"
-        HotReloadDiscoveryService.getInstance(project).refresh(config()) { result ->
+        HotReloadDiscoveryService.getInstance(project).refresh(config(), ModalityState.current()) { result ->
             loading = false
             result.onSuccess {
                 discovery = it

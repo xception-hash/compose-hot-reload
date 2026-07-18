@@ -45,7 +45,7 @@ CLI install distribution and IntelliJ plugin copy the engine JAR, so they inheri
 payloads. Distribution verification opens the nested engine JAR and asserts all three
 entries.
 
-The runtime AAR declares `minSdk 24` and `minCompileSdk 30`, contains the initializer,
+The runtime AAR declares `minSdk 23` and `minCompileSdk 30`, contains the initializer,
 classes, and both supported JNI ABIs. `androidx.startup:startup-runtime:1.2.0` is added
 separately through the target's normal dependency repositories because a local file AAR
 has no POM/transitive dependencies.

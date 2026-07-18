@@ -77,6 +77,7 @@ data class ModuleMetadata(
     val assembleTask: String? = null,
     val installTask: String? = null,
     val classOutputDirs: List<String> = emptyList(), // rootDir-relative, as reported
+    val compileClasspath: List<String> = emptyList(), // rootDir-relative or external `..` paths
     val sourceDirs: List<String> = emptyList(),
     val resDirs: List<String> = emptyList(),
     val apkOutputDir: String? = null,  // app module only
@@ -101,6 +102,7 @@ fun DiscoveryReport.moduleMetadata(
                     assembleTask = variant.tasks?.assemble,
                     installTask = variant.tasks?.install,
                     classOutputDirs = variant.classOutputDirs.orEmpty(),
+                    compileClasspath = variant.compileClasspath.orEmpty(),
                     sourceDirs = variant.sourceDirs.orEmpty(),
                     resDirs = variant.resDirs.orEmpty(),
                     apkOutputDir = if (project.type == "androidApp") variant.apkOutputDir else null
@@ -110,6 +112,7 @@ fun DiscoveryReport.moduleMetadata(
                 val jvm = project.jvm ?: return@mapNotNull null
                 ModuleMetadata(
                     classOutputDirs = jvm.classOutputDirs.orEmpty(),
+                    compileClasspath = jvm.compileClasspath.orEmpty(),
                     sourceDirs = jvm.sourceDirs.orEmpty()
                 )
             }
@@ -283,6 +286,7 @@ data class DiscoveredVariant(
     val applicationId: String? = null,
     val tasks: VariantTasks? = null,
     val classOutputDirs: List<String>? = null,
+    val compileClasspath: List<String>? = null,
     val sourceDirs: List<String>? = null,
     val resDirs: List<String>? = null,
     val apkOutputDir: String? = null,
@@ -297,6 +301,7 @@ data class VariantTasks(
 
 data class JvmInfo(
     val classOutputDirs: List<String>? = null,
+    val compileClasspath: List<String>? = null,
     val sourceDirs: List<String>? = null,
     val projectDependencies: List<String>? = null,
 )

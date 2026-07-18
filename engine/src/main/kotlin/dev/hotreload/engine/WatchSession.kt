@@ -12,10 +12,12 @@ import kotlin.io.path.extension
 /**
  * The `hotreload watch` happy path: watch sources → incremental compile → diff the
  * class output → classify → dex → push to the device → targeted invalidation.
- * Multi-module (docs/multi-module-design.md): all modules are watched and snapshotted;
- * every save compiles the app module's task and lets Gradle run exactly the upstream
- * compiles it needs (ABI fan-out included), then the merged re-scan picks up whatever
- * changed anywhere. Anything the [Classifier] can't hot-swap prints a rebuild notice.
+ * Multi-module (docs/multi-module-design.md): all modules are watched and snapshotted.
+ * Each debounced Kotlin batch invokes the selected compile task(s) for the module(s) that own
+ * its changed sources. They remain in one Gradle invocation, so Gradle retains declared task
+ * ordering and dependency fan-out; importantly, a changed Android library is never assumed to
+ * be compiled by the app module task. Anything the [Classifier] can't hot-swap prints a rebuild
+ * notice.
  */
 class WatchSession(private val config: Config) {
 
@@ -25,8 +27,8 @@ class WatchSession(private val config: Config) {
         val adb: Path,
     )
 
-    /** The app module is AGP by definition, so its compile task is known before probing. */
-    private val compileTask = config.project.modules.first().let { app ->
+    /** The app module is AGP by definition, so its initial compile task is known before probing. */
+    private val initialCompileTask = config.project.modules.first().let { app ->
         config.project.moduleMetadata[app.gradlePath]?.compileTask
             ?: "${app.gradlePath}:compile${(app.variant ?: config.project.variant).taskSegment()}Kotlin"
     }
@@ -46,6 +48,8 @@ class WatchSession(private val config: Config) {
     private val primedClasses = mutableSetOf<String>()
     /** interp.dex is injected into the app classloader once, on the first interpreted edit. */
     private var interpDexInjected = false
+    /** Desugaring support classes already appended to the app classloader this watch session. */
+    private val injectedPatchSynthetics = mutableSetOf<String>()
 
     /** The committed interpreter runtime dex, shipped as an engine resource (T27 step 2). */
     private val interpDex: ByteArray by lazy {
@@ -75,7 +79,6 @@ class WatchSession(private val config: Config) {
         val appId = config.project.applicationId
         ensureAppRunning(adb, appId)
         val localPort = adb.forward(Protocol.deviceSocketName(appId))
-        val dexer = DexCompiler(config.d8)
 
         DeviceClient(port = localPort).use { device ->
             val caps = device.ping()
@@ -99,7 +102,7 @@ class WatchSession(private val config: Config) {
                     config.project.projectJavaHome?.toFile(),
                 ).use { gradle ->
                 print("initial build... ")
-                val initial = gradle.compile(compileTask)
+                val initial = gradle.compile(initialCompileTask)
                 check(initial.success) { "initial compile failed:\n${initial.output}" }
                 println("ok (${initial.durationMs}ms)")
 
@@ -108,6 +111,15 @@ class WatchSession(private val config: Config) {
                     "app module '${modules.first().name}' is not an AGP module"
                 }
                 println("modules: " + modules.joinToString { "${it.gradlePath}: ${it.layout} (${it.classesDir})" })
+
+                val patchMinApi = adb.installedMinSdk(appId) ?: 30.also {
+                    println("warning: could not read installed minSdk for $appId — patch D8 falling back to API 30")
+                }
+                val patchClasspath = (classesDirs + modules.flatMap { it.compileClasspath })
+                    .filter { Files.exists(it) }
+                    .distinct()
+                val dexer = DexCompiler(config.d8, patchMinApi, patchClasspath)
+                println("patch dex: min-api=$patchMinApi desugaring=true classpath=${patchClasspath.size} entries")
 
                 var snapshot = ClassSnapshot.scan(classesDirs)
                 check(snapshot.isNotEmpty()) { "no classes found under ${classesDirs.joinToString()}" }
@@ -128,7 +140,21 @@ class WatchSession(private val config: Config) {
                 val roots = sourceRoots + resDirs.filter { Files.isDirectory(it) }
 
                 SourceWatcher(roots) { changedSources ->
-                    snapshot = onSave(changedSources, gradle, dexer, device, resources, snapshot)
+                    try {
+                        snapshot = onSave(changedSources, gradle, dexer, device, resources, snapshot)
+                    } catch (failure: DeviceCallException) {
+                        // A Response.Failure means the device rejected the patch. The old
+                        // snapshot remains intentionally so no failed bytes become the new
+                        // baseline. More importantly, print the stable rebuild contract rather
+                        // than letting SourceWatcher's generic exception handler leave IDE
+                        // clients indefinitely on "Reloading".
+                        println("cannot hot-swap: ${failure.message}")
+                        if (config.project.integrationMode == IntegrationMode.ZERO_TOUCH) {
+                            println("run 'hotreload prepare --zero-touch' with the same project options, then restart watch")
+                        } else {
+                            println("run a full install (e.g. ./gradlew ${modules.first().installTask}), relaunch, then restart watch")
+                        }
+                    }
                 }.use { watcher ->
                     watcher.start()
                     // AFTER start(): "watching" is the e2e/IDE readiness gate — printing it
@@ -188,7 +214,7 @@ class WatchSession(private val config: Config) {
         // Code first, then resources (spec): a mixed batch redefines classes before the
         // resource overlay so both are in place when the tree recomposes.
         if (ktChanges.isNotEmpty() && !literalPushed) {
-            val result = swapClasses(gradle, dexer, device, snapshot, t0)
+            val result = swapClasses(ktChanges, gradle, dexer, device, snapshot, t0)
                 // Compile failed or rebuild required: keep the old baseline. The resource
                 // swap is skipped too (assembleDebug shares the failing compile) but stays
                 // pending, so the fix-and-save retries it.
@@ -210,16 +236,28 @@ class WatchSession(private val config: Config) {
 
     /** Returns null when the batch cannot be applied (compile failed / needs reinstall). */
     private fun swapClasses(
+        changedSources: Collection<Path>,
         gradle: GradleCompiler,
         dexer: DexCompiler,
         device: DeviceClient,
         snapshot: Map<String, SnapshotEntry>,
         t0: Long,
     ): ClassSwapResult? {
-        // Always the app module's task: Gradle's task graph runs exactly the upstream
-        // compiles the edit requires (a :core ABI change recompiles :feature too) and
-        // up-to-date-skips the rest — never re-implement that fan-out here (design D3).
-        val compile = gradle.compile(compileTask)
+        // Compile every watched module owning this debounced Kotlin batch, in ONE Gradle build.
+        // Gradle, rather than WatchSession, still resolves the actual task ordering and any ABI
+        // fan-out. The app task is therefore retained for app edits, while a library-only edit
+        // invokes that library's selected-variant task instead of assuming the app task covers it.
+        val compileTasks = ModuleCompileRouter.tasksFor(
+            changedSources = changedSources,
+            targets = modules.map { module ->
+                ModuleCompileRouter.Target(module.gradlePath, module.compileTask, module.sourceRoots)
+            },
+        )
+        check(compileTasks.isNotEmpty()) {
+            "no watched module owns changed Kotlin sources: ${changedSources.joinToString()}"
+        }
+        println("compile: ${compileTasks.joinToString()}")
+        val compile = gradle.compile(*compileTasks.toTypedArray())
         if (!compile.success) {
             println(compile.output.lineSequence().filter { "error:" in it || "e: " in it }.joinToString("\n").ifEmpty { compile.output })
             println("compile failed — fix and save again")
@@ -232,6 +270,7 @@ class WatchSession(private val config: Config) {
             println("no bytecode changes (${elapsedMs(t0)}ms)")
             return ClassSwapResult(newSnapshot, invalidated = false)
         }
+        println("patch: changed=${changed.size}")
 
         val verdicts = changed.map { (name, entry) ->
             var verdict = Classifier.classify(snapshot[name]?.facts, entry.facts)
@@ -265,15 +304,29 @@ class WatchSession(private val config: Config) {
                 null // keep the old baseline: these changes were NOT applied
             }
             is Classifier.PatchPlan.HotSwap -> {
+                // D8 the coupled hot-swap set once. Compiler-generated Compose/lambda classes
+                // commonly share desugaring support; per-class D8 invocations could assign that
+                // support independently and leave the app classloader with a mismatched capture
+                // family after a library patch.
+                val patchClasses = (plan.inject + plan.redefine).associate { fqcn ->
+                    fqcn.replace('.', '/') to changed.getValue(fqcn.replace('.', '/')).file
+                }
+                val patchOutput = patchClasses.takeIf { it.isNotEmpty() }?.let { classes ->
+                    dexer.dexOutputs(classes.values)
+                }
+                patchOutput?.let { injectPatchSynthetics(it.syntheticDexes, device) }
                 for (fqcn in plan.inject) {
-                    val entry = changed.getValue(fqcn.replace('.', '/'))
+                    val internal = fqcn.replace('.', '/')
                     // The device's PatchServer only accepts [A-Za-z0-9_.-] filenames; '$'
                     // from nested/lambda classes must be sanitized (it's only a label).
-                    device.injectDex("${fqcn.replace('.', '_').replace('$', '_')}.dex", dexer.dexOne(entry.file))
+                    device.injectDex(
+                        "${fqcn.replace('.', '_').replace('$', '_')}.dex",
+                        patchOutput!!.primaryDexes.getValue(internal),
+                    )
                 }
                 if (plan.redefine.isNotEmpty()) {
                     val batch = plan.redefine.map { fqcn ->
-                        ClassDex(fqcn, dexer.dexOne(changed.getValue(fqcn.replace('.', '/')).file))
+                        ClassDex(fqcn, patchOutput!!.primaryDexes.getValue(fqcn.replace('.', '/')))
                     }
                     device.redefine(batch, plan.structural)
                 }
@@ -333,7 +386,9 @@ class WatchSession(private val config: Config) {
             val baselineBytes = baseline[internal]?.bytes
                 ?: error("no baseline bytes to prime $fqcn (class absent from the pre-edit snapshot)")
             val stub = StubTransform.transform(baselineBytes, frameLoader)
-            device.redefine(listOf(ClassDex(fqcn, dexer.dexBytes(stub))), structural = true)
+            val output = dexer.dexBytesOutput(stub)
+            injectPatchSynthetics(output.syntheticDexes, device)
+            device.redefine(listOf(ClassDex(fqcn, output.primaryDex)), structural = true)
             primedClasses += internal
             println("primed: $fqcn")
         }
@@ -346,6 +401,15 @@ class WatchSession(private val config: Config) {
         device.liveEditClasses(bytesOf(interpret), bytesOf(support), primedDexName = null, groupIds = groupIds.toList())
         if (support.isNotEmpty()) println("support: ${support.joinToString()}")
         println("interpreted: ${interpret.joinToString()} (${elapsedMs(t0)}ms)")
+    }
+
+    private fun injectPatchSynthetics(syntheticDexes: Map<String, ByteArray>, device: DeviceClient) {
+        syntheticDexes.forEach { (className, bytes) ->
+            if (!injectedPatchSynthetics.add(className)) return@forEach
+            val safeName = className.replace('.', '_').replace('$', '_')
+            device.injectDex("desugar-$safeName.dex", bytes)
+            println("desugar-injected: $className")
+        }
     }
 
     /**

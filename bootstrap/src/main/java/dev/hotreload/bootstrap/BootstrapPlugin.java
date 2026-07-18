@@ -55,6 +55,7 @@ public final class BootstrapPlugin implements Plugin<Project> {
         AtomicBoolean supported = new AtomicBoolean(false);
         AtomicBoolean androidProject = new AtomicBoolean(false);
         AtomicBoolean flagsApplied = new AtomicBoolean(false);
+        AtomicBoolean composeMetadataApplied = new AtomicBoolean(false);
         AtomicBoolean selectedVariantSeen = new AtomicBoolean(false);
 
         project.getPluginManager().withPlugin("com.android.application", ignored -> {
@@ -63,6 +64,7 @@ public final class BootstrapPlugin implements Plugin<Project> {
             if (!appProject) {
                 throw failure(project, "application module", "watched Android application is not the selected app module " + appModule, null);
             }
+            disableCoverageInstrumentation(project);
             configureLegacyJniPackaging(project);
             registerSelectedVariantGuard(project, selectedVariant, selectedVariantSeen);
             maybeApplyCompilerFlags(project, true, flagsApplied);
@@ -91,11 +93,18 @@ public final class BootstrapPlugin implements Plugin<Project> {
             maybeApplyCompilerFlags(project, false, flagsApplied);
         });
 
+        project.getPluginManager().withPlugin("org.jetbrains.kotlin.plugin.compose", ignored ->
+            maybeApplyComposeMetadata(project, composeMetadataApplied)
+        );
+
         // Build types and their configurations are stable after project evaluation. Adding
         // dependencies here still precedes task dependency resolution, and avoids linking to
         // AGP's finalizeDsl signature.
         project.afterEvaluate(ignored -> {
             maybeApplyCompilerFlags(project, appProject, flagsApplied);
+            if (project.getPluginManager().hasPlugin("org.jetbrains.kotlin.plugin.compose")) {
+                maybeApplyComposeMetadata(project, composeMetadataApplied);
+            }
             if (appProject && androidProject.get()) {
                 addDebuggableRuntimeDependencies(project, runtimeAar);
             }
@@ -109,6 +118,11 @@ public final class BootstrapPlugin implements Plugin<Project> {
             if (!flagsApplied.get()) {
                 throw failure(project, "Kotlin compiler flags",
                     "the `kotlin` extension or compilerOptions.freeCompilerArgs API was unavailable", null);
+            }
+            if (project.getPluginManager().hasPlugin("org.jetbrains.kotlin.plugin.compose")
+                && !composeMetadataApplied.get()) {
+                throw failure(project, "Compose compiler flags",
+                    "FunctionKeyMeta instrumentation could not be enabled", null);
             }
             if (appProject && androidProject.get() && !selectedVariantSeen.get()) {
                 throw failure(project, "variant guard",
@@ -127,6 +141,53 @@ public final class BootstrapPlugin implements Plugin<Project> {
         } catch (Throwable t) {
             throw failure(project, "legacy JNI packaging", "unsupported Android DSL API", unwrap(t));
         }
+    }
+
+    /**
+     * Android test coverage instruments classes while packaging the APK, after Kotlin has
+     * written the class-output directory watched by the engine. A later patch dexed from that
+     * directory would therefore omit JaCoCo's synthetic members (for example `$jacocoInit`) and
+     * ART would reject even a body-only redefine because the installed method shape differs.
+     *
+     * Zero-touch builds are temporary development builds, so disable both coverage modes through
+     * Android Components' public finalizeDsl lifecycle. This runs after the target build scripts
+     * (including convention plugins) have enabled coverage but before variants are finalized.
+     */
+    private static void disableCoverageInstrumentation(Project project) {
+        try {
+            Object components = requiredExtension(project, "androidComponents");
+            Method finalizeDsl = Arrays.stream(components.getClass().getMethods())
+                .filter(m -> m.getName().equals("finalizeDsl") && m.getParameterCount() == 1)
+                .filter(m -> Action.class.isAssignableFrom(m.getParameterTypes()[0]))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchMethodException("androidComponents.finalizeDsl(Action)"));
+            Action<Object> action = android -> {
+                try {
+                    Object buildTypes = invokeNoArgs(android, "getBuildTypes");
+                    if (!(buildTypes instanceof Iterable<?>)) {
+                        throw new IllegalStateException("android.buildTypes is not iterable");
+                    }
+                    for (Object buildType : (Iterable<?>) buildTypes) {
+                        invokeBooleanSetter(buildType, "setEnableAndroidTestCoverage", false);
+                        invokeBooleanSetter(buildType, "setEnableUnitTestCoverage", false);
+                    }
+                } catch (Throwable t) {
+                    throw failure(project, "coverage instrumentation", "unsupported Android build-type coverage API", unwrap(t));
+                }
+            };
+            finalizeDsl.invoke(components, action);
+        } catch (Throwable t) {
+            throw failure(project, "coverage instrumentation", "unsupported Android Components finalizeDsl API", unwrap(t));
+        }
+    }
+
+    private static void invokeBooleanSetter(Object target, String name, boolean value) throws Exception {
+        Method setter = Arrays.stream(target.getClass().getMethods())
+            .filter(m -> m.getName().equals(name) && m.getParameterCount() == 1)
+            .filter(m -> m.getParameterTypes()[0] == boolean.class || m.getParameterTypes()[0] == Boolean.class)
+            .findFirst()
+            .orElseThrow(() -> new NoSuchMethodException(name + "(boolean)"));
+        setter.invoke(target, value);
     }
 
     private static void registerSelectedVariantGuard(
@@ -192,15 +253,32 @@ public final class BootstrapPlugin implements Plugin<Project> {
         Object kotlin = project.getExtensions().findByName("kotlin");
         if (kotlin == null) return;
         List<String> flags = new ArrayList<>();
-        if (appProject) {
-            flags.add("-P");
-            flags.add("plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true");
-        }
         flags.addAll(CLASS_SHAPE_FLAGS);
         if (appProject && "true".equals(String.valueOf(project.findProperty("hotreload.liveLiterals")))) {
             flags.add("-P");
             flags.add("plugin:androidx.compose.compiler.plugins.kotlin:liveLiteralsEnabled=true");
         }
+        addFreeCompilerArgs(project, kotlin, flags, "Kotlin compiler flags");
+        applied.set(true);
+    }
+
+    private static void maybeApplyComposeMetadata(Project project, AtomicBoolean applied) {
+        if (applied.get()) return;
+        Object kotlin = project.getExtensions().findByName("kotlin");
+        if (kotlin == null) return;
+        addFreeCompilerArgs(project, kotlin, List.of(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true"
+        ), "Compose compiler flags");
+        applied.set(true);
+    }
+
+    private static void addFreeCompilerArgs(
+        Project project,
+        Object kotlin,
+        List<String> flags,
+        String operation
+    ) {
         try {
             Object compilerOptions = invokeNoArgs(kotlin, "getCompilerOptions");
             Object freeArgs = invokeNoArgs(compilerOptions, "getFreeCompilerArgs");
@@ -210,9 +288,8 @@ public final class BootstrapPlugin implements Plugin<Project> {
                 .findFirst()
                 .orElseThrow(() -> new NoSuchMethodException("freeCompilerArgs.addAll(Iterable)"));
             addAll.invoke(freeArgs, flags);
-            applied.set(true);
         } catch (Throwable t) {
-            throw failure(project, "Kotlin compiler flags", "unsupported Kotlin compilerOptions API", unwrap(t));
+            throw failure(project, operation, "unsupported Kotlin compilerOptions API", unwrap(t));
         }
     }
 

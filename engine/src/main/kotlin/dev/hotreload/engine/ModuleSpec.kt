@@ -87,6 +87,10 @@ class ModuleSpec private constructor(
         Layout.JVM -> "$gradlePath:compileKotlin"
     }
 
+    /** Resolved Kotlin compile classpath (including transformed external dependency jars). */
+    val compileClasspath: List<Path> = metadata?.compileClasspath.orEmpty()
+        .map { projectDir.resolve(it).normalize() }
+
     val sourceRoots: List<Path> = metadata?.sourceDirs?.takeIf { it.isNotEmpty() }
         ?.map { projectDir.resolve(it) }
         ?: sourceSetNames(variant).flatMap { sourceSet ->

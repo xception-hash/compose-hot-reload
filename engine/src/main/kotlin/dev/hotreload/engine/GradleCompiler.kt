@@ -31,16 +31,18 @@ class GradleCompiler(
         .connect()
 
     /**
-     * Runs a Gradle task (e.g. `:app:compileDebugKotlin`).
+     * Runs one or more Gradle tasks (e.g. `:app:compileDebugKotlin`). A batch stays in a
+     * single build invocation so Gradle retains its declared task dependency ordering.
      * Returns [CompileResult] — a failed build returns `success=false` with output,
      * it does NOT throw.
      */
-    fun compile(task: String): CompileResult {
+    fun compile(vararg tasks: String): CompileResult {
+        require(tasks.isNotEmpty()) { "at least one Gradle task is required" }
         val out = ByteArrayOutputStream()
         val start = System.currentTimeMillis()
         return try {
             connection.newBuild()
-                .forTasks(task)
+                .forTasks(*tasks)
                 .apply { if (extraArgs.isNotEmpty()) withArguments(extraArgs) }
                 .apply {
                     if (javaHome != null) {

@@ -1,18 +1,47 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-16) — release 0.1.6 shipped end-to-end (Marketplace + tag + JitPack + Release)
+## Status (2026-07-18) — 0.1.8 submitted; Phase F matrix and PR merge remain
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
 resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
 changes** incl. composables via lambda proxies, zero-touch `hotreload start`, IDE plugin with
-discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.6 is approved
-and live on the JetBrains Marketplace**, and **release 0.1.6 is fully shipped**: git tag `0.1.6`,
+discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.7 is approved
+and live on the JetBrains Marketplace** (0.1.6 is the latest full JitPack/GitHub release), and
+**release 0.1.6 is fully shipped**: git tag `0.1.6`,
 GitHub Release (signed plugin zip, marked latest), and JitPack serving all three artifacts at
-0.1.6 (verified by real resolution). Engineering is feature-complete; next up is a live
-production-code trial (findings → T37), plus optional housekeeping + one cosmetic follow-up (T36).
-Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
-update it here, link it elsewhere.
+0.1.6 (verified by real resolution). Engineering is feature-complete; **Phase F is in progress**:
+the Marketplace-plugin smoke passed on the multi-module fixture. The first public production
+target blocker (the zero-touch init script aborting in an included `build-logic` build) is fixed
+in 0.1.7. The retry then exposed a second blocker: the runtime AAR declared minSdk 24 while the
+target declares 23. Local **0.1.8** now fixes that merge floor plus the production-trial coverage,
+Compose-metadata, discovery, and patch-desugaring findings; source CLI device verification and
+Plugin Verifier pass. T38's zero-touch plugin half now passes (Ready, visible reversible edit,
+stable PID, Stop -> Off), and its bounded configured local-composite sync/prepare now passes.
+The direct configured plugin now disables Android/unit-test coverage in the same public
+`androidComponents.finalizeDsl` phase as zero-touch; its coverage-enabled configured regression
+also checks that packaged DEX contains no JaCoCo shape additions. Device-response failures now
+emit the stable rebuild contract, which moves the IDE out of Reloading. A fresh bounded configured
+prepare and doctor pass, and its APK is JaCoCo-free. Per-module compile routing and coupled batch
+D8 are implemented and verified. T39 found the final configured-library parity gap: zero-touch
+enabled Compose FunctionKeyMeta generation in every Compose module, while the direct plugin did
+so only for the app. The configured plugin now applies that option explicitly to every Compose
+module and fails loud if it cannot. A Kotlin-2.3 target-shaped fixture visibly passes two
+sequential library saves with capture/callback checks and stable PID. The real Android Studio
+Mode B gate also passes first edit, second edit, restoration, stable PID, and Stop -> Off. T38 is
+complete: its temporary target wiring and local compatibility scaffold were removed, only the
+maintainer-owned source baseline remains, a matching zero-touch prepare installed/launched the
+clean target, the plugin setting is back on zero-touch, and the widget is Off. T40 is complete:
+discovery and Doctor now drain child stdout/stderr concurrently and retain stream separation; a
+real 2 MiB stderr-before-stdout child regression prevents the pipe deadlock. The live retry found
+and fixed the Settings-modal callback deferral too. Refresh discovered two modules, matching
+Doctor passed, Start reached Ready, and Stop returned Off. The signed **0.1.8** update has been
+submitted to JetBrains Marketplace, and [PR #25](https://github.com/xception-hash/compose-hot-reload/pull/25)
+contains its source for `main`; its required CI checks and review must pass before merge. Once the
+Marketplace update is available, run the remaining production edit matrix.
+Optional housekeeping and one cosmetic follow-up (T36) remain separate. After the T40/T37 release
+gates, remaining items are optional housekeeping (see below). This table is the ONE canonical
+roadmap — update it here, link it elsewhere.
 
 | # | Work | Size | Executor |
 |---|---|---|---|
@@ -26,8 +55,13 @@ update it here, link it elsewhere.
 | T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
 | T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
+| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-18 — 0.1.8 submitted; PR #25 awaits checks/review. Run the remaining Marketplace production edit matrix once the update is available. |
+| T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
+| T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
+| T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | ✅ DONE 2026-07-18 — concurrent stream-separating collector and deterministic 2 MiB real-child regression; the Settings-modal callback now returns to the active dialog. Plugin host gates pass, and large-target Refresh discovered 2 modules, Start reached Ready, and Stop returned Off. |
 
-All engineering is DONE. Remaining items are optional housekeeping, none blocking:
+Core engineering is implemented. T40 and T37 remain the release-validation gates; other remaining
+items are optional housekeeping:
 - **Release provenance:** ✅ DONE 2026-07-16 — tag `0.1.6` cut on `main` (PR #23 version bumps),
   GitHub Release 0.1.6 with the signed plugin zip (marked latest), JitPack serves all three
   artifacts at 0.1.6 (verified by real resolution from a scratch project). Intermediate versions

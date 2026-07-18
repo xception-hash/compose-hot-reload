@@ -184,6 +184,9 @@ gradle.rootProject { root ->
                     def capturedVariants = proj.extensions.extraProperties.has('hotreloadVariants')
                         ? proj.extensions.extraProperties.get('hotreloadVariants')
                         : []
+                    def capturedClasspaths = proj.extensions.extraProperties.has('hotreloadCompileClasspaths')
+                        ? proj.extensions.extraProperties.get('hotreloadCompileClasspaths')
+                        : [:]
 
                     variantsJson = capturedVariants.collect { v ->
                         def variantNameCap = v.name[0].toUpperCase() + v.name.substring(1)
@@ -196,6 +199,9 @@ gradle.rootProject { root ->
                         if (compileTask != null) {
                             compileTask.outputs.files.files.each { File f -> classOutputDirs << toRel(f) }
                         }
+
+                        def compileClasspath = (capturedClasspaths[v.name] ?: [])
+                            .collect { File f -> toRel(f) }
 
                         def tierNames = sourceSetTiers(v.flavors, v.buildType, v.name)
                         def sourceDirs = sourceSets != null
@@ -244,6 +250,7 @@ gradle.rootProject { root ->
                                 install      : installTask?.path,
                             ],
                             classOutputDirs    : classOutputDirs,
+                            compileClasspath   : compileClasspath,
                             sourceDirs         : sourceDirs,
                             resDirs            : resDirs,
                             apkOutputDir       : apkOutputDir,
@@ -270,6 +277,12 @@ gradle.rootProject { root ->
                         compileTask.outputs.files.files.each { File f -> classOutputDirs << toRel(f) }
                     }
 
+                    def capturedClasspaths = proj.extensions.extraProperties.has('hotreloadCompileClasspaths')
+                        ? proj.extensions.extraProperties.get('hotreloadCompileClasspaths')
+                        : [:]
+                    def compileClasspath = (capturedClasspaths['main'] ?: [])
+                        .collect { File f -> toRel(f) }
+
                     def projectDeps = []
                     def runtimeClasspath = proj.configurations.findByName('runtimeClasspath')
                     if (runtimeClasspath != null) {
@@ -281,6 +294,7 @@ gradle.rootProject { root ->
 
                     jvmJson = [
                         classOutputDirs    : classOutputDirs,
+                        compileClasspath   : compileClasspath,
                         sourceDirs         : sourceDirs,
                         projectDependencies: projectDeps,
                     ]
@@ -309,5 +323,50 @@ gradle.rootProject { root ->
             outFile.parentFile?.mkdirs()
             outFile.text = groovy.json.JsonOutput.toJson(report)
         }
+    }
+}
+
+// Gradle 9 forbids resolving another project's configurations from the root inspect task. Give
+// each project a tiny helper task that resolves its own KotlinCompile `libraries`, then make the
+// root report task consume the captured Files after all helpers have run.
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    root.allprojects.each { proj ->
+        def capturedVariants = proj.extensions.extraProperties.has('hotreloadVariants')
+            ? proj.extensions.extraProperties.get('hotreloadVariants')
+            : []
+        def kotlinJvm = !proj.pluginManager.hasPlugin('com.android.application') &&
+            !proj.pluginManager.hasPlugin('com.android.library') &&
+            proj.pluginManager.hasPlugin('org.jetbrains.kotlin.jvm')
+        if (capturedVariants.isEmpty() && !kotlinJvm) return
+
+        def captureTask = proj.tasks.register('hotreloadInspectClasspath') {
+            doLast {
+                def byVariant = [:]
+                capturedVariants.each { variant ->
+                    def cap = variant.name[0].toUpperCase() + variant.name.substring(1)
+                    def compile = proj.tasks.findByName("compile${cap}Kotlin")
+                    if (compile != null) {
+                        try {
+                            byVariant[variant.name] = compile.property('libraries').files.toList()
+                        } catch (Throwable ignored) {
+                            byVariant[variant.name] = []
+                        }
+                    }
+                }
+                if (kotlinJvm) {
+                    def compile = proj.tasks.findByName('compileKotlin')
+                    if (compile != null) {
+                        try {
+                            byVariant['main'] = compile.property('libraries').files.toList()
+                        } catch (Throwable ignored) {
+                            byVariant['main'] = []
+                        }
+                    }
+                }
+                proj.extensions.extraProperties.set('hotreloadCompileClasspaths', byVariant)
+            }
+        }
+        root.tasks.named('hotreloadInspect').configure { dependsOn(captureTask) }
     }
 }

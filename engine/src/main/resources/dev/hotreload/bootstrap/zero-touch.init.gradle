@@ -1,11 +1,22 @@
+// Gradle evaluates init scripts independently for every build in a composite. The
+// bootstrap properties intentionally belong only to the invoked root build, so an
+// included build must not load or validate this root-only payload. Gradle processes
+// top-level initscript blocks before the script body, so guard the classpath setup
+// here as well as returning before validation and instrumentation below.
 initscript {
-    def jarPath = gradle.startParameter.projectProperties['dev.hotreload.bootstrap.jar']
-    if (jarPath == null || jarPath.trim().isEmpty()) {
-        throw new GradleException('zero-touch bootstrap: missing dev.hotreload.bootstrap.jar')
+    if (gradle.parent == null) {
+        def jarPath = gradle.startParameter.projectProperties['dev.hotreload.bootstrap.jar']
+        if (jarPath == null || jarPath.trim().isEmpty()) {
+            throw new GradleException('zero-touch bootstrap: missing dev.hotreload.bootstrap.jar')
+        }
+        dependencies {
+            classpath files(jarPath)
+        }
     }
-    dependencies {
-        classpath files(jarPath)
-    }
+}
+
+if (gradle.parent != null) {
+    return
 }
 
 def hotreloadModulesValue = gradle.startParameter.projectProperties['dev.hotreload.bootstrap.modules'] ?: ''

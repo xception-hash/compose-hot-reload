@@ -625,7 +625,7 @@ private fun resolveConfig(
             fail(e.message ?: "invalid --app-module/--app-module-dir")
         }
 
-        val config = try {
+        val provisionalConfig = try {
             ProjectConfig(
                 projectDir = project,
                 modules = modules,
@@ -641,7 +641,28 @@ private fun resolveConfig(
         } catch (e: IllegalArgumentException) {
             fail(e.message ?: "invalid configuration")
         }
-        return Resolved(config, null)
+
+        // Explicit --module/--app-id still needs variant metadata for patch D8. In particular,
+        // KotlinCompile's resolved libraries tell D8 which referenced owners are interfaces, so
+        // minSdk<24 patches can target the same `$-CC` helpers as the installed APK. Discovery is
+        // best-effort here to preserve convention fallbacks for older/unusual builds.
+        val report = try {
+            if (integrationMode == IntegrationMode.ZERO_TOUCH) {
+                GradleInvocation.open(provisionalConfig).use { invocation ->
+                    GradleDiscovery.run(project, projectJavaHome, invocation.arguments)
+                }
+            } else {
+                GradleDiscovery.run(project, projectJavaHome, gradleArgs)
+            }
+        } catch (t: Throwable) {
+            println("metadata: discovery unavailable (${t.message ?: t}) — using convention fallbacks")
+            null
+        }
+        val moduleMetadata = report?.moduleMetadata(modules, provisionalConfig.variant).orEmpty()
+        if (moduleMetadata.isNotEmpty()) {
+            println("metadata: ${moduleMetadata.size} module(s) from discovery")
+        }
+        return Resolved(provisionalConfig.copy(moduleMetadata = moduleMetadata), report)
     }
 }
 

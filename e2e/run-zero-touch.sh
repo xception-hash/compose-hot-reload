@@ -186,6 +186,21 @@ apk_has_startup() {
     return 1
 }
 
+apk_has_jacoco_init() {
+    local apk="$1"
+    local dex_dir="$FIXTURE_ROOT/dex-jacoco-$RANDOM-$RANDOM"
+    mkdir -p "$dex_dir"
+    unzip -qq "$apk" 'classes*.dex' -d "$dex_dir"
+    local dex
+    for dex in "$dex_dir"/classes*.dex; do
+        if "$ANDROID_HOME/build-tools/36.0.0/dexdump" -s "$dex" \
+            | grep -F '$jacocoInit' >/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 assert_plain_release_clean() {
     local project="$1"
     local java_home="$2"
@@ -235,6 +250,9 @@ assert_instrumented_apk() {
         || fail "zero-touch APK does not contain the runtime native agent"
     apk_has_startup "$apk" \
         || fail "zero-touch APK does not contain AndroidX Startup 1.2.0"
+    if apk_has_jacoco_init "$apk"; then
+        fail "zero-touch APK contains JaCoCo-instrumented class shapes"
+    fi
 }
 
 bootstrap_gradle() {
@@ -259,6 +277,20 @@ bootstrap_gradle() {
     (cd "$project" && JAVA_HOME="$java_home" ./gradlew "${args[@]}" "$@")
 }
 
+assert_missing_root_bootstrap_rejected() {
+    local project="$1"
+    local java_home="$2"
+    local log="$FIXTURE_ROOT/missing-root-bootstrap.log"
+
+    if (cd "$project" && JAVA_HOME="$java_home" ./gradlew --no-configuration-cache \
+        --init-script "$BOOTSTRAP_DIR/zero-touch.init.gradle" :mobile:help) >"$log" 2>&1; then
+        fail "zero-touch init script accepted a root build without bootstrap properties"
+    fi
+    grep -Fq 'zero-touch bootstrap: missing dev.hotreload.bootstrap.jar' "$log" \
+        || { cat "$log" >&2; fail "missing root bootstrap property did not fail loudly"; }
+    assert_tree_clean "$project" "missing root bootstrap-property rejection"
+}
+
 assert_bootstrap_build() {
     local project="$1"
     local java_home="$2"
@@ -279,6 +311,16 @@ assert_bootstrap_build() {
     class_metadata="$(find "$project" -type f -path "*/$variant/*" -name '*.class' -exec "$java_home/bin/javap" -v {} +)"
     [[ "$class_metadata" == *FunctionKeyMeta* ]] \
         || fail "bootstrap build omitted FunctionKeyMeta compiler instrumentation"
+    if [ -d "$project/features" ]; then
+        local feature_classes
+        feature_classes="$(find "$project/features" -type f -path "*/$variant/*" -name '*.class')"
+        [ -n "$feature_classes" ] || fail "bootstrap build produced no feature-module Kotlin classes"
+        local feature_metadata
+        feature_metadata="$(find "$project/features" -type f -path "*/$variant/*" -name '*.class' \
+            -exec "$java_home/bin/javap" -v {} +)"
+        [[ "$feature_metadata" == *FunctionKeyMeta* ]] \
+            || fail "bootstrap build omitted FunctionKeyMeta instrumentation from a Compose library"
+    fi
     find "$project" -type f -path "*/$variant/*" -name 'LiveLiterals*$*Kt.class' | grep -q . \
         || fail "bootstrap --literals build produced no LiveLiterals helper"
     local class_bytecode
@@ -334,6 +376,7 @@ assert_no_configured_integration "$AGP9_PROJECT"
 echo "--- Host fixture: AGP 9.2.1 built-in Kotlin / JDK 21 ---"
 run_inspect "$AGP9_PROJECT" "$JAVA_HOME" "9.6.1" ":mobile" "qa"
 run_configure "$AGP9_PROJECT" "$JAVA_HOME" qa fixture-agp9
+assert_missing_root_bootstrap_rejected "$AGP9_PROJECT" "$JAVA_HOME"
 assert_plain_release_clean "$AGP9_PROJECT" "$JAVA_HOME" ":mobile:assembleRelease" '*/build/outputs/apk/release/*'
 assert_bootstrap_build "$AGP9_PROJECT" "$JAVA_HOME" ':mobile' ':mobile' qa ':mobile:assembleQa' qa
 assert_bootstrap_release_clean "$AGP9_PROJECT" "$JAVA_HOME" ':mobile' ':mobile' qa \

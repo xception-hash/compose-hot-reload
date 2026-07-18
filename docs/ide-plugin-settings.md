@@ -23,6 +23,11 @@ stay editable — if discovery fails or your build is unusual, type values by ha
 opening a project, and again whenever you add/rename a module or variant. It never modifies your
 build.
 
+Version 0.1.8 fixes the former large-build `Discovering…` deadlock by draining inspection stdout
+and stderr concurrently. It also returns the result in the active Settings dialog's modality. If
+you are using an earlier Marketplace version, update to 0.1.8 once it is available; the terminal
+`cli inspect --project <dir> --json` command remains a useful diagnostic for unusual builds.
+
 ## Fields
 
 | Field | CLI flag | What it does | Leave blank / default |
