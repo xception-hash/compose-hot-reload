@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-18) — configured plugin repeat-edit regression blocks Phase F
+## Status (2026-07-18) — configured plugin repeat-edit regression fixed; Phase F cleanup remains
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -22,15 +22,16 @@ The direct configured plugin now disables Android/unit-test coverage in the same
 `androidComponents.finalizeDsl` phase as zero-touch; its coverage-enabled configured regression
 also checks that packaged DEX contains no JaCoCo shape additions. Device-response failures now
 emit the stable rebuild contract, which moves the IDE out of Reloading. A fresh bounded configured
-prepare and doctor pass, and its APK is JaCoCo-free. Per-module compile routing is now locally
-implemented and host-verified. Its focused configured capture fixture now passes after a coupled
-batch-D8 change, but the real Android Studio Mode B gate remains blocked: the first library body
-edit visibly applies, while later saves in the same watcher session do not visibly update even
-after Stop/Start. The installed bundle was verified current; device logs can report successful
-redefines with zero Compose errors, so ART acknowledgement is not enough acceptance evidence.
-T39 now requires a deterministic two-sequential-save reproduction and fix before another manual
-retry. The large-target discovery UI can also stall despite successful CLI inspection; it is a
-separate follow-up defect.
+prepare and doctor pass, and its APK is JaCoCo-free. Per-module compile routing and coupled batch
+D8 are implemented and verified. T39 found the final configured-library parity gap: zero-touch
+enabled Compose FunctionKeyMeta generation in every Compose module, while the direct plugin did
+so only for the app. The configured plugin now applies that option explicitly to every Compose
+module and fails loud if it cannot. A Kotlin-2.3 target-shaped fixture visibly passes two
+sequential library saves with capture/callback checks and stable PID. The real Android Studio
+Mode B gate also passes first edit, second edit, restoration, stable PID, and Stop -> Off. T38 now
+needs only surgical removal of its temporary target wiring, restoration of the local compatibility
+scaffold, and a matching zero-touch prepare. The large-target discovery UI can still stall despite
+successful CLI inspection; it is a separate follow-up defect.
 Optional housekeeping and one cosmetic follow-up (T36) remain separate.
 Remaining items are optional housekeeping (see below). This table is the ONE canonical roadmap —
 update it here, link it elsewhere.
@@ -47,11 +48,11 @@ update it here, link it elsewhere.
 | T34 | Plugin 0.1.5: first-run UX (pre-Start `hotreload doctor` preflight → actionable notification with "Start anyway") + IDE-compat bump (platform 2025.1→2026.1.4; verifier pins 2025.1/2026.1.4/262 all Compatible) | small | ✅ DONE 2026-07-16, MERGED (PR #20 `fb10af2`). Device testing surfaced two preflight UX bugs → superseded by T35 (0.1.5 not published) |
 | T35 | Plugin 0.1.6: preflight surfaces fatal `hotreload:` aborts (raw output + Report-on-GitHub action, not a bulletless balloon), Android SDK auto-discovery (local.properties/`ANDROID_HOME`/platform default → injected as `ANDROID_HOME`) for GUI-launched IDEs, and `~` expansion in path settings | small | ✅ DONE 2026-07-16 — test 43/43, verifyPlugin Compatible×3, device-verified; **0.1.6 published**. MERGED (PR #21 squash → `9d8e42c`) |
 | T36 | Cosmetic: IntelliJ renders notification bodies as HTML and collapses `\n` line breaks (the preflight "Fix these…" sentence runs onto the last bullet) → use `<br>` | tiny | 📋 QUEUED — `tasks/T36-notification-html-linebreaks.md`; bundle into the next version bump |
-| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 BLOCKED 2026-07-18 — configured first edit passes but repeat edits do not visibly update despite successful device redefine responses; see T39 and `tasks/T37-production-trial-findings.md`. |
-| T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | 🚧 BLOCKED 2026-07-18 — Mode A passed; Mode B setup/first visible edit pass, but subsequent configured saves do not visibly update. T39 must prove/fix sequential saves before another retry or restoration. |
-| T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | 🚧 BLOCKED 2026-07-18 — focused single-edit fixture passes with coupled batch D8, but the real plugin’s first edit succeeds and later saves do not visibly apply. Next session: GPT-5.6 Sol implements a deterministic two-save regression, diagnoses, then reruns the bounded Mode B gate. |
+| T37 | Phase F: Marketplace-plugin trial on a public production-grade Android project | medium | 🚧 IN PROGRESS 2026-07-18 — T39 fixed configured repeat saves and the full T38 Mode B live gate passes; finish T38 cleanup, then continue the remaining production edit matrix before publication. |
+| T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | 🚧 CLEANUP 2026-07-18 — both live modes pass, including two sequential configured library edits, restoration, stable PID, and Stop/Off. Remove temporary wiring/scaffold and return the target to zero-touch. |
+| T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
 
-Core engineering is implemented. T38/T37 remain release-validation gates; other remaining items
+Core engineering is implemented. T38 cleanup and T37 remain release-validation gates; other remaining items
 are optional housekeeping:
 - **Release provenance:** ✅ DONE 2026-07-16 — tag `0.1.6` cut on `main` (PR #23 version bumps),
   GitHub Release 0.1.6 with the signed plugin zip (marked latest), JitPack serves all three

@@ -13,10 +13,12 @@ import org.gradle.api.GradleException
  * - `com.android.application`: the device runtime lives here — wires runtime-client into
  *   every debuggable build type's `<name>Implementation` configuration, sets
  *   `jniLibs.useLegacyPackaging = true` (needed for JVMTI agent loading), and the
- *   deterministic-class-shape compiler flags (plus FunctionKeyMeta emission).
+ *   deterministic-class-shape compiler flags.
  * - `com.android.library` and `org.jetbrains.kotlin.jvm`: the SAME class-shape compiler
  *   flags only — no runtime-client dependency (the on-device runtime belongs to the app
  *   module alone).
+ * - every module applying the Compose compiler plugin: FunctionKeyMeta emission, so changed
+ *   composable groups can be invalidated in configured mode just as they are in zero-touch.
  *
  * Applying it to any other module type fails the build with a message naming the project.
  */
@@ -36,6 +38,22 @@ class HotReloadPlugin : Plugin<Project> {
         // silently went nowhere (apply-order or an unsupported Kotlin setup) and we fail
         // the build in afterEvaluate rather than let watch-time redefine mysteriously break.
         var flagsApplied = false
+
+        // FunctionKeyMeta is what lets the engine invalidate the exact changed Compose groups.
+        // Apply it to every Compose module, including Android libraries: zero-touch already does
+        // this, and relying on a compiler version's default leaves configured library edits with
+        // no stable invalidation key on older production targets.
+        var composeMetadataApplied = false
+        project.pluginManager.withPlugin("org.jetbrains.kotlin.plugin.compose") {
+            if (addFreeCompilerArgs(
+                    project,
+                    listOf(
+                        "-P",
+                        "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true",
+                    ),
+                )
+            ) composeMetadataApplied = true
+        }
 
         // Opt-in (T24): `-Photreload.liveLiterals=true` turns on the Compose compiler's
         // live-literals v2 codegen so string/number/boolean constants inside composables
@@ -93,10 +111,7 @@ class HotReloadPlugin : Plugin<Project> {
 
             if (addFreeCompilerArgs(
                     project,
-                    listOf(
-                        "-P",
-                        "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true",
-                    ) + classShapeFlags + liveLiteralsFlags,
+                    classShapeFlags + liveLiteralsFlags,
                 )
             ) flagsApplied = true
 
@@ -142,6 +157,17 @@ class HotReloadPlugin : Plugin<Project> {
 
         // Fail fast on an unsupported module type.
         project.afterEvaluate {
+            if (project.plugins.hasPlugin("org.jetbrains.kotlin.plugin.compose") && !composeMetadataApplied) {
+                // The Compose plugin can be applied after dev.hotreload. Retry once after project
+                // evaluation, matching the zero-touch bootstrap's apply-order tolerance.
+                composeMetadataApplied = addFreeCompilerArgs(
+                    project,
+                    listOf(
+                        "-P",
+                        "plugin:androidx.compose.compiler.plugins.kotlin:generateFunctionKeyMetaAnnotations=true",
+                    ),
+                )
+            }
             val supported = listOf(
                 "com.android.application",
                 "com.android.library",
@@ -165,6 +191,13 @@ class HotReloadPlugin : Plugin<Project> {
                         "means dev.hotreload was applied before the Android/Kotlin plugin, or the " +
                         "module uses an unsupported Kotlin setup (e.g. AGP without built-in Kotlin). " +
                         "Apply dev.hotreload after the Android/Kotlin plugin."
+                )
+            }
+            if (project.plugins.hasPlugin("org.jetbrains.kotlin.plugin.compose") && !composeMetadataApplied) {
+                throw GradleException(
+                    "The dev.hotreload plugin on project '${project.path}' could not enable " +
+                        "Compose FunctionKeyMeta generation. Apply dev.hotreload after the " +
+                        "Android/Kotlin and Compose plugins.",
                 )
             }
         }

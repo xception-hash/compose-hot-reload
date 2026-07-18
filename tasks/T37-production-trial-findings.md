@@ -284,13 +284,28 @@ configured regression applies two distinct sequential edits in one session and p
 render. Do not retry the real target manually, restore the temporary scaffolding, publish, or push
 until that regression and the revised T38 gate pass.
 
+## Configured repeat-save resolution — 2026-07-18
+
+The direct configured plugin enabled Compose FunctionKeyMeta only in the application module,
+whereas zero-touch enabled it in every module applying the Compose compiler plugin. The production
+target's edited library lambda therefore lacked the stable group-key annotation even though the
+equivalent zero-touch build had complete metadata. The configured plugin now applies the metadata
+option to every Compose module and fails loud when it cannot be applied.
+
+The configured-capture regression now uses Kotlin 2.3 and a target-shaped staggered-grid library
+item lambda. In one watcher session it requires two distinct library output hashes, two visible
+values, a type-correct captured callback after each edit, and stable PID. It passes. After a fresh
+matching configured prepare, the real Android Studio plugin also visibly applied the first and
+second library edits, restored the original frame byte-for-byte, retained one PID, and stopped to
+Off without a leaked watcher. T39 is complete; only T38's target-wiring/scaffold removal and
+matching zero-touch preparation remain before continuing this trial's broader edit matrix.
+
 ## Pending target-project matrix
 
-1. Complete [`T39`](T39-configured-library-compose-capture-crash.md): reproduce and fix the
-   configured library repeat-save failure, then repeat the Mode B half of
-   [`T38`](T38-manual-plugin-dual-mode-smoke.md) exactly once after a matching configured prepare.
-   The large-target discovery UI can also stall despite successful CLI inspection; use the
-   verified manual settings rather than repeatedly refreshing.
+1. Complete [`T38`](T38-manual-plugin-dual-mode-smoke.md) cleanup: remove its temporary target
+   wiring and local compatibility scaffold, run matching zero-touch preparation, and leave the
+   plugin stopped with zero-touch selected. The large-target discovery UI can still stall despite
+   successful CLI inspection; use the verified manual settings rather than repeatedly refreshing.
 2. Publish only after T38 passes and the maintainer gives explicit approval.
 3. Start from the Marketplace plugin with normal user-facing settings and capture the full
    preflight/doctor result.
@@ -313,9 +328,10 @@ until that regression and the revised T38 gate pass.
 - [x] Patch DEX desugaring matches the installed APK and a real target edit survives targeted
       recomposition with a visibly changed frame.
 - [x] Local 0.1.8 passes Plugin Verifier on all three configured IDE baselines.
-- [ ] T39 capture-corruption fix plus T38 configured-integration edit/reverse and final
-      restoration pass before submission (zero-touch passed 2026-07-17; discovery and configured
-      patch defects are recorded in T38).
+- [x] T39 capture/repeat-save fix plus T38 configured-integration first edit, second edit,
+      source restoration, stable PID, and Stop/Off pass.
+- [ ] T38 target Gradle wiring/local compatibility scaffold removed and a matching zero-touch
+      preparation restored before submission.
 - [ ] 0.1.8 submitted only after explicit maintainer approval.
 - [ ] GUI-launched Marketplace Start, instrumented app build/install, and full edit matrix
       executed after a release contains both product fixes.

@@ -1,11 +1,11 @@
 # T39: Diagnose and fix configured-library Compose capture corruption
 
-Status: BLOCKED — the focused batch-D8 regression passes, but the real configured-plugin repeat-edit gate still fails (2026-07-18)
-Assignee: GPT-5.6 Sol next session (engine/Compose-patch diagnosis); coordinator reviews all code and runs final device gates
+Status: DONE — configured Compose-library metadata parity and two-save gates pass (2026-07-18)
+Assignee: completed; coordinator reviewed code and ran host/device/IDE gates
 Recommended model: GPT-5.6 Sol
 Fallback model: GPT-OSS 120B (Medium), only for mechanical evidence collection or a pre-specified fixture change
 
-## Dispatch
+## Historical dispatch
 
 Before dispatching in a future session, run `agy models` and verify GPT-5.6 Sol is available; do
 not select an implicit/default model and do not use Claude Opus 4.6. The intended next-session
@@ -74,6 +74,28 @@ patch and was healthy, so this is a patch-path regression rather than a baseline
   removed. A clean API-36 emulator is available for the next controlled reproduction. No watcher
   remains. Do not make more ad-hoc manual edits before instrumentation captures the first and
   second save separately.
+
+## Outcome — 2026-07-18
+
+The final defect was configured-vs-zero-touch compiler metadata parity, not a second ART redefine
+limit. Zero-touch adds `generateFunctionKeyMetaAnnotations=true` to every module applying the
+Compose compiler plugin. The direct `dev.hotreload` plugin added it only to the application module,
+so the production library's edited lazy-item lambda had no FunctionKeyMeta annotation. Configured
+mode now applies the option explicitly to every Compose module, tolerates normal plugin apply
+ordering, and fails loud if the option cannot reach the Kotlin compiler.
+
+The focused fixture now matches the production shape more closely: Kotlin 2.3, an Android library
+staggered-grid scope helper, and an item lambda capturing state plus a separately-created callback.
+Its gate asserts FunctionKeyMeta presence, makes two distinct sequential saves in one watcher,
+requires two complete library-output changes and two visible values, invokes the callback after
+each patch, and checks stable PID. It passes.
+
+After a fresh matching configured prepare, both a directly observed watcher and the Android
+Studio-owned watcher applied first and second production-library edits visibly. The source and
+generated lambda then returned to their exact baseline hashes, the original frame returned, the
+PID stayed stable, and Android Studio Stop returned to Off with no watcher leak. Core engine,
+protocol, CLI distribution, Gradle-plugin build, IntelliJ tests/build, and Plugin Verifier on all
+three pinned IDEs pass. T38 owns the remaining temporary target/scaffold cleanup.
 
 ## Spec
 

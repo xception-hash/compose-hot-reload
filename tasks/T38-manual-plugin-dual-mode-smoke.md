@@ -1,6 +1,6 @@
 # T38: Manual Android Studio plugin smoke — zero-touch and configured integration
 
-Status: BLOCKED (Mode A PASS; Mode B compile routing works, but the single retry corrupts a Compose capture at runtime, 2026-07-18)
+Status: CLEANUP (Mode A and Mode B live gates PASS; temporary wiring/scaffold restoration remains, 2026-07-18)
 Assignee: maintainer, manually in Android Studio with the API-30+ device visible
 Recommended model: Gemini 3.5 Flash (Low), only for organizing already-captured logs/docs
 Fallback model: GPT-OSS 120B (Medium)
@@ -313,6 +313,23 @@ No further ad-hoc edit attempts are authorized. T39 must first extend its determ
 prove two sequential visible values in one watcher session, then diagnose/fix the repeat-save
 failure. The post-fix manual retry must use two distinct edits before restoration.
 
+### FunctionKeyMeta parity fix and final Mode B live result — 2026-07-18
+
+The configured plugin enabled Compose FunctionKeyMeta only in the app module; zero-touch enabled
+it in every Compose module. The edited production library lambda had no FunctionKeyMeta annotation.
+The direct plugin now applies that compiler option to every module using the Compose plugin and
+fails loud if apply ordering prevents it. A clean matching configured prepare rebuilt the target
+library with the annotation present.
+
+The strengthened Kotlin-2.3 configured fixture uses a staggered-grid library item lambda, performs
+two sequential saves in one watcher session, verifies two library output changes and visible
+values, invokes its captured callback after both patches, and retains its PID. It passes. The real
+Android Studio plugin Mode B gate then passed Ready -> first visible edit -> Ready -> second visible
+edit -> Ready -> exact source/frame restoration -> Ready, with one stable PID throughout. Stop
+returned the widget to Off and no watcher leaked. The earlier stale Error widget state was from an
+old watcher that lost its emulator; clicking it with no live watcher correctly started a fresh
+session and reached Ready.
+
 ## Restoration and final state
 
 1. Remove only the T38 additions from target settings/module Gradle files. Do not use a broad
@@ -357,9 +374,9 @@ failure. The post-fix manual retry must use two distinct edits before restoratio
 - [x] Zero-touch plugin Start reaches Ready using the actual Android Studio target checkout.
 - [x] Zero-touch temporary edit and reverse-edit both visibly succeed with a stable PID.
 - [x] Configured local-composite preparation succeeds with zero-touch absent.
-- [ ] Configured plugin Start reaches Ready, and the same edit/reverse-edit visibly succeeds with
+- [x] Configured plugin Start reaches Ready, and two sequential edits plus restoration visibly succeed with
       a stable PID.
-- [ ] Plugin Stop returns to Off after both modes; no duplicate/leaked watcher remains.
+- [x] Plugin Stop returns to Off after both modes; no duplicate/leaked watcher remains.
 - [ ] Source bytes and full target diff exactly match the saved pre-test baseline.
 - [ ] Target Gradle wiring is removed and the installed app is returned to matching zero-touch
       preparation.
@@ -378,9 +395,9 @@ failure. The post-fix manual retry must use two distinct edits before restoratio
 | Configured plugin Ready | PASS | The plugin reached Ready with zero-touch unchecked after matching prepare. |
 | Configured coverage / fresh prepare / doctor | PASS | Direct plugin coverage disablement applied before variant finalization; fresh bounded prepare and runtime handshake passed; APK inspection found no JaCoCo synthetic method. |
 | Configured bundled-CLI Ready | PASS | Rebuilt candidate reached `watching` with zero-touch absent and the bounded app/library pair. |
-| Configured edit/reverse/PID | BLOCKED — needs code change | The current local engine/plugin applied the first visible library edit, but later saves did not visibly update even after Stop/Start; ART can still acknowledge redefines without a rendered change. T39 must prove/fix two sequential visible saves. |
-| Stop/no watcher | PASS for failure containment | Android Studio Stop ended the failed watcher; a fresh watcher-stopped clean install was healthy. Final Mode B Stop remains part of the post-fix retry. |
-| Exact source/Gradle restoration | PENDING | |
+| Configured edit/reverse/PID | PASS | First edit, distinct second edit, and source/frame restoration all rendered in one Android Studio-owned watcher session; PID stayed stable. |
+| Stop/no watcher | PASS | Android Studio Stop returned to Off; process inspection found no leaked watcher. |
+| Exact source/Gradle restoration | PARTIAL | Source bytes and generated lambda returned to their exact baseline hashes; temporary Gradle wiring/scaffold removal remains. |
 
 ## Out of scope
 
