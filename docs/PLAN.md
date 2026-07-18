@@ -10,7 +10,7 @@ discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1
 and live on the JetBrains Marketplace** (0.1.6 is the latest full JitPack/GitHub release), and
 **release 0.1.6 is fully shipped**: git tag `0.1.6`,
 GitHub Release (signed plugin zip, marked latest), and JitPack serving all three artifacts at
-0.1.6 (verified by real resolution). Engineering is feature-complete; **Phase F is in progress**:
+0.1.6 (verified by real resolution). Engineering and **Phase F are complete**:
 the Marketplace-plugin smoke passed on the multi-module fixture. The first public production
 target blocker (the zero-touch init script aborting in an included `build-logic` build) is fixed
 in 0.1.7. The retry then exposed a second blocker: the runtime AAR declared minSdk 24 while the
@@ -46,9 +46,8 @@ structural addition, structural removal through the interpreter, callback use, a
 The rebuilt local plugin then passed the production structural add/revert and a visible narrow
 composable-signature add/revert, retaining one PID and ending at Stop -> Off with clean target
 restoration. The IDE parser now recognizes successful `interpreted:` completions as Ready.
-Optional housekeeping and one cosmetic follow-up (T36) remain separate. After the T40/T37 release
-gates, remaining items are optional housekeeping (see below). This table is the ONE canonical
-roadmap — update it here, link it elsewhere.
+Optional housekeeping and one cosmetic follow-up (T36) remain separate. This table is the ONE
+canonical roadmap — update it here, link it elsewhere.
 
 | # | Work | Size | Executor |
 |---|---|---|---|

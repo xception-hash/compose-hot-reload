@@ -1,8 +1,8 @@
 # Opus 4.8 handoff — post-2026-07-07 playbook
 
-## Current continuation — install T37 fix, then finish its matrix (2026-07-18)
+## Current continuation — T37 complete; optional follow-ups remain (2026-07-18)
 
-Read `.agents/STATUS.md` newest entries first, then T37 through T40. T39 is DONE: configured mode now
+Read `.agents/STATUS.md` newest entries first. T37 through T40 are DONE. T39 is DONE: configured mode now
 enables Compose FunctionKeyMeta in every Compose module, and both the Kotlin-2.3 two-save fixture
 and the real Android Studio first/second/restoration gate pass with stable PID. Stop returned to Off
 without a watcher leak. Core/distribution, Gradle-plugin, IntelliJ build/tests, and all three Plugin
