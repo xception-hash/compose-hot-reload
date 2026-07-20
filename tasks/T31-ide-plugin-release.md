@@ -1,5 +1,5 @@
 # T31: IDE plugin — release readiness (validation, CLI bundling, Marketplace)
-Status: IN-REVIEW (0.1.4 published to Marketplace 2026-07-14; awaiting JB first-upload moderation ~2 days)
+Status: DONE — superseded by the verified and published Marketplace 0.1.8 release (2026-07-20)
 Assignee: Opus + the maintainer (device + accounts/tokens are the maintainer's)
 
 ## Progress

@@ -25,8 +25,10 @@ build.
 
 Version 0.1.8 fixes the former large-build `Discovering…` deadlock by draining inspection stdout
 and stderr concurrently. It also returns the result in the active Settings dialog's modality. If
-you are using an earlier Marketplace version, update to the available 0.1.8 release; the terminal
-`cli inspect --project <dir> --json` command remains a useful diagnostic for unusual builds.
+you are using an earlier Marketplace version, update to the available 0.1.8 release. The signed
+ZIP and matching CLI distribution are available from the
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8); the
+terminal `cli inspect --project <dir> --json` command remains a useful diagnostic for unusual builds.
 
 ## Fields
 

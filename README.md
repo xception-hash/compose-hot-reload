@@ -358,7 +358,10 @@ cd intellij-plugin && ./gradlew buildPlugin
 ```
 This produces `build/distributions/hotreload-intellij-plugin-0.1.8.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
 
-Version 0.1.8 is approved and available on the JetBrains Marketplace.
+Version 0.1.8 is the current unified release: install the IDE plugin from the JetBrains
+Marketplace, download the signed ZIP or CLI distribution from the
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8), and
+resolve the Gradle plugin/runtime AAR from [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.1.8).
 
 See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 
@@ -376,7 +379,7 @@ See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 - `tasks/` — Task specifications and progress tracking.
 
 ## 8. Status
-**0.1.8 — unified release.** Aligns the CLI, Gradle plugin, runtime client, and IntelliJ/Android Studio plugin. It includes zero-touch composite-build support, runtime compatibility with minSdk-23 apps (hot reload itself remains API 30+), configured-mode Compose metadata and coverage parity, robust configured multi-module patching, and reliable IDE discovery/Doctor output handling.
+**0.1.8 — current unified release.** [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8) and [JitPack artifacts](https://jitpack.io/#xception-hash/compose-hot-reload/0.1.8) align the CLI, Gradle plugin, runtime client, and IntelliJ/Android Studio plugin. It includes zero-touch composite-build support, runtime compatibility with minSdk-23 apps (hot reload itself remains API 30+), configured-mode Compose metadata and coverage parity, robust configured multi-module patching, and reliable IDE discovery/Doctor output handling.
 
 **0.1.6 — security hardening + project-agnostic release.** Adds socket peer-uid authorization and debuggable-only enforcement in the runtime client, project-agnostic configuration with Gradle discovery and IDE profiles, zero-touch `hotreload start`, and IDE plugin 0.1.6 (pre-Start environment preflight with surfaced fatal errors, Android SDK auto-discovery, bundled CLI).
 

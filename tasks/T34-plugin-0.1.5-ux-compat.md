@@ -1,5 +1,5 @@
 # T34: Plugin 0.1.5 — first-run UX preflight + IDE-compatibility bump
-Status: IN-REVIEW (host gates green; on-device verify + Marketplace publish pending the maintainer)
+Status: DONE — superseded by T35 and later Marketplace release 0.1.8 (2026-07-20)
 Assignee: coordinator (Opus) — NOT agy-delegable (device-gated behavior change + Marketplace judgment)
 Recommended model: Opus (device verification + verifier-finding triage)
 

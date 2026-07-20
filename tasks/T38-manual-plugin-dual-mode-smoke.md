@@ -170,8 +170,9 @@ closure was saved; do not use `--ignore-fingerprint` as a workaround.
 
 ### Add temporary Gradle wiring
 
-Do not use JitPack for this smoke: it does not contain the unshipped 0.1.8 candidate. Edit the
-target's existing Gradle blocks rather than creating duplicate blocks:
+At the time of this smoke, do not use JitPack: it did not yet contain the unshipped 0.1.8
+candidate. The unified GitHub/JitPack release completed on 2026-07-20. Edit the target's existing
+Gradle blocks rather than creating duplicate blocks:
 
 1. Inside the existing root `pluginManagement {}` block in `settings.gradle.kts`, add:
 

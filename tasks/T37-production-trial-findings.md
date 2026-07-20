@@ -124,8 +124,9 @@ merging. That exposed a second product compatibility issue:
 The target's device requirement is not the issue: hot reload remains API 30+ only. The runtime
 initializer already returns before loading the API-30 hot-reload paths on older devices, so the
 AAR's install/merge floor can safely be 23. The source fix lowers that declared floor to 23 and
-changes both AGP 9 and AGP 8 zero-touch fixtures to minSdk 23. This is covered by a local plugin
-**0.1.8 candidate**; it is not yet published.
+changes both AGP 9 and AGP 8 zero-touch fixtures to minSdk 23. At this point in the trial, this
+was covered by a local plugin **0.1.8 candidate**; the unified GitHub/JitPack release completed
+on 2026-07-20.
 
 Local validation completed: JBR/build-tools/API-36 preflight, rebuilt CLI distribution, and the
 plugin's `test` plus `buildPlugin` tasks. The 0.1.8 ZIP must be installed from disk and used for a
