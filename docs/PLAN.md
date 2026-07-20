@@ -6,11 +6,10 @@ T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
 resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
 changes** incl. composables via lambda proxies, zero-touch `hotreload start`, IDE plugin with
-discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.7 is approved
-and live on the JetBrains Marketplace** (0.1.6 is the latest full JitPack/GitHub release), and
-**release 0.1.6 is fully shipped**: git tag `0.1.6`,
-GitHub Release (signed plugin zip, marked latest), and JitPack serving all three artifacts at
-0.1.6 (verified by real resolution). Engineering and **Phase F are complete**:
+discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.8 is approved
+and live on the JetBrains Marketplace**. Release 0.1.8 aligns that plugin with the CLI, Gradle
+plugin, and runtime-client artifacts through one GitHub/JitPack release. Engineering and
+**Phase F are complete**:
 the Marketplace-plugin smoke passed on the multi-module fixture. The first public production
 target blocker (the zero-touch init script aborting in an included `build-logic` build) is fixed
 in 0.1.7. The retry then exposed a second blocker: the runtime AAR declared minSdk 24 while the
@@ -68,10 +67,9 @@ canonical roadmap — update it here, link it elsewhere.
 
 Core engineering and release validation are complete; other remaining items are optional
 housekeeping:
-- **Release provenance:** ✅ DONE 2026-07-16 — tag `0.1.6` cut on `main` (PR #23 version bumps),
-  GitHub Release 0.1.6 with the signed plugin zip (marked latest), JitPack serves all three
-  artifacts at 0.1.6 (verified by real resolution from a scratch project). Intermediate versions
-  0.1.1→0.1.5 remain untagged by design (Marketplace-only iterations).
+- **Release provenance:** 0.1.8 is the unified release candidate: its Gradle plugin and runtime
+  coordinates match the already-published Marketplace plugin. Tag, GitHub Release, JitPack
+  resolution, and post-publication validation remain required before it can be marked shipped.
 - **PatchServer wedge robustness:** re-arm `soTimeout` between sessions (long-standing nice-to-have).
 - Stretch item 4 above (Compose N-1 shims, suspend-lambda proxies) if the project is extended.
 

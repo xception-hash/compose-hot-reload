@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.hotreload"
-version = "0.1.6"
+version = "0.1.8"
 
 dependencies {
     compileOnly("com.android.tools.build:gradle-api:9.2.1")
