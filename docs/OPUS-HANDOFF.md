@@ -26,6 +26,11 @@ production structural add/revert and a visible narrow composable-signature add/r
 stable PID, returned to Ready after each successful completion, and finished at Stop -> Off with
 no watcher and exact source restoration. T37 is complete. Never push directly to `main`.
 
+**Release update (2026-07-20):** PR #27 merged as `6bca51b`; tag `0.1.8`, the
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8), and
+[JitPack artifacts](https://jitpack.io/#xception-hash/compose-hot-reload/0.1.8) now align the
+CLI, Gradle plugin, runtime AAR, and already-live Marketplace plugin.
+
 Fable access ended 2026-07-07. Everything Fable-class is done and written down; this file is the
 operating manual for finishing the project with **Opus 4.8 + Gemini/agy + the maintainer**. The roadmap
 table lives in `docs/PLAN.md` (status header) — ONE canonical copy, do not duplicate it here.

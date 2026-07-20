@@ -1,14 +1,15 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-18) — 0.1.8 live; Phase F validation complete
+## Status (2026-07-20) — 0.1.8 unified release shipped; Phase F validation complete
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
 resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
 changes** incl. composables via lambda proxies, zero-touch `hotreload start`, IDE plugin with
 discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.8 is approved
-and live on the JetBrains Marketplace**. Release 0.1.8 aligns that plugin with the CLI, Gradle
-plugin, and runtime-client artifacts through one GitHub/JitPack release. Engineering and
+and live on the JetBrains Marketplace**. [Release 0.1.8](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8)
+aligns that plugin with the CLI, Gradle plugin, and runtime-client artifacts through GitHub and
+[JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.1.8). Engineering and
 **Phase F are complete**:
 the Marketplace-plugin smoke passed on the multi-module fixture. The first public production
 target blocker (the zero-touch init script aborting in an included `build-logic` build) is fixed
@@ -67,9 +68,10 @@ canonical roadmap — update it here, link it elsewhere.
 
 Core engineering and release validation are complete; other remaining items are optional
 housekeeping:
-- **Release provenance:** 0.1.8 is the unified release candidate: its Gradle plugin and runtime
-  coordinates match the already-published Marketplace plugin. Tag, GitHub Release, JitPack
-  resolution, and post-publication validation remain required before it can be marked shipped.
+- **Release provenance:** ✅ DONE 2026-07-20 — tag `0.1.8` targets merged PR #27 commit
+  `6bca51b`; [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8)
+  contains the signed IDE-plugin ZIP and CLI distribution; JitPack publishes and a clean consumer
+  resolves the Gradle plugin, marker, and runtime AAR at 0.1.8. Marketplace 0.1.8 was already live.
 - **PatchServer wedge robustness:** re-arm `soTimeout` between sessions (long-standing nice-to-have).
 - Stretch item 4 above (Compose N-1 shims, suspend-lambda proxies) if the project is extended.
 

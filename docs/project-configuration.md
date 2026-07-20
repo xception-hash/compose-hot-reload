@@ -11,6 +11,13 @@ Both modes require a debuggable Android variant and one API 30+ device selected 
 `adb`. The [README](../README.md) contains installation and quickstart instructions; this
 page covers non-default project layouts and the compatibility coverage maintained in CI.
 
+## Published release
+
+The current unified release is [0.1.8](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8).
+Use its signed IDE-plugin ZIP or Marketplace plugin with the matching CLI distribution, and resolve
+the configured-mode Gradle plugin and runtime AAR from
+[JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.1.8).
+
 ## Configure once, then start
 
 `configure` resolves Gradle discovery and writes a profile outside the target repository.

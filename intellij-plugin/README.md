@@ -8,8 +8,10 @@ of truth (see `tasks/T26-ide-plugin-mvp.md`).
 It targets IntelliJ IDEA Community but uses only core platform APIs, so it also loads in
 Android Studio.
 
-Release status: version 0.1.8 is approved and available on JetBrains Marketplace. During local
-development, install the built ZIP from disk when testing an unreleased change.
+Release status: version 0.1.8 is the current unified release. It is available on JetBrains
+Marketplace; the signed IDE-plugin ZIP and matching CLI distribution are also in the
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8).
+During local development, install the built ZIP from disk when testing an unreleased change.
 
 ## What it gives you
 
