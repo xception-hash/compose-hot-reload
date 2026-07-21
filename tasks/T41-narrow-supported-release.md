@@ -77,12 +77,13 @@ expansion project.
   verifier/deprecation warnings remain.
 - PASS: configured packaged-artifact smoke on the API-36 emulator for AGP 9/JDK 21 and AGP 8/JDK
   17. Both lanes resolve only Maven Local 0.2.0 coordinates, pin an explicit profile, and prove
-  Doctor, Ready, a visible edit and reversal, stable PID, and Stop.
+  Doctor, Ready, a visible edit and reversal, stable PID, and Stop (`ba3b5a2`). The Gradle plugin
+  publication now declares and emits JVM 17 compatibility for the supported target-JDK-17 lane.
 
 ### Remaining
 
 1. With one API-30+ device attached, run the existing configured single-module, multi-module, and
-   configured-capture suites, then both new lane gates.
+   configured-capture suites.
 2. Complete the clean-clone documentation gate and the maintainer production-target configured
    smoke. Restore all test targets, watcher, and device state.
 3. After local acceptance, obtain maintainer authorization for PR/push, merge, tagging, GitHub
