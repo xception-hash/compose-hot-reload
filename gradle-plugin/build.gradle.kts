@@ -4,8 +4,9 @@ plugins {
     `maven-publish`
 }
 
-group = "dev.hotreload"
-version = "0.1.8"
+// Match the public JitPack coordinate injected by the plugin and documented for consumers.
+group = "com.github.xception-hash.compose-hot-reload"
+version = "0.2.0"
 
 dependencies {
     compileOnly("com.android.tools.build:gradle-api:9.2.1")

@@ -69,6 +69,9 @@ intellijPlatform {
             "Spawns the hotreload CLI and shows live reload status in the status bar."
         changeNotes = """
             <ul>
+              <li><b>0.2.0</b> — Defines configured Gradle-plugin integration with reviewed
+                  profiles as the stable onboarding path. Zero-touch and live literals remain
+                  experimental; public AI-assisted setup and recovery guidance is included.</li>
               <li><b>0.1.8</b> — Zero-touch now supports apps with a minSdk of 23. Hot reload
                   remains enabled only on API 30+ devices; older devices safely skip the runtime.</li>
               <li><b>0.1.7</b> — Zero-touch now supports projects with Gradle composite builds

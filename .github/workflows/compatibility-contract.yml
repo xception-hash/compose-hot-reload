@@ -9,7 +9,18 @@ on:
     paths:
       - '.github/workflows/e2e.yml'
       - '.github/workflows/compatibility-contract.yml'
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'docs/ai-project-setup.md'
       - 'docs/project-configuration.md'
+      - 'docs/ide-plugin-settings.md'
+      - 'intellij-plugin/README.md'
+      - 'e2e/check-docs-contract.sh'
+      - 'e2e/check-release-version-contract.sh'
+      - 'scripts/verify-release-artifacts.sh'
+      - 'gradle-plugin/**'
+      - 'runtime-client/**'
+      - 'intellij-plugin/**'
       - 'e2e/check-compatibility-contract.sh'
       - 'e2e/run-zero-touch.sh'
       - 'e2e/fixtures/zero-touch/**'
@@ -18,7 +29,18 @@ on:
     paths:
       - '.github/workflows/e2e.yml'
       - '.github/workflows/compatibility-contract.yml'
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'docs/ai-project-setup.md'
       - 'docs/project-configuration.md'
+      - 'docs/ide-plugin-settings.md'
+      - 'intellij-plugin/README.md'
+      - 'e2e/check-docs-contract.sh'
+      - 'e2e/check-release-version-contract.sh'
+      - 'scripts/verify-release-artifacts.sh'
+      - 'gradle-plugin/**'
+      - 'runtime-client/**'
+      - 'intellij-plugin/**'
       - 'e2e/check-compatibility-contract.sh'
       - 'e2e/run-zero-touch.sh'
       - 'e2e/fixtures/zero-touch/**'
@@ -32,3 +54,5 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - run: bash e2e/check-compatibility-contract.sh
+      - run: bash e2e/check-docs-contract.sh
+      - run: bash e2e/check-release-version-contract.sh

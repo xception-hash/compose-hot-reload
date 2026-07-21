@@ -8,10 +8,15 @@ of truth (see `tasks/T26-ide-plugin-mvp.md`).
 It targets IntelliJ IDEA Community but uses only core platform APIs, so it also loads in
 Android Studio.
 
-Release status: version 0.1.8 is the current unified release. It is available on JetBrains
+Release status: version 0.2.0 is the current unified release. It is available on JetBrains
 Marketplace; the signed IDE-plugin ZIP and matching CLI distribution are also in the
-[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8).
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0).
 During local development, install the built ZIP from disk when testing an unreleased change.
+
+The stable IDE workflow is an explicit configured Gradle-plugin profile: use **Refresh discovery**
+as a suggestion, review the app/module/variant closure, save or select a profile, then run a
+matching CLI-owned prepare before Start. Zero-touch and live literals remain experimental; do not
+use a raw override or fingerprint bypass as normal setup recovery.
 
 ## What it gives you
 
@@ -78,9 +83,9 @@ In the sandbox IDE:
 1. Open a sample project (e.g. `samples/single-module`).
 2. In **Settings ▸ Tools ▸ Compose Hot Reload**, set a project dir (or leave it blank for the open
    project), then click **Refresh discovery**. Select the discovered app module and debuggable
-   variant; the app id and watched-module closure are suggested but remain editable. Choose a
-   saved CLI profile when appropriate. The CLI launcher defaults to the bundled one; override it
-   if you want to test a different build.
+   variant; the app id and watched-module closure are suggestions and remain editable. Review and
+   pin an explicit configured profile before Start. The CLI launcher defaults to the bundled one;
+   override it only to test a different build.
 3. **Advanced raw overrides** are an escape hatch for unsupported flags. Enter one exact token per line;
    they are appended after structured arguments and are never parsed as a shell string. Likewise,
    enter one target Gradle argument per line.

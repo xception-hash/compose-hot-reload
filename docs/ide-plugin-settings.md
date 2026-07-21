@@ -7,9 +7,10 @@ command **Start** will run — use it to confirm what your settings produce.
 
 ## TL;DR — the minimum
 
-For most projects you set **nothing** and press **Refresh discovery**: the plugin inspects your
-Gradle build and fills in the app module, variant, application id, and watched-module closure. If
-discovery can't run, the two fields you'll usually need are **Application id** and **SDK path**.
+For the stable path, apply the configured Gradle plugin first, press **Refresh discovery**, then
+review and pin the app module, variant, application ID, watched-module closure, target JDK, and
+device in an explicit profile. Discovery is a setup helper, not an authority. If it cannot run,
+the two fields you'll usually need are **Application id** and **SDK path**.
 
 Two gotchas that bite first-run users on macOS:
 - **Use absolute paths** in path fields — `~` is **not** expanded. Write `/Users/you/Library/Android/sdk`, not `~/Library/Android/sdk`.
@@ -23,11 +24,11 @@ stay editable — if discovery fails or your build is unusual, type values by ha
 opening a project, and again whenever you add/rename a module or variant. It never modifies your
 build.
 
-Version 0.1.8 fixes the former large-build `Discovering…` deadlock by draining inspection stdout
+Version 0.2.0 includes the former large-build `Discovering…` deadlock fix by draining inspection stdout
 and stderr concurrently. It also returns the result in the active Settings dialog's modality. If
-you are using an earlier Marketplace version, update to the available 0.1.8 release. The signed
+you are using an earlier Marketplace version, update to the available 0.2.0 release. The signed
 ZIP and matching CLI distribution are available from the
-[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8); the
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0); the
 terminal `cli inspect --project <dir> --json` command remains a useful diagnostic for unusual builds.
 
 ## Fields
@@ -51,8 +52,8 @@ terminal `cli inspect --project <dir> --json` command remains a useful diagnosti
 
 | Checkbox | CLI flag | What it does |
 |----------|----------|--------------|
-| **Enable live-literal fast path** | `--literals` | Turns on the live-literals fast path (T24). Requires the app built with `-Photreload.liveLiterals=true`. Faster updates for literal changes; leave off unless you've enabled that build flag. |
-| **Use zero-touch bootstrap** | `--zero-touch` | Instruments the app through the plugin's bundled init-script + runtime AAR **without editing your project's** `settings.gradle`, module build files, or sources. Use this when you don't want to (or can't) apply the `dev.hotreload` Gradle plugin manually. |
+| **Enable live-literal fast path** | `--literals` | **Experimental.** Requires the app built with `-Photreload.liveLiterals=true`; the same profile/literals choice must prepare and watch the APK. |
+| **Use zero-touch bootstrap** | `--zero-touch` | **Experimental.** Instruments through the bundled init-script + runtime AAR without target edits. Use only after opting in; configured plugin integration is the stable path. |
 | **Skip environment preflight (advanced)** | *(plugin-side only)* | Skips the pre-Start `hotreload doctor` environment check and launches directly. Use only if the preflight misreports a working setup; you lose the actionable diagnostics. |
 
 ## Notes & common pitfalls
@@ -67,6 +68,8 @@ terminal `cli inspect --project <dir> --json` command remains a useful diagnosti
   a **"Start anyway"** button — it never hard-blocks. Fixing the listed items is preferred.
 - **Resolved command** mirrors your settings live. When in doubt about what a field does, watch how
   that box changes as you edit — and you can copy it to run the same command in a terminal.
+- **Fingerprint errors are safety signals.** Stop, run matching CLI `prepare`, relaunch, and
+  restart. Do not add `--ignore-fingerprint` through raw overrides except for focused diagnosis.
 
 ## Equivalent terminal command
 

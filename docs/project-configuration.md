@@ -1,11 +1,17 @@
 # Project configuration and compatibility
 
-Compose Hot Reload supports two ways to integrate with an Android project:
+Compose Hot Reload has one stable release-blocking integration path and two retained experimental
+capabilities:
 
-- **Configured mode**: the target project applies the `dev.hotreload` Gradle plugin.
-- **Zero-touch mode**: the CLI supplies its bundled bootstrap plugin and runtime AAR for
+- **Stable configured mode**: the target project explicitly applies the `dev.hotreload` Gradle
+  plugin to the app and every watched code module. Review discovery, pin an explicit profile, then
+  use matching `doctor`, `prepare`, and `watch`/ `start`.
+- **Experimental zero-touch mode**: the CLI supplies its bundled bootstrap plugin and runtime AAR for
   each Gradle invocation. It does not change the target project's settings, build files,
-  sources, or local properties.
+  sources, or local properties, but init-script/composite/lifecycle and exact parity issues make
+  it unsuitable as the normal onboarding path.
+- **Experimental live literals**: requires the same profile and literals choice for build,
+  install, and watch. A mismatch can corrupt Compose state.
 
 Both modes require a debuggable Android variant and one API 30+ device selected through
 `adb`. The [README](../README.md) contains installation and quickstart instructions; this
@@ -13,10 +19,10 @@ page covers non-default project layouts and the compatibility coverage maintaine
 
 ## Published release
 
-The current unified release is [0.1.8](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8).
+The current unified release is [0.2.0](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0).
 Use its signed IDE-plugin ZIP or Marketplace plugin with the matching CLI distribution, and resolve
 the configured-mode Gradle plugin and runtime AAR from
-[JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.1.8).
+[JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0).
 
 ## Configure once, then start
 
@@ -54,8 +60,8 @@ Use the profile in configured mode when the target project already applies
 hotreload start --profile mobile-client-stage
 ```
 
-For a project that has no persistent integration, create a separate zero-touch profile and
-start it the same way:
+Only after an owner explicitly opts into experimental zero-touch, create a separate zero-touch
+profile and start it the same way:
 
 ```bash
 hotreload configure \
@@ -75,11 +81,26 @@ hotreload configure \
 hotreload start --profile mobile-client-zero-touch
 ```
 
-`--project-java-home` controls the target project's Gradle JVM; it is independent from
-the JVM that runs the CLI. A profile records the resolved integration mode, variant,
+`--project-java-home` controls the target project's Gradle JVM; it is independent from the JBR
+that runs the CLI. Azul, Temurin, and other full JDK 17 vendors are acceptable in the tested
+AGP-8 lane when both `java` and `javac` exist. A profile records the resolved integration mode, variant,
 module-directory mappings, Gradle arguments, target JDK, and device selection. Re-run
 `configure` after changing project structure or variants so its discovery sidecar is
 refreshed.
+
+## Parity and recovery
+
+Preparation records an APK fingerprint shaped by the integration mode, modules, variant, target
+JDK, Gradle arguments, and literals choice. Use the same profile for prepare and watch. If
+`fingerprint: MISMATCH`, protocol, or runtime integration fails, stop, run matching prepare,
+relaunch, and restart. `--ignore-fingerprint` is a diagnostic escape hatch, not normal recovery:
+it can allow a baseline mismatch and Compose state corruption.
+
+If discovery chooses the wrong app, module closure, variant, or resource owner, explicitly pass
+`--app-id`, `--app-module`, `--module`, `--module-variant`, and directory mappings, save the
+corrected profile, then prepare again. The full command/option recovery reference is in the
+[README](../README.md#cli-reference); the end-user AI workflow is
+[AI-assisted project setup and recovery](ai-project-setup.md).
 
 ## Compatibility matrix
 

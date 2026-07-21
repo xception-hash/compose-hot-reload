@@ -1,9 +1,10 @@
 # AGENTS.md — running Compose Hot Reload as an AI agent
 
-The [README](README.md) is the authoritative install/usage guide — follow its Quickstart
-(§3) for the actual steps. This file only adds what an automated agent needs to execute
-those steps non-interactively: preflight checks, the background-run pattern for the
-watcher, and the exact log lines that mean success or failure.
+The [README](README.md) and [AI project setup guide](docs/ai-project-setup.md) are the
+authoritative install/usage guides. Default to their stable configured Gradle-plugin path:
+review discovery, save an explicit profile, run matching `doctor` and `prepare`, then watch.
+This file adds the non-interactive watcher pattern and machine-checkable success/failure signals.
+Zero-touch is opt-in experimental recovery, never the default for an unconfigured project.
 
 > **Maintainer agents:** if an untracked `.agents/` directory exists in this checkout,
 > you are working as the maintainer's agent — read `.agents/README.md` FIRST; it holds
@@ -31,8 +32,8 @@ Following the README literally will hang your session. Instead:
 
 ```bash
 ./gradlew -q :cli:run --args="watch --project <dir> --app-id <id>" > /tmp/hotreload.log 2>&1 &
-# For a target that does not apply dev.hotreload, add --zero-touch and first run
-# a matching: hotreload prepare --zero-touch --project <dir> [...same options]
+# Only when the owner explicitly opts into experimental zero-touch: add --zero-touch and first run
+# matching: hotreload prepare --zero-touch --project <dir> [...same options]
 ```
 
 Then poll the log. Healthy startup prints, in order:
