@@ -75,17 +75,17 @@ expansion project.
   `scripts/verify-release-artifacts.sh 0.2.0 mavenLocal`.
 - PASS: IntelliJ plugin `test --rerun-tasks buildPlugin verifyPlugin`; only the previously known
   verifier/deprecation warnings remain.
+- PASS: configured packaged-artifact smoke on the API-36 emulator for AGP 9/JDK 21 and AGP 8/JDK
+  17. Both lanes resolve only Maven Local 0.2.0 coordinates, pin an explicit profile, and prove
+  Doctor, Ready, a visible edit and reversal, stable PID, and Stop.
 
 ### Remaining
 
-1. Add and review the bounded configured packaged-artifact smoke gates for AGP 8/JDK 17 and
-   AGP 9/JDK 21; each must use locally published 0.2.0 artifacts and assert
-   Doctor/Ready/edit/reversal/PID/Stop.
-2. With one API-30+ device attached, run the existing configured single-module, multi-module, and
+1. With one API-30+ device attached, run the existing configured single-module, multi-module, and
    configured-capture suites, then both new lane gates.
-3. Complete the clean-clone documentation gate and the maintainer production-target configured
+2. Complete the clean-clone documentation gate and the maintainer production-target configured
    smoke. Restore all test targets, watcher, and device state.
-4. After local acceptance, obtain maintainer authorization for PR/push, merge, tagging, GitHub
+3. After local acceptance, obtain maintainer authorization for PR/push, merge, tagging, GitHub
    Release, JitPack proof, Marketplace submission, and the post-publication Marketplace smoke.
 
 ## Goal
