@@ -65,9 +65,10 @@ canonical roadmap — update it here, link it elsewhere.
 | T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
 | T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
 | T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | ✅ DONE 2026-07-18 — concurrent stream-separating collector and deterministic 2 MiB real-child regression; the Settings-modal callback now returns to the active dialog. Plugin host gates pass, and large-target Refresh discovered 2 modules, Start reached Ready, and Stop returned Off. |
+| T41 | Narrow 0.2.0 release: stable configured-plugin/profile path, AI-assisted setup, aligned artifacts, and bounded packaged-artifact validation | large | 🚧 IN PROGRESS 2026-07-21 — host/documentation/version milestone committed as `092a3e0`: CLI/docs contracts, AI guide, Maven Local marker/module/AAR proof, and IDE verifier pass. Remaining: configured packaged AGP-8/JDK-17 and AGP-9/JDK-21 gates, attached-device suites, clean-clone/production validation, then maintainer-only release actions. |
 
-Core engineering and release validation are complete; other remaining items are optional
-housekeeping:
+The 0.1.8 release is complete. T41 is the active next release effort; optional housekeeping
+remains outside its fixed scope:
 - **Release provenance:** ✅ DONE 2026-07-20 — tag `0.1.8` targets merged PR #27 commit
   `6bca51b`; [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8)
   contains the signed IDE-plugin ZIP and CLI distribution; JitPack publishes and a clean consumer

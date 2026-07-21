@@ -1,6 +1,6 @@
 # T41: Ship 0.2.0 with a narrow supported path and AI-assisted setup
 
-Status: TODO
+Status: IN PROGRESS
 Assignee: agy for bounded documentation/packaging implementation; coordinator reviews every diff
 and runs all acceptance gates; maintainer alone authorizes and performs publication
 Recommended model: Gemini 3.1 Pro (Low)
@@ -44,6 +44,49 @@ The public release is currently fragmented:
 T41 creates one coherent 0.2.0 release and narrows what the project promises. It is a product
 contract, documentation, packaging, and release-validation task. It is not another compatibility
 expansion project.
+
+## Progress — 2026-07-21
+
+### Completed host milestone (`092a3e0`)
+
+- Added the decision-complete task spec on fresh branch `release/0.2.0-narrow-support`, based on
+  updated `main` at `a901410`. External delegation was rejected because the checkout contains a
+  private untracked maintainer handoff; local execution follows the Dispatch fallback.
+- Rewrote public onboarding around the configured Gradle-plugin/profile path. README now contains
+  the capability tiers, an exhaustive CLI-help-derived reference with safe recovery for every
+  command and option, experimental zero-touch/live-literal boundaries, and a link to the public
+  AI guide. Configuration, IDE, and root agent documentation use the same contract.
+- Added `docs/ai-project-setup.md`, an end-user AI inventory/setup/failure/cleanup playbook with
+  the specified copy/paste prompt. It contains no maintainer-only paths or project details.
+- Added deterministic offline `e2e/check-docs-contract.sh` and
+  `e2e/check-release-version-contract.sh`, wired into the lightweight contract workflow.
+- Aligned the Gradle plugin, runtime publication, injected runtime coordinate, and IntelliJ plugin
+  at 0.2.0. The Gradle plugin publication group now matches the documented public coordinate,
+  fixing a Maven Local scratch-consumer failure discovered during this work.
+- Added `scripts/verify-release-artifacts.sh <version> <mavenLocal|repository-url>`. It creates a
+  temporary consumer and resolves the plugin marker, plugin module, and runtime AAR without
+  composite substitution.
+
+### Verified
+
+- PASS: documentation/version contracts, `git diff --check`, and staged privacy scans.
+- PASS: `:engine:test :protocol:test :cli:installDist :cli:verifyZeroTouchDistribution`.
+- PASS: Gradle-plugin and runtime-client Maven Local publications plus
+  `scripts/verify-release-artifacts.sh 0.2.0 mavenLocal`.
+- PASS: IntelliJ plugin `test --rerun-tasks buildPlugin verifyPlugin`; only the previously known
+  verifier/deprecation warnings remain.
+
+### Remaining
+
+1. Add and review the bounded configured packaged-artifact smoke gates for AGP 8/JDK 17 and
+   AGP 9/JDK 21; each must use locally published 0.2.0 artifacts and assert
+   Doctor/Ready/edit/reversal/PID/Stop.
+2. With one API-30+ device attached, run the existing configured single-module, multi-module, and
+   configured-capture suites, then both new lane gates.
+3. Complete the clean-clone documentation gate and the maintainer production-target configured
+   smoke. Restore all test targets, watcher, and device state.
+4. After local acceptance, obtain maintainer authorization for PR/push, merge, tagging, GitHub
+   Release, JitPack proof, Marketplace submission, and the post-publication Marketplace smoke.
 
 ## Goal
 
