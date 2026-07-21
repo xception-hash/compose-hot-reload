@@ -24,6 +24,7 @@ WORKFLOW=.github/workflows/e2e.yml
 DOC=docs/project-configuration.md
 RUNNER=e2e/run-zero-touch.sh
 GATE=e2e/run-zero-touch-compatibility-gate.sh
+CONFIGURED_GATE=e2e/run-configured-artifact.sh
 AGP8=e2e/fixtures/zero-touch/agp8
 AGP9=e2e/fixtures/zero-touch/agp9
 
@@ -31,6 +32,7 @@ require_file "$WORKFLOW"
 require_file "$DOC"
 require_file "$RUNNER"
 require_file "$GATE"
+require_file "$CONFIGURED_GATE"
 require_file "$AGP8/build.gradle.kts"
 require_file "$AGP8/settings.gradle.kts"
 require_file "$AGP9/build.gradle.kts"
@@ -55,8 +57,16 @@ for text in \
     "java-version: '21'" \
     'JAVA17_HOME' \
     'e2e/run-zero-touch.sh' \
+    'e2e/run-configured-artifact.sh' \
     'api-level: 36'; do
     require_text "$WORKFLOW" "$text"
+done
+
+for text in \
+    'mavenLocal' \
+    'configured packaged artifact $name Doctor/Ready/edit/reversal/PID/Stop' \
+    'JAVA17_HOME is required'; do
+    require_text "$CONFIGURED_GATE" "$text"
 done
 
 # The offline gate and its skip-detection guard live in the gate script rather than
