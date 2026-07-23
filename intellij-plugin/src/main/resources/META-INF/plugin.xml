@@ -4,11 +4,13 @@
     <vendor>Compose Hot Reload (OSS)</vendor>
 
     <description><![CDATA[
-        Flutter-style hot reload for Jetpack Compose on Android, from inside the IDE.
-        <br/>
-        The plugin spawns the <code>hotreload</code> CLI (<code>hotreload watch</code>) and shows live
-        reload status in the status bar. It does not embed the engine — the CLI stays the single
-        source of truth. Configure it under <b>Settings › Tools › Compose Hot Reload</b>.
+        <p>Hot reload for debuggable Jetpack Compose Android apps from Android Studio or IntelliJ IDEA.</p>
+        <p>The bundled <code>hotreload</code> CLI runs one watch session for the selected device and
+        reports its status in the IDE. Configure it under <b>Settings | Tools | Compose Hot Reload</b>:
+        review Refresh discovery, save an explicit configured profile, run matching Doctor/prepare,
+        then Start and wait for Ready.</p>
+        <p>Configured Gradle-plugin integration is the stable path. Zero-touch and live literals are
+        experimental.</p>
     ]]></description>
 
     <!-- Core platform only: loads in IntelliJ IDEA Community and Android Studio alike. -->

@@ -1,6 +1,6 @@
 # T43: Document the published JetBrains Marketplace plugin
 
-Status: QUEUED
+Status: IN PROGRESS
 Assignee: unassigned
 Recommended model: lower-cost GPT/Flash-tier model for documentation and metadata; coordinator reviews and verifies
 
@@ -18,6 +18,19 @@ Make the Marketplace listing and repository documentation a coherent onboarding 
 published IDE plugin. A user arriving from either place must be able to install the plugin, find
 its settings, use the stable configured-profile workflow, recognize a successful reload, and know
 where to get help without needing a source checkout.
+
+## Progress — 2026-07-23
+
+- Verified the published plugin through JetBrains Marketplace's public API: plugin XML ID
+  `dev.hotreload.ide`, Marketplace ID `32850`, direct page
+  `https://plugins.jetbrains.com/plugin/32850-compose-hot-reload`, and currently published
+  version 0.1.8. Its current description is only the former two-sentence summary.
+- Started the source/documentation half. The next plugin build now carries a full Marketplace-safe
+  onboarding description, and public repository documentation links to the published 0.1.8 page
+  while accurately describing 0.2.0 as under release validation.
+- The Marketplace page itself cannot change until a maintainer-authorized signed plugin upload.
+  After that upload, verify the rendered description and replace the temporary published-version
+  wording in these docs with the actual released version.
 
 ## Scope
 
@@ -59,16 +72,16 @@ where to get help without needing a source checkout.
 
 ## Acceptance
 
-- [ ] `README.md` links to the verified published JetBrains Marketplace plugin page and explains
+- [x] `README.md` links to the verified published JetBrains Marketplace plugin page and explains
       the install + stable first-use path without requiring a repository clone.
-- [ ] The generated plugin descriptor/Marketplace description provides the same essential
+- [x] The generated plugin descriptor/Marketplace description provides the same essential
       onboarding: bundled CLI, Settings location, configured profile, matching prepare, Start/Stop,
       and safe boundaries.
-- [ ] `intellij-plugin/README.md` and `docs/ide-plugin-settings.md` agree with the README and use
+- [x] `intellij-plugin/README.md` and `docs/ide-plugin-settings.md` agree with the README and use
       only public links/instructions.
-- [ ] A focused deterministic docs check (new or extended) asserts the public Marketplace link and
+- [x] A focused deterministic docs check (new or extended) asserts the public Marketplace link and
       required IDE onboarding concepts, so a future release cannot silently remove them.
-- [ ] `cd intellij-plugin && unset JAVA_HOME && source ../scripts/env.sh && ./gradlew test buildPlugin verifyPlugin`
+- [x] `cd intellij-plugin && unset JAVA_HOME && source ../scripts/env.sh && ./gradlew test buildPlugin verifyPlugin`
       passes against the pinned IDE set, with no new internal-API findings.
 - [ ] Before any authorized upload: inspect the built ZIP's `META-INF/plugin.xml` and confirm its
       description and version match the reviewed release material. After approval: install the

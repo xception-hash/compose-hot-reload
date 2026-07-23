@@ -8,15 +8,30 @@ of truth (see `tasks/T26-ide-plugin-mvp.md`).
 It targets IntelliJ IDEA Community but uses only core platform APIs, so it also loads in
 Android Studio.
 
-Release status: version 0.2.0 is the current unified release. It is available on JetBrains
-Marketplace; the signed IDE-plugin ZIP and matching CLI distribution are also in the
-[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0).
-During local development, install the built ZIP from disk when testing an unreleased change.
+Install the currently published plugin from [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload)
+through **Settings | Plugins**. The published Marketplace version is 0.1.8 and includes the CLI;
+you do not need a repository clone or a separate CLI installation. Version 0.2.0 is under release
+validation and will update this listing only after an authorized signed upload. During local
+development, install the built ZIP from disk when testing an unreleased change.
 
 The stable IDE workflow is an explicit configured Gradle-plugin profile: use **Refresh discovery**
 as a suggestion, review the app/module/variant closure, save or select a profile, then run a
 matching CLI-owned prepare before Start. Zero-touch and live literals remain experimental; do not
 use a raw override or fingerprint bypass as normal setup recovery.
+
+## First use after Marketplace installation
+
+1. Open the Android project and apply the `dev.hotreload` Gradle plugin to the app and every
+   watched code module.
+2. Open **Settings | Tools | Compose Hot Reload**, click **Refresh discovery**, review its values,
+   and save an explicit configured profile.
+3. Run the matching **Doctor** and **prepare** flow to install the debug APK baseline, then launch
+   the app on one API-30+ device.
+4. Click the status-bar widget or **Tools | Start Hot Reload** and wait for **Ready** before saving
+   a Compose-body edit. Click **Stop** before changing configuration or ending the session.
+
+For field-by-field help, see the public [IDE settings guide](../docs/ide-plugin-settings.md) and
+[AI-assisted setup guide](../docs/ai-project-setup.md).
 
 ## What it gives you
 

@@ -271,6 +271,19 @@ An IntelliJ IDEA / Android Studio plugin is available for driving hot reload fro
   persisted per project.
 - Balloons on failure: reload error (with first compiler/recompose error) and rebuild-required notice.
 
+**Install from JetBrains Marketplace:**
+Install [Compose Hot Reload](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) from
+**Settings ▸ Plugins**. The Marketplace plugin includes its CLI, so no repository clone or separate
+CLI installation is required. Then open **Settings ▸ Tools ▸ Compose Hot Reload**, use **Refresh
+discovery** as a suggestion, review and save an explicit configured profile, run matching
+**Doctor**/**prepare**, and use the status-bar widget or **Tools ▸ Start Hot Reload**. Wait for
+**Ready** before the first save; use **Stop** when finished. Use one selected API-30+ device and one
+watcher at a time.
+
+The currently published Marketplace listing is version 0.1.8. Its description will be expanded in
+the next maintainer-authorized plugin update; the source documentation below already describes the
+stable configured workflow.
+
 **Install from disk:**
 Build the plugin zip:
 ```bash
@@ -278,8 +291,9 @@ cd intellij-plugin && ./gradlew buildPlugin
 ```
 This produces `build/distributions/hotreload-intellij-plugin-0.2.0.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
 
-Version 0.2.0 is the current unified release: install the IDE plugin from the JetBrains
-Marketplace, download the signed ZIP or CLI distribution from the
+The next unified release is 0.2.0: install the currently published IDE plugin from the
+[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload), download a
+signed ZIP or CLI distribution from the
 [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0), and
 resolve the Gradle plugin/runtime AAR from [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0).
 
@@ -299,7 +313,12 @@ See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 - `tasks/` — Task specifications and progress tracking.
 
 ## 9. Status
-**0.2.0 — current unified release.** [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) and [JitPack artifacts](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0) align the CLI, Gradle plugin, runtime client, and IntelliJ/Android Studio plugin. The stable contract is explicit configured-plugin integration and matching profiles; zero-touch and live literals remain experimental.
+**0.2.0 — next unified release (in validation).** Its GitHub Release and JitPack artifacts will
+align the CLI, Gradle plugin, runtime client, and IntelliJ/Android Studio plugin after authorized
+publication. Until then, the published Marketplace plugin is
+[0.1.8](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload). The stable contract is
+explicit configured-plugin integration and matching profiles; zero-touch and live literals remain
+experimental.
 
 **0.1.6 — security hardening + project-agnostic release.** Adds socket peer-uid authorization and debuggable-only enforcement in the runtime client, project-agnostic configuration with Gradle discovery and IDE profiles, zero-touch `hotreload start`, and IDE plugin 0.1.6 (pre-Start environment preflight with surfaced fatal errors, Android SDK auto-discovery, bundled CLI).
 
