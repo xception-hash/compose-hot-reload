@@ -59,7 +59,7 @@ During the authorized 0.2.0 release, complete T43 in this order:
    Stop smoke. **Done.**
 4. Replace every temporary “published 0.1.8” / “0.2.0 under validation” statement in the README,
    IDE-plugin README, IDE settings guide, project configuration guide, Marketplace change notes,
-   task progress, and roadmap with the actual 0.2.0 publication/provenance information.
+   task progress, and roadmap with the actual 0.2.0 publication/provenance information. **Done.**
 
 ## Scope
 
@@ -129,7 +129,7 @@ During the authorized 0.2.0 release, complete T43 in this order:
 
 ## Notes
 
-- The root README and plugin README currently say that the Marketplace plugin exists, but neither
-  gives users a verified direct Marketplace link or a Marketplace-quality getting-started flow.
+- The root README and plugin README provide the verified direct Marketplace link and a
+  Marketplace-quality getting-started flow.
 - Marketplace compatibility is a standing gate: introduce no `@ApiStatus.Internal` APIs; run
   `verifyPlugin` against every pinned IDE before release.

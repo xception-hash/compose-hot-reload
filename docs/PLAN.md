@@ -6,10 +6,10 @@ T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
 resources incl. bitmaps, ~22 ms live literals, interpreter for removals/hierarchy/**signature
 changes** incl. composables via lambda proxies, zero-touch `hotreload start`, IDE plugin with
-discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.1.8 is approved
-and live on the JetBrains Marketplace**. [Release 0.1.8](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8)
+discovery/profiles, doctor, e2e 15/15). The IntelliJ/Android Studio plugin **0.2.0 is approved
+and live on the JetBrains Marketplace**. [Release 0.2.0](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0)
 aligns that plugin with the CLI, Gradle plugin, and runtime-client artifacts through GitHub and
-[JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.1.8). Engineering and
+[JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0). Engineering and
 **Phase F are complete**:
 the Marketplace-plugin smoke passed on the multi-module fixture. The first public production
 target blocker (the zero-touch init script aborting in an included `build-logic` build) is fixed
