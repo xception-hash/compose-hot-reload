@@ -258,6 +258,35 @@ class FactsExtractorTest {
     }
 
     @Test
+    fun `Compose source-location changes do not mark enclosing code as edited`() {
+        val baseline = composeDebugClass(
+            sourceText = "C(Parent)@1",
+            markerKey = 101,
+            markerText = "C(Parent)@10L20",
+            renderedText = "before",
+        )
+        val locationOnly = composeDebugClass(
+            sourceText = "C(Parent)@2",
+            markerKey = 202,
+            markerText = "C(Parent)@30L40",
+            renderedText = "before",
+        )
+        val renderedTextEdit = composeDebugClass(
+            sourceText = "C(Parent)@2",
+            markerKey = 202,
+            markerText = "C(Parent)@30L40",
+            renderedText = "after",
+        )
+
+        fun bodyHash(bytes: ByteArray) = FactsExtractor.extract(bytes).members.single {
+            it.id == "Parent(Ljava/lang/Object;)V"
+        }.bodyHash
+
+        assertEquals(bodyHash(baseline), bodyHash(locationOnly))
+        assertNotEquals(bodyHash(baseline), bodyHash(renderedTextEdit))
+    }
+
+    @Test
     fun `synchronized block is recorded in monitorMethods, plain methods are not (T30)`() {
         val bytes = generateClass(
             methods = listOf(
@@ -277,5 +306,43 @@ class FactsExtractorTest {
 
         val facts = FactsExtractor.extract(bytes)
         assertEquals(setOf("lockedCompute()V"), facts.monitorMethods)
+    }
+
+    private fun composeDebugClass(
+        sourceText: String,
+        markerKey: Int,
+        markerText: String,
+        renderedText: String,
+    ): ByteArray {
+        val cw = ClassWriter(ClassWriter.COMPUTE_FRAMES)
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC or Opcodes.ACC_SUPER, "com/example/ComposeDebug", null, "java/lang/Object", null)
+        val mv = cw.visitMethod(Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC, "Parent", "(Ljava/lang/Object;)V", null, null)
+        mv.visitCode()
+        mv.visitVarInsn(Opcodes.ALOAD, 0)
+        mv.visitLdcInsn(sourceText)
+        mv.visitMethodInsn(
+            Opcodes.INVOKESTATIC,
+            "androidx/compose/runtime/ComposerKt",
+            "sourceInformation",
+            "(Ljava/lang/Object;Ljava/lang/String;)V",
+            false,
+        )
+        mv.visitVarInsn(Opcodes.ALOAD, 0)
+        mv.visitLdcInsn(markerKey)
+        mv.visitLdcInsn(markerText)
+        mv.visitMethodInsn(
+            Opcodes.INVOKESTATIC,
+            "androidx/compose/runtime/ComposerKt",
+            "sourceInformationMarkerStart",
+            "(Ljava/lang/Object;ILjava/lang/String;)V",
+            false,
+        )
+        mv.visitLdcInsn(renderedText)
+        mv.visitInsn(Opcodes.POP)
+        mv.visitInsn(Opcodes.RETURN)
+        mv.visitMaxs(3, 1)
+        mv.visitEnd()
+        cw.visitEnd()
+        return cw.toByteArray()
     }
 }

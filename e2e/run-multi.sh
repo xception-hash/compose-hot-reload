@@ -15,7 +15,7 @@ adb shell am force-stop dev.hotreload.multisample >/dev/null 2>&1 || true
 (cd "$REPO_ROOT/samples/multi-module" && ./gradlew -q :app:installDebug)
 
 echo "--- Launching app ---"
-adb shell monkey -p dev.hotreload.multisample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+adb shell am start -n dev.hotreload.multisample/.MainActivity >/dev/null
 sleep 3
 INITIAL_PID=$(adb shell pidof dev.hotreload.multisample || echo DEAD)
 if [ "$INITIAL_PID" = "DEAD" ]; then
