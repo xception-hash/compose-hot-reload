@@ -5,7 +5,7 @@ capabilities:
 
 - **Stable configured mode**: the target project explicitly applies the `dev.hotreload` Gradle
   plugin to the app and every watched code module. Review discovery, pin an explicit profile, then
-  use matching `prepare`, `doctor`, and `watch`/ `start`.
+  use matching `prepare`, `doctor`, and `watch`/`start`.
 - **Experimental zero-touch mode**: the CLI supplies its bundled bootstrap plugin and runtime AAR for
   each Gradle invocation. It does not change the target project's settings, build files,
   sources, or local properties, but init-script/composite/lifecycle and exact parity issues make
@@ -16,6 +16,12 @@ capabilities:
 Both modes require a debuggable Android variant and one API 30+ device selected through
 `adb`. The [README](../README.md) contains installation and quickstart instructions; this
 page covers non-default project layouts and the compatibility coverage maintained in CI.
+
+This page is a configuration vocabulary, not an exhaustive list of project templates. Preserve an
+existing project's Java/Gradle/Kotlin/Compose versions, build-script DSL, module graph, source
+mix, and variants. Use the documented options—or the
+[AI adaptation guide](ai-project-setup.md)—to map that existing structure onto one reviewed
+profile. Do not reshape the project merely to resemble the samples.
 
 ## Published release
 
@@ -30,6 +36,20 @@ for installation from disk.
 
 `configure` resolves Gradle discovery and writes a profile outside the target repository.
 Explicit command-line options always override profile values.
+
+For a conventional project, begin with the minimum:
+
+```bash
+hotreload configure \
+  --project /workspace/mobile-client \
+  --save-as mobile-client
+
+hotreload config show --profile mobile-client
+```
+
+Review the output. If every resolved value is correct, use the profile unchanged. If the project
+has flavors, nonstandard directories, multiple modules, a separate target JDK, or multiple
+devices, run `configure` again and pin those values explicitly:
 
 ```bash
 hotreload configure \
@@ -47,20 +67,31 @@ hotreload configure \
   --save-as mobile-client-stage
 ```
 
-The profile is stored at
+This profile is stored at
 `~/.config/compose-hot-reload/projects/mobile-client-stage.toml`. Inspect the resolved
-configuration and its reproducible expanded command with:
+configuration and its reproducible expanded watch command with:
 
 ```bash
 hotreload config show --profile mobile-client-stage
 ```
 
-Use the profile in configured mode when the target project already applies
-`dev.hotreload`:
+Prepare and inspect the runtime handshake once:
 
 ```bash
+hotreload prepare --profile mobile-client-stage
+hotreload doctor --profile mobile-client-stage
+```
+
+Then choose one daily interface:
+
+```bash
+# Terminal: Doctor, prepare if needed, then watch.
 hotreload start --profile mobile-client-stage
 ```
+
+For Android Studio/IntelliJ, enter the same profile in **Settings › Tools › Compose Hot Reload**.
+The IDE's Start action runs Doctor and then `watch`; it does not run `configure` or `prepare`.
+Complete those CLI steps before the first IDE Start and after APK-shaping profile changes.
 
 Only after an owner explicitly opts into experimental zero-touch, create a separate zero-touch
 profile and start it the same way:
@@ -85,10 +116,31 @@ hotreload start --profile mobile-client-zero-touch
 
 `--project-java-home` controls the target project's Gradle JVM; it is independent from the JBR
 that runs the CLI. Azul, Temurin, and other full JDK 17 vendors are acceptable in the tested
-AGP-8 lane when both `java` and `javac` exist. A profile records the resolved integration mode, variant,
-module-directory mappings, Gradle arguments, target JDK, and device selection. Re-run
-`configure` after changing project structure or variants so its discovery sidecar is
-refreshed.
+AGP-8 lane when both `java` and `javac` exist. A profile records the resolved integration mode,
+variant, module-directory mappings, Gradle arguments, target JDK, and device selection. Re-run
+`configure` after changing project structure or variants so its discovery sidecar is refreshed.
+
+Profiles do not store `--sdk` or `--build-tools`. Prefer a stable `ANDROID_HOME` and the default
+build-tools version. If either must be overridden, repeat the same explicit option for
+`prepare`, `doctor`, and `watch`/`start`.
+
+## Common configuration recipes
+
+| Project shape | Options to pin |
+|---|---|
+| App module is not first | `--app-module :path` |
+| Gradle path differs from physical directory | `--module :path=relative/dir` and, for the app, `--app-module-dir` |
+| Watched modules use different variants | `--variant` plus repeatable `--module-variant :path=variant` |
+| Flavored application ID | `--variant`, `--app-id`, and often `--launch-activity` |
+| Target uses a different Gradle JVM | `--project-java-home /path/to/full-jdk` |
+| Target requires build properties or offline mode | Repeat `--gradle-arg` once per exact argument |
+| Several adb devices are online | `--device <serial>` |
+| SDK is not in `ANDROID_HOME` | Repeat `--sdk /path/to/sdk` for prepare/Doctor/watch; use `--build-tools` only when deliberately selecting another installed version |
+| Discovery includes too much or too little | Use repeatable `--include-module`/`--exclude-module`, or replace discovery with explicit `--module` mappings |
+| Automation needs discovery data | `inspect --json` emits schema v1 |
+
+See the [README CLI reference](../README.md#5-cli-reference) for every command and option,
+including tier, effect, failure, and safe recovery.
 
 ## Parity and recovery
 
@@ -101,7 +153,7 @@ it can allow a baseline mismatch and Compose state corruption.
 If discovery chooses the wrong app, module closure, variant, or resource owner, explicitly pass
 `--app-id`, `--app-module`, `--module`, `--module-variant`, and directory mappings, save the
 corrected profile, then prepare again. The full command/option recovery reference is in the
-[README](../README.md#cli-reference); the end-user AI workflow is
+[README](../README.md#5-cli-reference); the end-user AI workflow is
 [AI-assisted project setup and recovery](ai-project-setup.md).
 
 ## Compatibility matrix

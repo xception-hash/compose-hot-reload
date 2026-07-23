@@ -1,34 +1,38 @@
-# Compose Hot Reload — IntelliJ / Android Studio plugin (MVP)
+# Compose Hot Reload — IntelliJ / Android Studio plugin
 
-Phase 5 MVP: drive hot reload without leaving the IDE. The plugin **spawns the `hotreload` CLI**
-(`hotreload watch …`) and reflects its state in the status bar. It does **not** embed the engine —
-the CLI's log lines are the stable machine-readable surface, and the CLI stays the single source
-of truth (see `tasks/T26-ide-plugin-mvp.md`).
+Drive a prepared Compose Hot Reload session without leaving the IDE. The plugin spawns the bundled
+CLI's `watch` command and reflects its state in the status bar. It does not embed the engine; CLI
+log lines remain the machine-readable integration surface.
 
 It targets IntelliJ IDEA Community but uses only core platform APIs, so it also loads in
 Android Studio.
 
-Install the currently published plugin from [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload)
-through **Settings | Plugins**. Marketplace version 0.2.0 includes the CLI; you do not need a
-repository clone or a separate CLI installation. The signed 0.2.0 ZIP from the
+Install the currently published plugin from
+[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) through
+**Settings › Plugins**. Marketplace version 0.2.0 includes the CLI, so IDE discovery, Doctor, and
+watch need no repository clone or manual `installDist`. The signed 0.2.0 ZIP from the
 [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) is an
 alternative for installation from disk. During local development, install the built ZIP from disk.
 
-The stable IDE workflow is an explicit configured Gradle-plugin profile: use **Refresh discovery**
-as a suggestion, review the app/module/variant closure, save or select a profile, then run a
-matching CLI-owned prepare before Start. Zero-touch and live literals remain experimental; do not
-use a raw override or fingerprint bypass as normal setup recovery.
+Marketplace installation includes the CLI for IDE actions, but does not add a global `hotreload`
+command. Version 0.2.0 does not expose `configure` or `prepare` as IDE actions.
 
 ## First use after Marketplace installation
 
 1. Open the Android project and apply the `dev.hotreload` Gradle plugin to the app and every
    watched code module.
-2. Open **Settings | Tools | Compose Hot Reload**, click **Refresh discovery**, review its values,
-   and save an explicit configured profile.
-3. Run the matching **prepare** and **Doctor** flow to install and verify the debug APK baseline, then launch
-   the app on one API-30+ device.
-4. Click the status-bar widget or **Tools | Start Hot Reload** and wait for **Ready** before saving
-   a Compose-body edit. Click **Stop** before changing configuration or ending the session.
+2. Use the 0.2.0 release CLI to run `configure`, review `config show`, and save an explicit
+   configured profile.
+3. Run matching `prepare` and `doctor` with that profile. This installs, launches, fingerprints,
+   and verifies the debug APK on one API-30+ device.
+4. Open **Settings › Tools › Compose Hot Reload**, enter the existing profile name, click
+   **Refresh discovery**, and review every explicit field. Click **Apply**.
+5. Click the status-bar widget or **Tools › Start Hot Reload** and wait for **Ready** before
+   saving. Click **Stop** before changing configuration or ending the session.
+
+**Start launches `watch`, not `start`.** It runs a Doctor preflight but does not prepare or install
+the app. Re-run matching CLI `prepare` after changing integration mode, modules, variant, target
+JDK, Gradle arguments, or live-literals choice.
 
 For field-by-field help, see the public [IDE settings guide](../docs/ide-plugin-settings.md) and
 [AI-assisted setup guide](../docs/ai-project-setup.md).
@@ -39,7 +43,7 @@ For field-by-field help, see the public [IDE settings guide](../docs/ide-plugin-
   rebuild needed`. Click it to Start/Stop.
 - **Tools ▸ Start/Stop Hot Reload** — same toggle from the menu.
 - **Settings ▸ Tools ▸ Compose Hot Reload** — structured, persisted watch settings: project,
-  profile, app module/variant/application id, watched modules, target JDK, device, SDK,
+  existing profile, app module/variant/application ID, watched modules, target JDK, device, SDK,
   literals, zero-touch, and repeatable Gradle arguments. **Refresh discovery** runs the CLI's
   non-mutating `inspect --json` and fills editable choices for debuggable app variants and their
   module closure. The page also shows the read-only resolved command that Start will execute.
@@ -53,6 +57,7 @@ engine. Line prefixes there are copied verbatim from `engine/.../WatchSession.kt
 
 ## Prerequisites
 
+- Complete the root [stable configured Quickstart](../README.md#4-stable-quickstart-configured-gradle-plugin).
 - **Android SDK build-tools 36.0.0** — the CLI shells out to `d8`/`dexdump` from the Android
   SDK. Set `ANDROID_HOME` or configure the **SDK path** field in
   Settings ▸ Tools ▸ Compose Hot Reload.
@@ -61,7 +66,8 @@ engine. Line prefixes there are copied verbatim from `engine/.../WatchSession.kt
 
 The plugin zip includes the full CLI distribution (`cli/bin/cli`, `cli/lib/*.jar`). When
 installed from disk or from the Marketplace, the plugin resolves the bundled launcher
-automatically — **no repo clone or manual `installDist` required**.
+automatically for discovery, Doctor, and watch — no repo clone or manual `installDist` is required
+for those IDE actions.
 
 To override the bundled CLI (e.g. for local development), set the **CLI launcher** path in
 Settings ▸ Tools ▸ Compose Hot Reload to point at your own build.
@@ -99,17 +105,17 @@ In the sandbox IDE:
 2. In **Settings ▸ Tools ▸ Compose Hot Reload**, set a project dir (or leave it blank for the open
    project), then click **Refresh discovery**. Select the discovered app module and debuggable
    variant; the app id and watched-module closure are suggestions and remain editable. Review and
-   pin an explicit configured profile before Start. The CLI launcher defaults to the bundled one;
-   override it only to test a different build.
+   select an existing configured profile before Start. The settings page does not create a CLI
+   profile. The CLI launcher defaults to the bundled one; override it only to test a different
+   build.
 3. **Advanced raw overrides** are an escape hatch for unsupported flags. Enter one exact token per line;
    they are appended after structured arguments and are never parsed as a shell string. Likewise,
    enter one target Gradle argument per line.
-4. Make sure the app is installed and running on a device/emulator (the plugin does not install
-   it — same prerequisites as running `hotreload watch` by hand).
+4. Run matching CLI `prepare` and `doctor`; the plugin does not install the app.
 5. Click the status-bar widget (or **Tools ▸ Start Hot Reload**) → it goes
    `starting… → ready`.
 6. Edit a composable body and save → `reloading… → ready (Nms)` and the emulator updates.
-7. Make a signature change and save → **rebuild-needed** balloon.
+7. Make an edit that requires a full rebuild → **rebuild-needed** balloon.
 8. Stop from the widget/menu → the process is destroyed; `pgrep -f dev.hotreload.cli.MainKt`
    should be empty.
 
@@ -118,7 +124,7 @@ In the sandbox IDE:
 `Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…` → pick the zip from
 `build/distributions/`.
 
-## Known limits (MVP)
+## Known limits
 
 - **No auto-save hook.** The CLI's own file watcher handles saves. Enable the IDE's explicit
   auto-save (Settings ▸ Appearance & Behavior ▸ System Settings ▸ *Save files automatically…*)
@@ -126,5 +132,7 @@ In the sandbox IDE:
 - **No editor gutter icons, no in-editor error banners, no auto-start, no run-configuration
   integration.** Status is status-bar + balloons only.
 - **One session per project.** Start is a no-op while a session is running.
-- Does not build or install the app — it only spawns `hotreload watch` against an
-  already-installed debuggable build.
+- **No configure or prepare action.** The IDE can discover values, run Doctor, and watch, but the
+  stable first-time profile and APK baseline are CLI-owned.
+- **Explicit fields override profiles.** The default watched-modules value `app` can override a
+  wider multi-module profile; match the `config show` output before Start.

@@ -42,7 +42,7 @@ When --app-id and --module are omitted, the app module, variant, applicationId, 
 watched-module closure are discovered automatically via Gradle inspection.
 
 Options:
-  --project <dir>     Gradle project of the app (required)
+  --project <dir>     Gradle project of the app (required unless --profile supplies it)
   --profile <name>    Load defaults from ~/.config/compose-hot-reload/projects/<name>.toml
                       (written by 'hotreload configure'); any explicit flag overrides it
   --app-id <id>       applicationId of the debug build on the device (discovered when
@@ -52,6 +52,7 @@ Options:
   --app-module-dir <dir>
                       Physical directory override for the app module
   --build-tools <v>   build-tools version for d8 (default: 36.0.0)
+                      Not stored in profiles; repeat across prepare/doctor/watch
   --device <serial>   Target device serial when several are connected (adb -s;
                       overrides ${'$'}ANDROID_SERIAL)
   --exclude-module <gradlePath>
@@ -60,7 +61,7 @@ Options:
   --gradle-arg <arg>  Extra target Gradle argument; may be repeated
   --ignore-fingerprint
                       (watch/start only) skip the build-fingerprint validation written by
-                      'hotreload prepare'
+                      'hotreload prepare' (diagnostic only; mismatches can corrupt state)
   --include-module <gradlePath>
                       Restrict the DISCOVERED watched modules to these (+ the app
                       module); may be repeated. Only valid without --module
@@ -68,8 +69,8 @@ Options:
   --launch-activity <name>
                       Activity to launch when the app is not running (default: the
                       device's LAUNCHER intent for --app-id)
-  --literals          Enable the live-literals fast path (T24); requires the app built
-                      with -Photreload.liveLiterals=true
+  --literals          Experimental live-literals fast path; prepare/watch supply the
+                      matching compiler property, so keep the choice identical
   --module <names>    Comma-separated Gradle modules to watch; the FIRST is the app
                       module (default: app). Map a Gradle path to a physical directory
                       with '=', e.g. :app=applications/main,libs/core
@@ -78,9 +79,10 @@ Options:
   --project-java-home <dir>
                       JDK used by the target project's Gradle build (default: CLI JVM)
   --sdk <dir>         Android SDK root (default: ${'$'}ANDROID_HOME)
+                      Not stored in profiles; repeat across prepare/doctor/watch
   --variant <name>    Android variant to compile (default: debug)
-  --zero-touch        Instrument through a bundled init-script bootstrap; never requires
-                      editing the target project's settings or module build files
+  --zero-touch        Experimental bundled init-script bootstrap; never requires editing
+                      the target project's settings or module build files
 """
 
 fun main(args: Array<String>) {
