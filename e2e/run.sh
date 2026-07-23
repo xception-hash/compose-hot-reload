@@ -33,7 +33,7 @@ rm -rf "$CONFIGURED_DEX_DIR"
 echo "PASS: configured coverage disabled before packaging"
 
 echo "--- Launching app ---"
-adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+adb shell am start -n dev.hotreload.sample/.MainActivity >/dev/null
 sleep 3
 INITIAL_PID=$(adb shell pidof dev.hotreload.sample || echo DEAD)
 if [ "$INITIAL_PID" = "DEAD" ]; then
@@ -86,7 +86,7 @@ trap cleanup EXIT
 kill_watch
 
 echo "--- Starting configured start loop ---"
-(cd "$REPO_ROOT" && ./gradlew -q :cli:run --args="start --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample") > "$WATCH_LOG" 2>&1 &
+(cd "$REPO_ROOT" && ./gradlew -q :cli:run --args="start --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample --launch-activity .MainActivity") > "$WATCH_LOG" 2>&1 &
 WATCH_PID=$!
 
 echo "Waiting for 'watching ' in log..."
@@ -488,7 +488,7 @@ sleep 2
 cp "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY"
 adb shell am force-stop dev.hotreload.sample >/dev/null 2>&1 || true
 (cd "$REPO_ROOT/samples/single-module" && ./gradlew -q :app:installDebug)
-adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+adb shell am start -n dev.hotreload.sample/.MainActivity >/dev/null
 sleep 3
 INITIAL_PID=$(adb shell pidof dev.hotreload.sample || echo DEAD)
 [ "$INITIAL_PID" = "DEAD" ] && { echo "app failed to start (interpreter-edit)"; exit 1; }
@@ -592,7 +592,7 @@ sleep 2
 cp "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY"
 adb shell am force-stop dev.hotreload.sample >/dev/null 2>&1 || true
 (cd "$REPO_ROOT/samples/single-module" && ./gradlew -q :app:installDebug)
-adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+adb shell am start -n dev.hotreload.sample/.MainActivity >/dev/null
 sleep 3
 INITIAL_PID=$(adb shell pidof dev.hotreload.sample || echo DEAD)
 [ "$INITIAL_PID" = "DEAD" ] && { echo "app failed to start (signature-change-edit)"; exit 1; }
@@ -669,7 +669,7 @@ if [ "${HOTRELOAD_LITERALS:-}" = "1" ]; then
     cp "$MAIN_ACTIVITY_BACKUP" "$MAIN_ACTIVITY"
     adb shell am force-stop dev.hotreload.sample >/dev/null 2>&1 || true
     (cd "$REPO_ROOT/samples/single-module" && ./gradlew -q :app:installDebug -Photreload.liveLiterals=true)
-    adb shell monkey -p dev.hotreload.sample -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+    adb shell am start -n dev.hotreload.sample/.MainActivity >/dev/null
     sleep 3
     INITIAL_PID=$(adb shell pidof dev.hotreload.sample || echo DEAD)
     [ "$INITIAL_PID" = "DEAD" ] && { echo "app failed to start (literals build)"; exit 1; }

@@ -158,8 +158,26 @@ jobs:
       - name: Check compatibility fixture and documentation contract
         run: bash e2e/check-compatibility-contract.sh
 
+      # Release helpers intentionally clear JAVA_HOME so their JVM selection cannot be
+      # inherited from a target project. On Linux, env.sh must then resolve the JDK
+      # installed above rather than its macOS Android Studio default.
+      - name: Verify portable CLI JDK resolution
+        run: |
+          unset JAVA_HOME
+          source scripts/env.sh
+          test -x "$JAVA_HOME/bin/java"
+          "$JAVA_HOME/bin/java" -version
+
       - name: Build CLI distribution with JDK 21
         run: ./gradlew :cli:installDist :cli:verifyZeroTouchDistribution
+
+      # The configured release smoke must consume published coordinates, not the
+      # checkout's composite build. Publish the candidate artifacts locally first.
+      - name: Publish 0.2.0 configured artifacts to Maven Local
+        run: |
+          ./gradlew -p gradle-plugin clean publishToMavenLocal
+          ./gradlew -p runtime-client clean publishToMavenLocal
+          scripts/verify-release-artifacts.sh 0.2.0 mavenLocal
 
       # The compatibility assertion itself is offline. Prime the two committed fixture
       # dependency graphs first so a cold GitHub-hosted runner does not mistake cache
@@ -182,12 +200,31 @@ jobs:
           # to the next. See e2e/run-zero-touch-compatibility-gate.sh for the full logic.
           script: bash e2e/run-zero-touch-compatibility-gate.sh
 
+      - name: Run configured packaged-artifact release smoke
+        uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          force-avd-creation: true
+          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none
+          disable-animations: true
+          script: JAVA17_HOME="$JAVA17_HOME" bash e2e/run-configured-artifact.sh > configured-artifact.log 2>&1; code=$?; cat configured-artifact.log; exit $code
+
       - name: Upload zero-touch compatibility log
         if: failure()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: zero-touch-compatibility-log
           path: zero-touch-compatibility.log
+          if-no-files-found: warn
+
+      - name: Upload configured packaged-artifact log
+        if: failure()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: configured-artifact-log
+          path: configured-artifact.log
           if-no-files-found: warn
 
       - name: Kill leaked CLI watchers

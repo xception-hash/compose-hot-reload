@@ -125,7 +125,7 @@ FEATURE_OWNER_CLASS="$FEATURE_CLASSES/dev/hotreload/capture/feature/CaptureCardK
 javap -c -p "$FEATURE_OWNER_CLASS" | LC_ALL=C grep -q 'InterfaceMethod.*LazyStaggeredGridScope.item\$default' || {
     echo "fixture is missing the raw interface default-helper call"; exit 1;
 }
-adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null
+adb shell am start -n "$PKG/.app.MainActivity" >/dev/null
 sleep 2
 INITIAL_PID=$(adb shell pidof "$PKG" || true)
 [ -n "$INITIAL_PID" ] || { echo "capture fixture did not launch"; exit 1; }

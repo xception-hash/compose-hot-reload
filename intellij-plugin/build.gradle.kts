@@ -65,10 +65,33 @@ intellijPlatform {
         id = "dev.hotreload.ide"
         name = "Compose Hot Reload"
         version = providers.gradleProperty("pluginVersion").get()
-        description = "Flutter-style hot reload for Jetpack Compose on Android, driven from the IDE. " +
-            "Spawns the hotreload CLI and shows live reload status in the status bar."
+        description = """
+            <h2>Compose Hot Reload for Android</h2>
+            <p>Apply hot reload to a running, debuggable Jetpack Compose app from Android Studio or
+            IntelliJ IDEA. The plugin includes the <code>hotreload</code> CLI, starts one watch
+            session for the selected device, and reports its state in the status bar.</p>
+            <h3>Get started</h3>
+            <ol>
+              <li>Open <b>Settings | Tools | Compose Hot Reload</b> and select your project.</li>
+              <li>Use <b>Refresh discovery</b> as a suggestion, then review and save an explicit
+                  configured profile with the app, variant, watched modules, target JDK, and device.</li>
+              <li>Run the matching <code>doctor</code> and <code>prepare</code> flow so the CLI owns
+                  the installed debug APK baseline.</li>
+              <li>Start from the status-bar widget or <b>Tools | Start Hot Reload</b>. Wait for
+                  <b>Ready</b>, save one Compose body edit, then use the same control to Stop.</li>
+            </ol>
+            <p>Configured Gradle-plugin integration with a reviewed profile is the stable path.
+            Zero-touch bootstrap and live literals are experimental. Use one API-30+ device and one
+            watcher at a time.</p>
+            <p><a href="https://github.com/xception-hash/compose-hot-reload">Quickstart and source</a>
+            | <a href="https://github.com/xception-hash/compose-hot-reload/blob/main/docs/ide-plugin-settings.md">IDE settings guide</a>
+            | <a href="https://github.com/xception-hash/compose-hot-reload/blob/main/docs/ai-project-setup.md">AI-assisted setup guide</a></p>
+        """.trimIndent()
         changeNotes = """
             <ul>
+              <li><b>0.2.0</b> — Defines configured Gradle-plugin integration with reviewed
+                  profiles as the stable onboarding path. Zero-touch and live literals remain
+                  experimental; public AI-assisted setup and recovery guidance is included.</li>
               <li><b>0.1.8</b> — Zero-touch now supports apps with a minSdk of 23. Hot reload
                   remains enabled only on API 30+ devices; older devices safely skip the runtime.</li>
               <li><b>0.1.7</b> — Zero-touch now supports projects with Gradle composite builds

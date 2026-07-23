@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-20) — 0.1.8 unified release shipped; Phase F validation complete
+## Status (2026-07-23) — 0.2.0 release PR #29 open; contract green, device CI running
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -65,9 +65,11 @@ canonical roadmap — update it here, link it elsewhere.
 | T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
 | T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
 | T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | ✅ DONE 2026-07-18 — concurrent stream-separating collector and deterministic 2 MiB real-child regression; the Settings-modal callback now returns to the active dialog. Plugin host gates pass, and large-target Refresh discovered 2 modules, Start reached Ready, and Stop returned Off. |
+| T41 | Narrow 0.2.0 release: stable configured-plugin/profile path, AI-assisted setup, aligned artifacts, and bounded packaged-artifact validation | large | 🚧 IN PROGRESS 2026-07-23 — all local host/device/clean-clone/production and local IDE-ZIP gates pass. [PR #29](https://github.com/xception-hash/compose-hot-reload/pull/29) is open and includes the `03904db` compatibility-contract correction; the required device workflow is running. Do not merge, tag, or publish until review and all required checks are green, then only with explicit maintainer authorization. |
+| T43 | Marketplace-plugin onboarding: verified Marketplace link plus clear install/configure/Start guidance in the listing and public docs | small | 🚧 IN PROGRESS 2026-07-23 — source docs/descriptor, local ZIP smoke, and verifier pass. The public listing remains 0.1.8. Its signed upload, listing inspection, Marketplace-artifact smoke, and final 0.2.0 wording are release actions after T41 PR #29 merges and artifacts resolve. |
 
-Core engineering and release validation are complete; other remaining items are optional
-housekeeping:
+The 0.1.8 release is complete. T41 is the active next release effort; optional housekeeping
+remains outside its fixed scope:
 - **Release provenance:** ✅ DONE 2026-07-20 — tag `0.1.8` targets merged PR #27 commit
   `6bca51b`; [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8)
   contains the signed IDE-plugin ZIP and CLI distribution; JitPack publishes and a clean consumer
