@@ -123,6 +123,19 @@ expansion project.
   project, not a new universal compatibility claim. No target versions or unrelated build logic
   were changed.
 
+### Current PR and CI state
+
+- PR #29, `T41: ship the narrow 0.2.0 configured release`, is open from
+  `release/0.2.0-narrow-support` at `03904db`. The complete branch diff and privacy scans passed
+  before push.
+- The first compatibility-contract CI run failed only because its static assertion still expected
+  the old Android launcher command. The runner had correctly moved to explicit
+  `--launch-activity .MainActivity` after Android 16 rejected the historical `monkey` fallback.
+  Commit `03904db` updates the assertion to require that exact safer command; local
+  compatibility/docs/version contracts pass and the corrected contract workflow is green.
+- The required e2e/compatibility device workflow is still running at this checkpoint. No merge,
+  tag, GitHub Release, JitPack trigger, or Marketplace submission has occurred.
+
 ### Findings and operational gotchas
 
 - Android 16 rejects the historical `adb shell monkey` launcher fallback. The sample suites use
@@ -140,8 +153,16 @@ expansion project.
 
 ### Remaining
 
-1. Obtain maintainer authorization for PR/push, merge, tagging, GitHub
-   Release, JitPack proof, Marketplace submission, and the post-publication Marketplace smoke.
+1. Wait for PR #29 review and every required CI check to pass. Investigate any failure from its
+   exact log; do not weaken a contract or skip a device gate.
+2. Obtain explicit maintainer authorization to merge PR #29 through GitHub. Never push to `main`.
+3. After merge, obtain separate explicit authorization to tag the merged commit `0.2.0` (no `v`),
+   create the GitHub Release, and attach the signed IDE ZIP and documented CLI artifact.
+4. Trigger/inspect JitPack, fetch real artifact URLs, and run
+   `scripts/verify-release-artifacts.sh 0.2.0 https://jitpack.io`.
+5. Obtain explicit maintainer authorization to sign and submit the IDE plugin. After Marketplace
+   approval, install the Marketplace artifact, complete the configured Start → Ready → edit → Stop
+   production smoke, then update release provenance and mark T41 DONE.
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-23) — 0.1.8 unified release shipped; T41 release validation in progress
+## Status (2026-07-23) — 0.2.0 release PR #29 open; contract green, device CI running
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -65,8 +65,8 @@ canonical roadmap — update it here, link it elsewhere.
 | T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
 | T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
 | T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | ✅ DONE 2026-07-18 — concurrent stream-separating collector and deterministic 2 MiB real-child regression; the Settings-modal callback now returns to the active dialog. Plugin host gates pass, and large-target Refresh discovered 2 modules, Start reached Ready, and Stop returned Off. |
-| T41 | Narrow 0.2.0 release: stable configured-plugin/profile path, AI-assisted setup, aligned artifacts, and bounded packaged-artifact validation | large | 🚧 IN PROGRESS 2026-07-23 — host/documentation/version milestone (`092a3e0`), packaged AGP-8/JDK-17 and AGP-9/JDK-21 device lanes (`ba3b5a2`), configured single-module suite, configured capture suite, multi-module suite 4/4 twice, clean-clone gate, and the maintainer production configured smoke all pass. T42 (`b890922`) fixed feature-module state loss caused by Compose debug-location hash noise. Remaining: explicit authorization for PR/push and all release actions. |
-| T43 | Marketplace-plugin onboarding: verified Marketplace link plus clear install/configure/Start guidance in the listing and public docs | small | 🚧 IN PROGRESS 2026-07-23 — verified public listing is plugin `32850`, version 0.1.8; source Marketplace description and public first-use documentation are ready. Upload, rendered-listing verification, Marketplace smoke, and the final 0.2.0 publication wording are deferred until T41's release gates and authorization complete. |
+| T41 | Narrow 0.2.0 release: stable configured-plugin/profile path, AI-assisted setup, aligned artifacts, and bounded packaged-artifact validation | large | 🚧 IN PROGRESS 2026-07-23 — all local host/device/clean-clone/production and local IDE-ZIP gates pass. [PR #29](https://github.com/xception-hash/compose-hot-reload/pull/29) is open at `03904db`; its corrected compatibility-contract check passes and the required device workflow is running. Do not merge, tag, or publish until review and all required checks are green, then only with explicit maintainer authorization. |
+| T43 | Marketplace-plugin onboarding: verified Marketplace link plus clear install/configure/Start guidance in the listing and public docs | small | 🚧 IN PROGRESS 2026-07-23 — source docs/descriptor, local ZIP smoke, and verifier pass. The public listing remains 0.1.8. Its signed upload, listing inspection, Marketplace-artifact smoke, and final 0.2.0 wording are release actions after T41 PR #29 merges and artifacts resolve. |
 
 The 0.1.8 release is complete. T41 is the active next release effort; optional housekeeping
 remains outside its fixed scope:
