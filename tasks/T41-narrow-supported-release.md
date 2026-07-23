@@ -1,6 +1,6 @@
 # T41: Ship 0.2.0 with a narrow supported path and AI-assisted setup
 
-Status: IN PROGRESS
+Status: DONE
 Assignee: agy for bounded documentation/packaging implementation; coordinator reviews every diff
 and runs all acceptance gates; maintainer alone authorizes and performs publication
 Recommended model: Gemini 3.1 Pro (Low)
@@ -137,9 +137,14 @@ expansion project.
   `dev.hotreload` group. The resolver now proves the repository-appropriate marker plus the direct
   plugin module and runtime AAR; both Maven Local and
   `scripts/verify-release-artifacts.sh 0.2.0 https://jitpack.io` pass.
-- **Marketplace:** signed update `1114979` for 0.2.0 was submitted through the secure workflow.
-  It remains pending approval; the public listing still serves 0.1.8. No Marketplace-artifact
-  install or production smoke has occurred.
+- **Marketplace:** signed update `1114979` for 0.2.0 was approved. The official 0.2.0 download
+  contains the reviewed descriptor and its plugin JAR matches the installed 0.2.0 bundle byte for
+  byte.
+- **Post-publication Marketplace smoke PASS:** an isolated checkout of a public multi-module
+  Compose target resolved 0.2.0 through JitPack, prepared and passed Doctor on one API-36 device,
+  reached watcher readiness, visibly applied and reverted a body edit with one stable app process,
+  then stopped. The temporary target checkout and profile were isolated from the maintainer's
+  working project.
 
 ### Findings and operational gotchas
 
@@ -156,13 +161,11 @@ expansion project.
   rather than the default `.MainActivity` shorthand. Pin that value before prepare so it is part of
   the matching profile baseline.
 
-### Remaining
+### Completion
 
-1. Wait for Marketplace update `1114979` to be approved and listed. Investigate a rejection from
-   its exact Marketplace result; do not submit a replacement blindly.
-2. Install the approved Marketplace artifact and complete the configured production
-   Start → Ready → visible body edit/revert → Stop smoke.
-3. Update final provenance and mark T41/T43 DONE only after that installed-artifact proof.
+All release-blocking actions are complete: the Marketplace update was approved, its official
+0.2.0 archive was verified, and the configured production smoke passed from the Marketplace-
+bundled CLI.
 
 ## Goal
 
@@ -584,3 +587,25 @@ When all gates pass, append an Outcome section containing:
 - final stable/experimental contract;
 - any newly documented best-effort limitations;
 - confirmation that target test projects and watcher/device state were restored cleanly.
+
+## Outcome — 2026-07-23
+
+- **Release provenance:** [PR #29](https://github.com/xception-hash/compose-hot-reload/pull/29)
+  merged as `7f3399b`; annotated tag `0.2.0`, the
+  [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0),
+  [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0), and the
+  [JetBrains Marketplace plugin](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload)
+  are published.
+- **Artifact proof:** the official Marketplace 0.2.0 download contained the reviewed descriptor;
+  its plugin JAR matched the installed 0.2.0 JAR byte for byte.
+- **Post-publication smoke:** the Marketplace bundle configured an isolated public multi-module
+  target with an explicit app/library profile, completed matching Prepare and Doctor, reached the
+  `watching …` readiness gate, visibly applied and reverted a body edit, preserved one app PID,
+  and stopped the watcher. It ran on API 36 with JBR 21; the target uses AGP 9.0.0, Kotlin 2.3.0,
+  and Compose BOM 2025.09.01, which remains best-effort production evidence outside the tested
+  lanes.
+- **Contract:** configured Gradle-plugin integration with reviewed explicit profiles remains the
+  stable path. Zero-touch and live literals remain experimental.
+- **Cleanup:** the smoke used a disposable checkout and temporary profile, leaving the maintainer's
+  working target unmodified. The watcher stopped cleanly after the reversal and the temporary app
+  was uninstalled from the emulator.

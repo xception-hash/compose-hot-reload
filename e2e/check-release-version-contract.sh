@@ -22,7 +22,7 @@ require_text gradle-plugin/src/main/kotlin/dev/hotreload/gradle/HotReloadPlugin.
 require_text intellij-plugin/gradle.properties "pluginVersion=$VERSION"
 require_text README.md "id(\"dev.hotreload\") version \"$VERSION\""
 require_text README.md 'useModule("com.github.xception-hash.compose-hot-reload:gradle-plugin:${requested.version}")'
-require_text README.md "**$VERSION — GitHub Release and JitPack published; Marketplace approval pending.**"
+require_text README.md "**$VERSION — published on GitHub, JitPack, and JetBrains Marketplace.**"
 require_text scripts/verify-release-artifacts.sh "usage: \$0 <version> <mavenLocal|repository-url>"
 require_text scripts/verify-release-artifacts.sh 'MARKER_GROUP="dev.hotreload"'
 require_text scripts/verify-release-artifacts.sh 'MARKER_GROUP="com.github.xception-hash.compose-hot-reload"'

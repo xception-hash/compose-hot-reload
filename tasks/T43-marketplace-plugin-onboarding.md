@@ -1,6 +1,6 @@
 # T43: Document the published JetBrains Marketplace plugin
 
-Status: IN PROGRESS
+Status: DONE
 Assignee: unassigned
 Recommended model: lower-cost GPT/Flash-tier model for documentation and metadata; coordinator reviews and verifies
 
@@ -21,16 +21,13 @@ where to get help without needing a source checkout.
 
 ## Progress — 2026-07-23
 
-- Verified the published plugin through JetBrains Marketplace's public API: plugin XML ID
-  `dev.hotreload.ide`, Marketplace ID `32850`, direct page
-  `https://plugins.jetbrains.com/plugin/32850-compose-hot-reload`, and currently published
-  version 0.1.8. Its current description is only the former two-sentence summary.
-- Started the source/documentation half. The 0.2.0 plugin build carries a full Marketplace-safe
-  onboarding description, while public repository documentation accurately distinguishes the
-  published GitHub/JitPack release from the Marketplace listing that still serves 0.1.8.
-- Signed Marketplace update `1114979` for 0.2.0 is submitted and pending approval. After approval,
-  verify the rendered description and replace the remaining temporary Marketplace-version wording
-  with the actual published version.
+- Before the 0.2.0 update, public API inspection verified plugin XML ID `dev.hotreload.ide`,
+  Marketplace ID `32850`, direct page
+  `https://plugins.jetbrains.com/plugin/32850-compose-hot-reload`, and the former 0.1.8 listing.
+- The 0.2.0 plugin build carries the Marketplace-safe onboarding description now published with
+  the matching GitHub/JitPack release.
+- Marketplace update `1114979` for 0.2.0 was approved. The official Marketplace download reports
+  the reviewed 0.2.0 descriptor and is byte-identical to the installed plugin JAR.
 - Local ZIP smoke PASS: rebuilt `hotreload-intellij-plugin-0.2.0.zip`, inspected its generated
   descriptor/description, and installed it into Android Studio. Against a matching prepared,
   configured multi-module target, the bundled CLI reached Ready, completed a visible app-body edit
@@ -41,21 +38,25 @@ where to get help without needing a source checkout.
   wider module list. For this smoke, pinning the exact prepared module mappings in the UI resolved
   the mismatch without `--ignore-fingerprint`. This is a follow-up UX concern; it does not replace
   the required Marketplace-artifact smoke.
+- **Marketplace-artifact smoke PASS:** an isolated public multi-module target resolved the 0.2.0
+  JitPack Gradle plugin, prepared and passed Doctor with the Marketplace-bundled CLI, reached
+  watcher readiness, visibly applied and reverted a Compose body edit on one stable app process,
+  and stopped cleanly. The target clone and temporary profile were isolated from the maintainer's
+  working project.
 
 ## Release dependency
 
-T43's Marketplace upload was deferred until T41's clean-clone, production configured smoke, PR
-merge, release tag/GitHub Release, and artifact validation completed. Those release actions are
-now verified; the signed 0.2.0 update is pending Marketplace approval. Do not substitute a local
-ZIP result for the required Marketplace-artifact smoke.
+T43's Marketplace upload followed T41's clean-clone, production configured smoke, PR merge,
+release tag/GitHub Release, and artifact validation. The approved 0.2.0 Marketplace archive and
+the required Marketplace-artifact smoke are verified; the local ZIP result is not used as a
+substitute for that evidence.
 
 During the authorized 0.2.0 release, complete T43 in this order:
 
-1. Build, sign, and upload the reviewed 0.2.0 plugin ZIP containing this description. **Done:**
-   update `1114979` is pending approval.
-2. Wait for Marketplace approval and verify the rendered listing and direct install page.
-3. Install the Marketplace artifact, run the configured Start → Ready → Stop smoke, and record its
-   result.
+1. Build, sign, and upload the reviewed 0.2.0 plugin ZIP containing this description. **Done.**
+2. Marketplace approved update `1114979`; the public 0.2.0 archive and descriptor were verified.
+3. Install the Marketplace artifact and run the configured Start → Ready → visible edit/revert →
+   Stop smoke. **Done.**
 4. Replace every temporary “published 0.1.8” / “0.2.0 under validation” statement in the README,
    IDE-plugin README, IDE settings guide, project configuration guide, Marketplace change notes,
    task progress, and roadmap with the actual 0.2.0 publication/provenance information.
@@ -111,7 +112,7 @@ During the authorized 0.2.0 release, complete T43 in this order:
       required IDE onboarding concepts, so a future release cannot silently remove them.
 - [x] `cd intellij-plugin && unset JAVA_HOME && source ../scripts/env.sh && ./gradlew test buildPlugin verifyPlugin`
       passes against the pinned IDE set, with no new internal-API findings.
-- [ ] Before any authorized upload: inspect the built ZIP's `META-INF/plugin.xml` and confirm its
+- [x] Before any authorized upload: inspect the built ZIP's `META-INF/plugin.xml` and confirm its
       description and version match the reviewed release material. After approval: install the
       actual Marketplace artifact and complete the documented minimal configured Start → Ready →
       Stop smoke.

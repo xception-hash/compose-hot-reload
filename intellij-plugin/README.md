@@ -9,11 +9,10 @@ It targets IntelliJ IDEA Community but uses only core platform APIs, so it also 
 Android Studio.
 
 Install the currently published plugin from [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload)
-through **Settings | Plugins**. The published Marketplace version is 0.1.8 and includes the CLI;
-you do not need a repository clone or a separate CLI installation. Version 0.2.0 has been
-submitted for approval. Until it is approved, install the signed 0.2.0 ZIP from the
-[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) when you
-need the matching release artifact. During local development, install the built ZIP from disk.
+through **Settings | Plugins**. Marketplace version 0.2.0 includes the CLI; you do not need a
+repository clone or a separate CLI installation. The signed 0.2.0 ZIP from the
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) is an
+alternative for installation from disk. During local development, install the built ZIP from disk.
 
 The stable IDE workflow is an explicit configured Gradle-plugin profile: use **Refresh discovery**
 as a suggestion, review the app/module/variant closure, save or select a profile, then run a

@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-23) — 0.2.0 GitHub/JitPack release verified; Marketplace approval pending
+## Status (2026-07-23) — 0.2.0 published and Marketplace smoke verified
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -65,15 +65,15 @@ canonical roadmap — update it here, link it elsewhere.
 | T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
 | T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
 | T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | ✅ DONE 2026-07-18 — concurrent stream-separating collector and deterministic 2 MiB real-child regression; the Settings-modal callback now returns to the active dialog. Plugin host gates pass, and large-target Refresh discovered 2 modules, Start reached Ready, and Stop returned Off. |
-| T41 | Narrow 0.2.0 release: stable configured-plugin/profile path, AI-assisted setup, aligned artifacts, and bounded packaged-artifact validation | large | 🚧 IN PROGRESS 2026-07-23 — [PR #29](https://github.com/xception-hash/compose-hot-reload/pull/29) merged as `7f3399b`; tag/GitHub Release/JitPack consumer resolution are verified. Marketplace update 0.2.0 is submitted and awaiting approval; its installed-artifact production smoke remains release-blocking. |
-| T43 | Marketplace-plugin onboarding: verified Marketplace link plus clear install/configure/Start guidance in the listing and public docs | small | 🚧 IN PROGRESS 2026-07-23 — source docs/descriptor, local ZIP smoke, and verifier pass; signed 0.2.0 update is submitted. The public listing remains 0.1.8 until approval, listing inspection, Marketplace-artifact smoke, and final publication wording complete. |
+| T41 | Narrow 0.2.0 release: stable configured-plugin/profile path, AI-assisted setup, aligned artifacts, and bounded packaged-artifact validation | large | ✅ DONE 2026-07-23 — [PR #29](https://github.com/xception-hash/compose-hot-reload/pull/29) merged as `7f3399b`; tag, GitHub Release, JitPack resolution, approved Marketplace 0.2.0 archive, and its configured production smoke are verified. |
+| T43 | Marketplace-plugin onboarding: verified Marketplace link plus clear install/configure/Start guidance in the listing and public docs | small | ✅ DONE 2026-07-23 — Marketplace 0.2.0 publishes the reviewed onboarding description; the public archive, configured Start → Ready → visible edit/revert → Stop smoke, and final repository wording are verified. |
 
-The 0.1.8 release is complete. T41 is waiting on Marketplace approval; optional housekeeping
-remains outside its fixed scope:
-- **0.2.0 release provenance (partial):** tag `0.2.0` targets merged PR #29 commit `7f3399b`;
+The 0.2.0 release is complete. Optional housekeeping remains outside its fixed scope:
+- **0.2.0 release provenance:** tag `0.2.0` targets merged PR #29 commit `7f3399b`;
   [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) contains
   the signed IDE ZIP and CLI distribution; JitPack resolves the real marker, plugin module, and
-  runtime AAR. Marketplace update 0.2.0 is submitted but not yet approved, so this is not DONE.
+  runtime AAR. The approved [Marketplace plugin](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload)
+  was downloaded and completed the configured production smoke.
 - **Release provenance:** ✅ DONE 2026-07-20 — tag `0.1.8` targets merged PR #27 commit
   `6bca51b`; [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.1.8)
   contains the signed IDE-plugin ZIP and CLI distribution; JitPack publishes and a clean consumer

@@ -8,11 +8,10 @@ command **Start** will run — use it to confirm what your settings produce.
 ## Install from Marketplace
 
 Install [Compose Hot Reload](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) from
-**Settings | Plugins**. The currently published Marketplace version is 0.1.8; it includes the CLI,
-so leave **CLI launcher** blank unless you are deliberately testing a local build. Version 0.2.0
-has been submitted for approval; until the Marketplace listing updates, install its signed ZIP from
-the [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) for
-the matching release artifact.
+**Settings | Plugins**. Marketplace version 0.2.0 includes the CLI, so leave **CLI launcher**
+blank unless you are deliberately testing a local build. The signed ZIP on the
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) remains
+an alternative installation method for the matching release artifact.
 
 ## TL;DR — the minimum
 
@@ -34,10 +33,10 @@ stay editable — if discovery fails or your build is unusual, type values by ha
 opening a project, and again whenever you add/rename a module or variant. It never modifies your
 build.
 
-The signed 0.2.0 GitHub-release ZIP includes the former large-build `Discovering…` deadlock fix by
-draining inspection stdout and stderr concurrently. It also returns the result in the active
-Settings dialog's modality. The Marketplace update is pending approval; the terminal
-`cli inspect --project <dir> --json` command remains a useful diagnostic for unusual builds.
+Marketplace 0.2.0 includes the former large-build `Discovering…` deadlock fix by draining
+inspection stdout and stderr concurrently. It also returns the result in the active Settings
+dialog's modality. The terminal `cli inspect --project <dir> --json` command remains a useful
+diagnostic for unusual builds.
 
 ## Fields
 

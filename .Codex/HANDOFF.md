@@ -3,8 +3,8 @@
 ## Goal
 
 Ship the 0.2.0 release with configured Gradle-plugin integration and reviewed profiles as the only
-stable path. T41 is complete only after PR merge, GitHub Release, real JitPack resolution,
-Marketplace approval, and Marketplace-artifact smoke.
+stable path. T41 is complete after PR merge, GitHub Release, real JitPack resolution, Marketplace
+approval, and Marketplace-artifact smoke.
 
 ## Checkable done-condition
 
@@ -18,26 +18,32 @@ URLs and evidence.
 
 ### Verified
 
-- Branch `release/0.2.0-narrow-support` is pushed and includes `03904db`; PR #29 is open against
-  `main`.
+- PR #29 was merged as `7f3399b46ede24241c394e95fe289980126f6f16` with all required
+  checks green. Annotated tag `0.2.0` points at that exact commit and is pushed.
+- GitHub Release `0.2.0` is public at
+  https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0. It targets
+  `7f3399b` and contains the verified `cli.zip` plus the signed
+  `hotreload-intellij-plugin-0.2.0-signed.zip`; their published SHA-256 digests match
+  the locally built exact-commit assets.
+- The exact-commit CLI distribution and IDE plugin passed local build/test/verifier
+  gates before signing. The IDE ZIP descriptor reports plugin `dev.hotreload.ide`,
+  version `0.2.0`, and the reviewed Marketplace description.
+- JitPack built tag `0.2.0` from `7f3399b` successfully. The corrected consumer gate
+  `scripts/verify-release-artifacts.sh 0.2.0 https://jitpack.io` passes and proves
+  JitPack's real marker POM, Gradle plugin module, and runtime AAR resolve.
+- Marketplace submission completed from the verified signed ZIP. Update `1114979`
+  is version `0.2.0` and is approved.
+- The official Marketplace 0.2.0 archive was downloaded and its plugin JAR byte-matches the
+  installed 0.2.0 plugin bundle.
+- The Marketplace-bundled CLI completed a configured production smoke in an isolated public
+  multi-module target checkout: Prepare and Doctor passed, the watcher reached `watching …`, a
+  visible body edit and reversal hot-swapped on one app PID, and Stop ended the watcher.
 - Local host/documentation/version/Maven Local artifact gates, configured single/multi/capture,
   packaged AGP-8/JDK-17 and AGP-9/JDK-21 lanes, clean-clone onboarding, and production-target
   configured smoke all passed.
 - Local 0.2.0 IDE ZIP passed test/build/verifier and Android Studio Start → Ready → visible
   edit/revert → Stop smoke. This is not Marketplace-artifact evidence.
-- The corrected compatibility-contract workflow for `03904db` is green. At this checkpoint the
-  required e2e/compatibility device workflow remains in progress.
-
-### Believed / wait to observe
-
-- PR #29 will become mergeable only when every required CI check completes green and review is
-  satisfactory. Re-check with `gh pr checks 29 --watch=false`; do not infer success from the
-  contract check alone.
-
-### No external release state changed
-
-- No merge, `0.2.0` tag, GitHub Release, JitPack build, Marketplace upload, or Marketplace smoke
-  has occurred.
+- The corrected compatibility-contract workflow for `03904db` is green.
 
 ## Findings and gotchas
 
@@ -54,13 +60,9 @@ URLs and evidence.
 
 ## Next steps
 
-1. Wait for and inspect PR #29 checks. If a check fails, read its full log and reproduce the exact
-   contract before editing.
-2. Ask the maintainer for explicit approval to merge only after all required checks are green.
-3. After merge, ask separately before each external mutation: tag/GitHub Release; JitPack trigger;
-   Marketplace signing/submission.
-4. After publication, verify real JitPack resolution, Marketplace listing, and Marketplace-artifact
-   smoke. Update T41/T43/roadmap provenance and add the T41 Completion record.
+DONE: T41 and T43 are complete. Evidence: approved Marketplace 0.2.0 archive, byte-matched
+installed bundle, and configured production Prepare → Doctor → Ready → visible edit/revert → Stop
+smoke. Optional T36 notification cosmetics and PatchServer timeout re-arming remain separate work.
 
 ## Key records
 

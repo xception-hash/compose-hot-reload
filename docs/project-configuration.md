@@ -22,9 +22,9 @@ page covers non-default project layouts and the compatibility coverage maintaine
 [0.2.0](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) is published on
 GitHub, with its CLI distribution and signed IDE ZIP. Its configured-mode Gradle plugin and runtime
 AAR resolve from [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0). The
-[Marketplace listing](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) remains on
-0.1.8 while the submitted 0.2.0 update awaits approval; until then, use the signed GitHub ZIP for
-the matching IDE artifact.
+[Marketplace listing](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) carries the
+matching 0.2.0 IDE artifact, which bundles the CLI. The signed GitHub ZIP remains an alternative
+for installation from disk.
 
 ## Configure once, then start
 
