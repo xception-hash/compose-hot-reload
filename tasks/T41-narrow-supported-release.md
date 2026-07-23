@@ -1,6 +1,6 @@
 # T41: Ship 0.2.0 with a narrow supported path and AI-assisted setup
 
-Status: IN PROGRESS
+Status: DONE
 Assignee: agy for bounded documentation/packaging implementation; coordinator reviews every diff
 and runs all acceptance gates; maintainer alone authorizes and performs publication
 Recommended model: Gemini 3.1 Pro (Low)
@@ -123,18 +123,28 @@ expansion project.
   project, not a new universal compatibility claim. No target versions or unrelated build logic
   were changed.
 
-### Current PR and CI state
+### Release actions — 2026-07-23
 
-- PR #29, `T41: ship the narrow 0.2.0 configured release`, is open from
-  `release/0.2.0-narrow-support` and includes `03904db`. The complete branch diff and privacy
-  scans passed before push.
-- The first compatibility-contract CI run failed only because its static assertion still expected
-  the old Android launcher command. The runner had correctly moved to explicit
-  `--launch-activity .MainActivity` after Android 16 rejected the historical `monkey` fallback.
-  Commit `03904db` updates the assertion to require that exact safer command; local
-  compatibility/docs/version contracts pass and the corrected contract workflow is green.
-- The required e2e/compatibility device workflow is still running at this checkpoint. No merge,
-  tag, GitHub Release, JitPack trigger, or Marketplace submission has occurred.
+- **Merged release commit:** PR #29 merged as `7f3399b46ede24241c394e95fe289980126f6f16` after
+  contract, e2e, repro, and compatibility checks succeeded. Annotated tag `0.2.0` targets that
+  exact commit.
+- **GitHub Release:** [0.2.0](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0)
+  is public with `cli.zip` and `hotreload-intellij-plugin-0.2.0-signed.zip`. Its published SHA-256
+  digests match the exact-commit locally built assets.
+- **JitPack:** its build completed from `7f3399b` and listed the real marker POM, plugin module,
+  and runtime AAR. JitPack republishes the marker under
+  `com.github.xception-hash.compose-hot-reload`, while Maven Local retains its conventional
+  `dev.hotreload` group. The resolver now proves the repository-appropriate marker plus the direct
+  plugin module and runtime AAR; both Maven Local and
+  `scripts/verify-release-artifacts.sh 0.2.0 https://jitpack.io` pass.
+- **Marketplace:** signed update `1114979` for 0.2.0 was approved. The official 0.2.0 download
+  contains the reviewed descriptor and its plugin JAR matches the installed 0.2.0 bundle byte for
+  byte.
+- **Post-publication Marketplace smoke PASS:** an isolated checkout of a public multi-module
+  Compose target resolved 0.2.0 through JitPack, prepared and passed Doctor on one API-36 device,
+  reached watcher readiness, visibly applied and reverted a body edit with one stable app process,
+  then stopped. The temporary target checkout and profile were isolated from the maintainer's
+  working project.
 
 ### Findings and operational gotchas
 
@@ -151,18 +161,11 @@ expansion project.
   rather than the default `.MainActivity` shorthand. Pin that value before prepare so it is part of
   the matching profile baseline.
 
-### Remaining
+### Completion
 
-1. Wait for PR #29 review and every required CI check to pass. Investigate any failure from its
-   exact log; do not weaken a contract or skip a device gate.
-2. Obtain explicit maintainer authorization to merge PR #29 through GitHub. Never push to `main`.
-3. After merge, obtain separate explicit authorization to tag the merged commit `0.2.0` (no `v`),
-   create the GitHub Release, and attach the signed IDE ZIP and documented CLI artifact.
-4. Trigger/inspect JitPack, fetch real artifact URLs, and run
-   `scripts/verify-release-artifacts.sh 0.2.0 https://jitpack.io`.
-5. Obtain explicit maintainer authorization to sign and submit the IDE plugin. After Marketplace
-   approval, install the Marketplace artifact, complete the configured Start → Ready → edit → Stop
-   production smoke, then update release provenance and mark T41 DONE.
+All release-blocking actions are complete: the Marketplace update was approved, its official
+0.2.0 archive was verified, and the configured production smoke passed from the Marketplace-
+bundled CLI.
 
 ## Goal
 
@@ -584,3 +587,25 @@ When all gates pass, append an Outcome section containing:
 - final stable/experimental contract;
 - any newly documented best-effort limitations;
 - confirmation that target test projects and watcher/device state were restored cleanly.
+
+## Outcome — 2026-07-23
+
+- **Release provenance:** [PR #29](https://github.com/xception-hash/compose-hot-reload/pull/29)
+  merged as `7f3399b`; annotated tag `0.2.0`, the
+  [GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0),
+  [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0), and the
+  [JetBrains Marketplace plugin](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload)
+  are published.
+- **Artifact proof:** the official Marketplace 0.2.0 download contained the reviewed descriptor;
+  its plugin JAR matched the installed 0.2.0 JAR byte for byte.
+- **Post-publication smoke:** the Marketplace bundle configured an isolated public multi-module
+  target with an explicit app/library profile, completed matching Prepare and Doctor, reached the
+  `watching …` readiness gate, visibly applied and reverted a body edit, preserved one app PID,
+  and stopped the watcher. It ran on API 36 with JBR 21; the target uses AGP 9.0.0, Kotlin 2.3.0,
+  and Compose BOM 2025.09.01, which remains best-effort production evidence outside the tested
+  lanes.
+- **Contract:** configured Gradle-plugin integration with reviewed explicit profiles remains the
+  stable path. Zero-touch and live literals remain experimental.
+- **Cleanup:** the smoke used a disposable checkout and temporary profile, leaving the maintainer's
+  working target unmodified. The watcher stopped cleanly after the reversal and the temporary app
+  was uninstalled from the emulator.

@@ -1,10 +1,20 @@
 # Compose Hot Reload for Android
 
-## 1. What it is
-A Flutter-style hot reload for Jetpack Compose on real Android devices and emulators. Save a `.kt` file and see your UI update in ~1s with app state preserved—with **zero modifications to existing application code**. V1 is driven via a CLI daemon.
+Save a Jetpack Compose file and see the UI update on a real Android device or emulator in about a
+second, while the app process and most state stay alive. Compose Hot Reload requires Gradle
+configuration, but no application-source or manual runtime-initialization changes.
 
-### How it works
-It leverages a custom JVMTI agent attached to debuggable apps to perform class redefinition in place (including ART's structural redefinition for added methods/fields), and injects brand-new classes into the app's own classloader via ART's `add_to_dex_class_loader` JVMTI extension. When code changes, the engine compiles and dexes just the diff, pushes the patched dex bytes to the device, and uses reflection into Compose internals (`invalidateGroupsWithKey`) to trigger targeted recomposition.
+> [!IMPORTANT]
+> The stable setup is **configured mode**: apply the `dev.hotreload` Gradle plugin, review and save
+> an explicit CLI profile, run matching `prepare` and `doctor`, then start one watcher. Zero-touch
+> setup and live literals are experimental.
+
+## 1. What it does
+
+Compose Hot Reload uses a custom JVMTI agent in debuggable apps to redefine classes in place,
+inject new classes, and ask Compose to recompose the affected groups. The CLI compiles and dexes
+only the changed code, then sends the patch to the selected device. Use it directly from a terminal
+or let the IntelliJ/Android Studio plugin run the watcher.
 
 ### Feature matrix
 
@@ -19,12 +29,21 @@ It leverages a custom JVMTI agent attached to debuggable apps to perform class r
 | Member removal / class hierarchy change | AOSP LiveEdit bytecode interpreter on-device (same process, state preserved) | ~1.5 s |
 | `@Composable` signature change (params added/removed) | Interpreter + AOSP lambda proxies: regenerated restart lambda ships as support class, proxy-constructed on device | ~1–4 s |
 
-## 2. Supported path and compatibility tiers
+## 2. Choose a setup path
 
-**The stable, release-blocking path is configured mode:** explicitly apply the `dev.hotreload`
-Gradle plugin, review and save an explicit CLI profile, run matching `prepare` and `doctor`, then
-use `watch` (or `start`). The CLI owns the installed APK baseline; do not describe an ordinary
-Android Studio `installDebug` APK plus a profile as the supported path.
+The integration mode and the interface are separate choices:
+
+| Choice | Recommended use | What you must do |
+|---|---|---|
+| **Configured mode + CLI** | Stable setup, automation, and AI agents | Apply the Gradle plugin, create an explicit configured profile, then use CLI-owned `prepare`, `doctor`, and `watch`/`start`. |
+| **Configured mode + IDE plugin** | Stable daily use from Android Studio or IntelliJ | Complete the same one-time configured CLI setup, then let the IDE plugin run `doctor` and `watch`. |
+| **Zero-touch mode** | Experimental evaluation when target build-file edits are temporarily impossible | Use matching `--zero-touch` preparation and watching. Do not mix it with configured mode. |
+| **AI-assisted setup** | Existing or unusual Gradle projects | Follow the [AI project setup and recovery guide](docs/ai-project-setup.md). |
+
+The CLI owns the installed APK baseline. An ordinary Android Studio `installDebug` followed by a
+profile is not the stable path.
+
+### Capability tiers
 
 | Tier | What it means |
 |---|---|
@@ -35,32 +54,61 @@ Android Studio `installDebug` APK plus a profile as the supported path.
 | **Diagnostic escape hatch** | `--ignore-fingerprint` can permit an APK/class baseline mismatch and Compose state corruption. Use matching `prepare` instead. |
 | **Machine-readable** | `inspect --json` is schema-v1 output for tools and agents; it is not another integration mode. |
 
-## 3. Requirements and tested lanes
+## 3. Requirements
 
-- **Device:** exactly one selected API 30+ emulator or physical device via adb.
-- **Build:** a debuggable variant only. The runtime is deliberately absent from non-debuggable variants.
-- **Tested lane A:** AGP 8.12.x, standalone Kotlin 2.3.x, and a full JDK 17.
-- **Tested lane B:** AGP 9.2.x, built-in Kotlin/Kotlin 2.4.x, and JDK/JBR 21.
+- One API-30+ emulator or physical device selected in adb state `device`.
+- A debuggable Android variant. The runtime is deliberately absent from non-debuggable variants.
+- Android SDK build-tools 36.0.0, including `d8`; `dexdump` is needed for bitmap invalidation.
+- JBR 21 for the CLI/source and IDE workflows.
+- A full target-project JDK, selected independently with `--project-java-home` when needed.
+
+### Tested lanes
+
+| Android build | Kotlin | Target Gradle JDK |
+|---|---|---|
+| AGP 8.12.x | Standalone Kotlin 2.3.x | Full JDK 17 |
+| AGP 9.2.x | Built-in Kotlin / Kotlin 2.4.x | JDK or JBR 21 |
 
 Azul, Temurin, and other conforming full JDKs are acceptable when their major version matches the
 target lane and both `bin/java` and `bin/javac` exist. The CLI/source and IDE workflows use Android
 Studio's JBR 21; `--project-java-home` independently selects the target project's Gradle JDK.
 Kotlin DSL is tested. Groovy scripts, multiple flavor dimensions, included-build application
-modules, multiple devices, and unlisted toolchains are best effort rather than rejected.
+modules, multiple devices, and unlisted toolchains are best effort rather than rejected. See
+[Project configuration and compatibility](docs/project-configuration.md) for non-default layouts.
 
 ## 4. Stable Quickstart: configured Gradle plugin
 
-Clone this repository, connect one API-30+ device, and keep the CLI on Android Studio's JBR:
+The stable setup has four stages:
+
+1. Get a CLI launcher.
+2. Apply the Gradle plugin to the target project.
+3. Review discovery and save an explicit profile.
+4. Use that profile for `prepare`, `doctor`, and `watch`.
+
+### 4.1 Get a CLI launcher
+
+The examples below use `hotreload` as shorthand for your chosen launcher.
+
+| Installation | Launcher |
+|---|---|
+| [GitHub Release 0.2.0](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) | Unzip `cli.zip`; run `cli/bin/cli` on macOS/Linux or `cli\bin\cli.bat` on Windows. |
+| Source checkout | Run `./gradlew -q :cli:run --args="<command and options>"`. |
+| Marketplace IDE plugin | Includes a private bundled CLI for IDE actions, but does not add a global `hotreload` command. Use the release CLI for one-time `configure`/`prepare`, then the IDE plugin for daily watching. |
+
+For a source checkout on macOS:
 
 ```bash
 git clone https://github.com/xception-hash/compose-hot-reload.git
 cd compose-hot-reload
 unset JAVA_HOME
 source scripts/env.sh
+./gradlew -q :cli:run --args="--help"
 ```
 
-Add JitPack/plugin resolution to the target's root `settings.gradle.kts`, without removing its
-existing repositories or plugins:
+### 4.2 Integrate the target project
+
+Add JitPack and plugin resolution to the target root's `settings.gradle.kts`. Preserve its existing
+repositories and plugins:
 
 ```kotlin
 pluginManagement {
@@ -88,7 +136,8 @@ dependencyResolutionManagement {
 }
 ```
 
-Apply the plugin to the Android app and every watched Android-library or Kotlin-JVM module:
+Apply the plugin in the Android app and every Android-library or Kotlin/JVM module whose code you
+want to watch:
 
 ```kotlin
 plugins {
@@ -99,59 +148,98 @@ plugins {
 The plugin adds the matching runtime-client AAR to debuggable builds; do not add that AAR directly
 or to a release/non-debuggable configuration.
 
-Use discovery only as a setup suggestion, review it, and save an explicit profile. This example
-pins an app, a watched library, and the target project's JDK:
+### 4.3 Create and review a profile
+
+Start with discovery, then treat its result as a suggestion:
 
 ```bash
-./gradlew -q :cli:run --args="configure \
+hotreload configure --project /path/to/your/project --save-as my-app
+hotreload config show --profile my-app
+```
+
+#### How profiles work
+
+- `configure --save-as <name>` resolves the project and writes a schema-versioned TOML profile
+  outside the target repository. By default it lives at
+  `~/.config/compose-hot-reload/projects/<name>.toml`; `XDG_CONFIG_HOME` or
+  `HOTRELOAD_CONFIG_DIR` can relocate the configuration root.
+- A profile records the absolute project path, application ID, variant, ordered module-directory
+  mappings, per-module variants, Gradle arguments, target-project JDK, device, launch activity,
+  live-literals choice, and configured versus zero-touch integration mode. When discovery
+  metadata is available, `configure` also writes a `<name>.discovery.json` sidecar used to recover
+  module metadata on later commands.
+- `--profile <name>` supplies defaults to `inspect`, `prepare`, `doctor`, `watch`, and `start`.
+  Explicit scalar or repeatable command-line options replace the corresponding profile values for
+  that invocation. `--literals` and `--zero-touch` are enable-only flags: they can enable a mode
+  for an invocation but cannot disable a mode already stored in the profile.
+- `config show --profile <name>` prints the stored TOML and an expanded `watch` command. Running
+  `configure` again with the same `--save-as` name replaces the profile and refreshes its discovery
+  sidecar. Prefer separate named profiles for different variants or experimental modes rather
+  than repeatedly overriding APK-shaping values.
+
+Verify the application ID, app module, variant, watched-module closure, physical directories,
+target JDK, device, and launch activity. If discovery is wrong, run `configure` again with explicit
+options. For example:
+
+```bash
+hotreload configure \
   --project /path/to/your/project \
   --save-as my-app \
   --app-id com.example.app.debug \
+  --app-module :app \
   --module :app=applications/main,:feature=features/feature \
   --variant debug \
   --project-java-home /path/to/jdk-17 \
-  --device emulator-5554"
-./gradlew -q :cli:run --args="config show --profile my-app"
-./gradlew -q :cli:run --args="prepare --profile my-app"
-./gradlew -q :cli:run --args="doctor --profile my-app"
-./gradlew -q :cli:run --args="watch --profile my-app" > /tmp/hotreload.log 2>&1 &
+  --device emulator-5554
 ```
 
-Wait for `watching …` in the log before editing. Make one reversible composable-body edit; a
-successful save prints `changed:` followed by `hot-swapped:`, `interpreted:`, or
-`literal-pushed:`. Stop the watcher when finished. `start --profile my-app` is the equivalent
-one-command path when preparation is needed.
+Profiles do not store `--sdk` or `--build-tools`; if you override either, repeat it identically for
+`prepare`, `doctor`, and `watch`/`start`. See
+[Project configuration and compatibility](docs/project-configuration.md) for flavors, module
+mappings, Gradle arguments, and other non-default layouts.
 
-For a target whose discovery is correct, begin with `configure --project … --save-as …`, inspect
-`config show`, then add explicit flags for the app ID, module closure, variants, physical module
-directories, JDK, device, or activity before preparing. Profiles live outside the target repository
-at `~/.config/compose-hot-reload/projects/<name>.toml`; explicit flags override profile values.
+### 4.4 Prepare, verify, and watch
 
-### Experimental zero-touch and live literals
+Use the same profile for every command:
 
-`--zero-touch` instruments a selected debuggable build through a bundled init script without
-editing project inputs. It is experimental: init scripts/composite builds, reflective AGP/Kotlin
-lifecycle handling, exact prepare/watch parity, and included-build boundaries are known risk areas.
-Use matching `prepare --zero-touch` and `watch --zero-touch`; do not use it as the normal
-recovery for configured mode.
+```bash
+hotreload prepare --profile my-app
+hotreload doctor --profile my-app
+hotreload watch --profile my-app
+```
 
-`--literals` is also experimental. The same profile and `--literals` choice must build, install,
-and watch the APK. A mismatch can corrupt Compose's slot table. If a fingerprint, protocol, or
-integration mismatch occurs, stop, run matching `prepare`, relaunch, and restart; do **not** lead
-with `--ignore-fingerprint`.
+Wait for `watching …` before editing. A successful save prints `changed:` followed by one of
+`hot-swapped:`, `interpreted:`, `resource-swapped:`, or `literal-pushed:`. Press Ctrl-C to stop the
+watcher.
 
-### Use an AI agent
+After the profile has been reviewed, `hotreload start --profile my-app` is the shorter daily
+command: it runs Doctor, prepares when necessary, and then watches.
 
-Read the public [AI project setup and recovery guide](docs/ai-project-setup.md) and give an agent
-the copy/paste prompt there. [`AGENTS.md`](AGENTS.md) supplies the machine-readable watcher
-readiness and failure contract.
+### 4.5 Use the IDE plugin after setup
 
-### CLI reference
+Install [Compose Hot Reload from JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload),
+then open **Settings › Tools › Compose Hot Reload**:
+
+1. Complete sections 4.2–4.4 once with the release CLI. The IDE settings page cannot create a CLI
+   profile or run `prepare` in version 0.2.0.
+2. Enter the profile name, or pin the same explicit app/module/variant/JDK/device values shown by
+   `config show`. Explicit IDE fields override profile values.
+3. Click **Refresh discovery**, review the suggestions, and click **Apply**.
+4. Click the status-bar widget or **Tools › Start Hot Reload**. Start runs a Doctor preflight and
+   then `watch`; it does not install or prepare the APK.
+5. Wait for **Ready** before saving and click **Stop** when finished.
+
+See the [IDE settings guide](docs/ide-plugin-settings.md) for every field and the
+[IDE plugin README](intellij-plugin/README.md) for contributor instructions.
+
+## 5. CLI reference
 
 `help` and `--help` print this reference. `watch`, `prepare`, `start`, `doctor`, `inspect`, and
 `configure` require a project directly or through a profile; `config show` requires a profile.
 `prepare` and `watch` must use the same APK-shaping inputs (integration mode, modules, variant,
 JDK, Gradle arguments, and literals choice); `start` maintains that parity for one profile.
+
+### Commands
 
 | Command or option | Applies to | Tier | Changes / when needed | Common failure and safe recovery |
 |---|---|---|---|---|
@@ -163,29 +251,40 @@ JDK, Gradle arguments, and literals choice); `start` maintains that parity for o
 | `inspect` | CLI | Setup helper | Discovers app/module/variant suggestions. | Wrong result: provide explicit app/module/variant values. |
 | `configure` | CLI | Setup helper | Reviews discovery and writes a named explicit profile. | Wrong closure: correct flags and run configure again. |
 | `config show` | CLI | Stable | Prints saved profile and expanded watch command. | Missing/stale profile: configure it again; never infer hidden defaults. |
+
+### Stable configuration
+
+| Command or option | Applies to | Tier | Changes / when needed | Common failure and safe recovery |
+|---|---|---|---|---|
 | `--project <dir>` | all except `config show` | Stable | Target Gradle root. | Wrong root/no classes: select the wrapper/settings root. |
-| `--profile <name>` | watch/prepare/start/doctor/config show | Stable | Loads a reviewed saved profile; explicit flags override it. | Parity mismatch: use one profile or rerun matching prepare. |
+| `--profile <name>` | inspect/doctor/prepare/start/watch/config show | Stable | Loads a reviewed saved profile; explicit flags override it. | Parity mismatch: use one profile or rerun matching prepare. |
 | `--save-as <name>` | configure | Stable | Names the saved profile. | Invalid/missing name: use letters, digits, `.`, `_`, `-`, with no `..`. |
-| `--app-id <id>` | config-resolving commands | Stable | Installed debuggable application ID. | Socket/app not found: verify selected variant's application ID and prepare again. |
-| `--app-module <path>` | config-resolving commands | Stable | Declares which watched module is the Android app. | Non-AGP module: correct the app module or module ordering. |
-| `--app-module-dir <dir>` | config-resolving commands | Stable | Physical directory override for the app module. | Metadata/classes absent: use the actual module directory. |
-| `--module <names>` | config-resolving commands | Stable | Ordered watched modules; first is app unless overridden; supports `:path=dir`. | Missing library edits: include the reachable owner and run matching prepare. |
-| `--module-variant <path=variant>` | config-resolving commands | Stable | Per-module variant override. | Variant task missing: inspect Gradle's real variant and correct mapping. |
-| `--variant <name>` | config-resolving commands | Advanced | Global debuggable build variant. | Release/non-debuggable build: select a debuggable variant. |
-| `--project-java-home <dir>` | config-resolving commands | Stable | Full JDK for target Gradle, separate from CLI JBR. | Java/Gradle error: verify both `bin/java` and `bin/javac`, then correct path. |
-| `--device <serial>` | config-resolving commands | Stable | Selects one adb device. | Zero/multiple devices: connect one or pass the correct serial. |
-| `--launch-activity <name>` | prepare/start | Stable | Activity to launch if app is stopped. | Launch fails: supply the target launcher activity and prepare again. |
-| `--include-module <path>` | discovery commands | Setup helper | Restricts discovered closure while retaining the app. | Library/resource unseen: remove restriction or include its owner, then prepare. |
-| `--exclude-module <path>` | discovery commands | Setup helper | Drops a discovered module. | Needed edits disappear: remove exclusion and prepare. |
+| `--app-id <id>` | configure/doctor/prepare/start/watch | Stable | Installed debuggable application ID. | Socket/app not found: verify selected variant's application ID and prepare again. |
+| `--app-module <path>` | configure/doctor/prepare/start/watch | Stable | Declares which watched module is the Android app. | Non-AGP module: correct the app module or module ordering. |
+| `--app-module-dir <dir>` | configure/doctor/prepare/start/watch | Stable | Physical directory override for the app module. | Metadata/classes absent: use the actual module directory. |
+| `--module <names>` | configure/doctor/prepare/start/watch | Stable | Ordered watched modules; first is app unless overridden; supports `:path=dir`. | Missing library edits: include the reachable owner and run matching prepare. |
+| `--module-variant <path=variant>` | configure/doctor/prepare/start/watch | Stable | Per-module variant override. | Variant task missing: inspect Gradle's real variant and correct mapping. |
+| `--project-java-home <dir>` | inspect/configure/doctor/prepare/start/watch | Stable | Full JDK for target Gradle, separate from CLI JBR. | Java/Gradle error: verify both `bin/java` and `bin/javac`, then correct path. |
+| `--device <serial>` | configure/doctor/prepare/start/watch | Stable | Selects one adb device. | Zero/multiple devices: connect one or pass the correct serial. |
+| `--launch-activity <name>` | configure/doctor/prepare/start/watch | Stable | Activity to launch if app is stopped. | Launch fails: supply the target launcher activity and prepare again. |
+
+### Discovery, advanced, and experimental options
+
+| Command or option | Applies to | Tier | Changes / when needed | Common failure and safe recovery |
+|---|---|---|---|---|
+| `--include-module <path>` | configure/doctor/prepare/start/watch | Setup helper | Restricts discovered closure while retaining the app; requires implicit discovery. | Library/resource unseen: remove restriction or include its owner, then prepare. |
+| `--exclude-module <path>` | configure/doctor/prepare/start/watch | Setup helper | Drops a discovered module; requires implicit discovery. | Needed edits disappear: remove exclusion and prepare. |
 | `--json` | inspect | Machine-readable | Emits schema-v1 discovery JSON for tools. | Parse/schema issue: consume only documented JSON, or use human inspect output. |
-| `--gradle-arg <arg>` | config-resolving commands | Advanced | Repeats an exact target Gradle argument. | APK differs: pin it in the profile and run matching prepare/watch. |
-| `--sdk <dir>` | config-resolving commands | Advanced | Android SDK root. | Missing d8/dexdump: correct SDK path/build-tools installation. |
-| `--build-tools <v>` | config-resolving commands | Advanced | Chooses Android build-tools used for d8. | Tool absent: install/select that version; do not silently use another. |
+| `--variant <name>` | configure/doctor/prepare/start/watch | Advanced | Global debuggable build variant. | Release/non-debuggable build: select a debuggable variant. |
+| `--gradle-arg <arg>` | inspect/configure/doctor/prepare/start/watch | Advanced | Repeats an exact target Gradle argument. | APK differs: pin it in the profile and run matching prepare/watch. |
+| `--sdk <dir>` | doctor/prepare/start/watch | Advanced | Android SDK root; not stored in profiles. | Missing d8/dexdump: correct the path and repeat it across session commands. |
+| `--build-tools <v>` | doctor/prepare/start/watch | Advanced | Chooses installed build-tools; not stored in profiles. | Tool absent: install/select that version and repeat it across session commands. |
 | `--zero-touch` | inspect/configure/doctor/prepare/watch/start | Experimental | Bundled init-script integration without target edits. | Composite/lifecycle/parity issue: return to configured mode or use matching zero-touch prepare/watch. |
 | `--literals` | configure/prepare/watch/start/doctor | Experimental | Enables live-literal compiler/runtime path. | Slot-table/fingerprint mismatch: stop and prepare/watch with the same literals choice. |
 | `--ignore-fingerprint` | watch/start | Diagnostic escape hatch | Skips a known APK fingerprint mismatch for diagnosis only. | Possible state corruption: stop, matching prepare, relaunch, restart; do not keep using the override. |
 
-## 5. What hot-reloads today
+## 6. What hot-reloads today
+
 | Case | Mechanics | Time |
 |---|---|---|
 | structural add (new `@Composable` + call site, one save) | 1 injected (new lambda class), 6 redefined structural, 7 groups invalidated | ~3.2s |
@@ -209,9 +308,9 @@ interpreter too, and if any class in a save routes to the interpreter the whole 
 compiled callers with interpreter-only methods would `NoSuchMethodError`). For a composable
 signature change, the regenerated restart lambda's changed constructor is handled by AOSP's
 generated lambda `Proxies`: the lambda travels as a *support class* and is proxy-constructed on
-device (`docs/phase6-interpreter-research.md` §7). **Remaining rebuild cases:** `<clinit>` changes,
-constructor changes on non-lambda classes, field add/remove/type-change, Compose group-key
-renumbering, and suspend-lambda constructor changes.
+device (see [Phase 6 research](docs/phase6-interpreter-research.md), section 7).
+**Remaining rebuild cases:** `<clinit>` changes, constructor changes on non-lambda classes, field
+add/remove/type-change, Compose group-key renumbering, and suspend-lambda constructor changes.
 
 Resource edits are **values-only** in v1: changing the *value* of an existing string/color
 hot-reloads. Adding, removing, or renaming a resource is detected and reported as
@@ -236,117 +335,167 @@ engine at all — no "changed"/"ignored" line prints, the save is silently invis
 (verified live, T30 item 4).
 
 ### State-reset semantics
-The state-preservation semantics match Android Studio's Live Edit: `invalidateGroupsWithKey` discards `remember` AND `rememberSaveable` state in the **edited function's subtree** because the runtime must re-run initializers that may capture new code. Editing a leaf preserves everything else; editing a parent resets its children's counters to 0.
+
+The state-preservation semantics match Android Studio's Live Edit:
+`invalidateGroupsWithKey` discards `remember` and `rememberSaveable` state in the **edited
+function's subtree** because the runtime must re-run initializers that may capture new code.
+Editing a leaf preserves everything else; editing a parent resets its children's counters.
 
 ### Broken-edit behavior
-If you make a broken edit (like throwing an exception in a composable body), the recomposition error is detected and reported with the source location. The UI will keep the last-good frame running. Once you fix the code and save, the full UI recovers in-place without needing a reinstall.
 
-## 6. Limitations
+If an edit does not compile, fix it and save again; the watcher remains alive. If edited Compose
+code throws during recomposition, the watcher reports the source location and the UI keeps its
+last-good frame. Fixing and saving recovers in place without a reinstall.
+
+## 7. Limitations
 
 - **`<clinit>` / static-initializer edits** cause a full rebuild (ART cannot re-run class initializers).
 - **Constructor edits** on non-lambda classes cause a full rebuild (existing object instances cannot be re-constructed).
-- **Compose group-key renumbering** (reordering composable calls) causes a full rebuild (the invalidation key map becomes stale).
-- **Field removal / field type change** causes a full rebuild (ART's structural redefinition can only add fields, not remove or retype them).
-- **`ImageBitmap.imageResource()` call sites are not covered** by bitmap drawable hot reload — unlike `painterResource`'s bitmap branch, they have no recomposition group of their own for the engine to target, so edits there stay stale until a full reinstall.
-- **Nine-patch (`.9.png`) drawables are not supported** — this is a Compose framework limitation, not a hot-reload gap: `painterResource()`'s bitmap branch casts the resolved drawable to `BitmapDrawable`, but aapt2 compiles `.9.png` to `NinePatchDrawable`, which throws `ClassCastException` even on a plain install (T30 item 4).
-- **Font resources (`res/font/*.ttf`/`.otf`) are not hot-reloaded** — `SourceWatcher`'s extension filter doesn't include font extensions, so font edits never reach the engine; use a full reinstall (T30 item 4).
-- **Debuggable builds only** — ART's JVMTI agent attachment and class redefinition require `android:debuggable="true"`.
-- **Minimum API 30** (Android 11) — structural class redefinition (`RedefineClassesStructurally`) is only available on API 30+.
-- **Compiled-callee exceptions skip interpreted try/catch** — when a class is interpreted and calls a compiled method that throws, the exception propagates through the native call boundary and cannot be caught by the interpreter's try/catch handler (see `docs/phase6-interpreter-research.md` §5).
-- **`@Composable` signature changes hot-reload via lambda proxies** but may reset the enclosing subtree's `remember` state: because the signature change necessarily edits the caller, the parent composable is invalidated and its subtree's `remember`/`rememberSaveable` state resets (parent-invalidate semantics, not a rebuild fallback).
-- **Suspend-lambda constructor changes** cause a full rebuild (suspend continuations have structural constraints the proxy path cannot satisfy).
+- **Compose group-key renumbering** (reordering composable calls) causes a full rebuild because the
+  invalidation key map becomes stale.
+- **Field removal / field type change** causes a full rebuild; ART's structural redefinition can
+  only add fields.
+- **`ImageBitmap.imageResource()` call sites are not covered** by bitmap drawable hot reload.
+  Unlike `painterResource`, they have no recomposition group for the engine to target, so edits
+  remain stale until a full reinstall.
+- **Nine-patch (`.9.png`) drawables are not supported.** Compose's `painterResource()` bitmap path
+  expects `BitmapDrawable`, but aapt2 produces `NinePatchDrawable`, causing a `ClassCastException`
+  even on a plain install.
+- **Font resources (`res/font/*.ttf`/`.otf`) are not hot-reloaded.** The watcher does not include
+  font extensions; use a full reinstall.
+- **Debuggable builds only.** ART's JVMTI agent attachment and class redefinition require
+  `android:debuggable="true"`.
+- **Minimum API 30** (Android 11). Structural class redefinition is unavailable below API 30.
+- **Compiled-callee exceptions skip interpreted try/catch.** When interpreted code calls a
+  compiled method that throws, the exception crosses a native boundary and cannot be caught by the
+  interpreter's try/catch handler. See the
+  [interpreter limitations](docs/phase6-interpreter-research.md), section 5.
+- **`@Composable` signature changes may reset the enclosing subtree's state.** A signature change
+  also changes and invalidates its caller, so that parent's `remember` and `rememberSaveable`
+  subtree state resets.
+- **Suspend-lambda constructor changes** cause a full rebuild because suspend continuations have
+  structural constraints the proxy path cannot satisfy.
 
-## 7. IDE plugin
+## 8. Experimental zero-touch and live literals
 
-An IntelliJ IDEA / Android Studio plugin is available for driving hot reload from the IDE.
+### Zero-touch mode
 
-**What it does:**
-- Spawns the `hotreload` CLI (`hotreload watch …`) and reflects its state in the status bar.
-- Status-bar widget shows: `Hot Reload: off / starting… / ready (Nms) / reloading… / error(n) / rebuild needed`. Click it to Start/Stop.
-- **Tools ▸ Start/Stop Hot Reload** menu toggle.
-- **Settings ▸ Tools ▸ Compose Hot Reload** for structured project/profile settings. Use **Refresh
-  discovery** to populate editable app-module, debuggable-variant, application-id, and watched-module
-  choices; the page previews the resolved `hotreload watch` command. Target JDK, device, SDK,
-  literals, zero-touch, repeatable Gradle args, and one-token-per-line advanced overrides are also
-  persisted per project.
-- Balloons on failure: reload error (with first compiler/recompose error) and rebuild-required notice.
+`--zero-touch` instruments a selected debuggable build through a bundled init script without
+editing target project files. Init-script/composite-build behavior, reflective AGP/Kotlin
+lifecycle handling, exact preparation/watch parity, and included-build boundaries make it an
+experimental evaluation path rather than normal setup or recovery.
 
-**Install from JetBrains Marketplace:**
-Install [Compose Hot Reload](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) from
-**Settings ▸ Plugins**. The Marketplace plugin includes its CLI, so no repository clone or separate
-CLI installation is required. Then open **Settings ▸ Tools ▸ Compose Hot Reload**, use **Refresh
-discovery** as a suggestion, review and save an explicit configured profile, run matching
-**prepare**/**Doctor**, and use the status-bar widget or **Tools ▸ Start Hot Reload**. Wait for
-**Ready** before the first save; use **Stop** when finished. Use one selected API-30+ device and one
-watcher at a time.
+Create a separate profile so modes cannot be mixed accidentally:
 
-The currently published Marketplace listing is version 0.1.8. Its description will be expanded in
-the next maintainer-authorized plugin update; the source documentation below already describes the
-stable configured workflow.
-
-**Install from disk:**
-Build the plugin zip:
 ```bash
-cd intellij-plugin && ./gradlew buildPlugin
+hotreload configure \
+  --zero-touch \
+  --project /path/to/your/project \
+  --save-as my-app-zero-touch
+hotreload config show --profile my-app-zero-touch
+hotreload start --profile my-app-zero-touch
 ```
-This produces `build/distributions/hotreload-intellij-plugin-0.2.0.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
 
-The next unified release is 0.2.0: install the currently published IDE plugin from the
-[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload), download a
-signed ZIP or CLI distribution from the
-[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0), and
-resolve the Gradle plugin/runtime AAR from [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0).
+### Live-literals fast path
 
-See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
+`--literals` can push a single edited string, number, boolean, or character in under 100 ms. It is
+off by default because the Compose compiler instrumentation adds debug-build overhead.
 
-## 8. Repo layout
+Enable it in a **separate profile** and use that profile for the entire APK lifecycle:
+
+```bash
+hotreload configure \
+  --project /path/to/your/project \
+  --literals \
+  --save-as my-app-literals
+hotreload prepare --profile my-app-literals
+hotreload doctor --profile my-app-literals
+hotreload watch --profile my-app-literals
+```
+
+The same profile and `--literals` choice must build, install, and watch the APK. A mismatch can
+corrupt Compose's slot table. Stop and run matching `prepare` if the fingerprint, protocol,
+integration mode, or literals choice differs; do not lead with `--ignore-fingerprint`.
+
+Only a single contiguous literal edit takes the fast path. Template strings, `const val`,
+structural edits, and multi-file saves automatically use the normal compile-and-swap path.
+
+## 9. Troubleshooting
+
+Start with the exact profile that prepared the app:
+
+```bash
+hotreload doctor --profile my-app
+```
+
+| Symptom | Safe recovery |
+|---|---|
+| `fingerprint: MISMATCH` | Stop, run `prepare` with the same profile, relaunch, and restart the watcher. |
+| Protocol or runtime integration mismatch | Re-run matching `prepare`; do not mix configured and zero-touch APKs. |
+| No `watching …` line | Fix Doctor/prepare failures. Do not edit during the initial build or start a second watcher. |
+| `compile failed — fix and save again` | Fix the source and save; keep the watcher running. |
+| `recomposition failed:` | Fix the runtime error and save; the last-good frame remains on screen. |
+| `cannot hot-swap:` or `run a full install …` | Stop and run matching `prepare`, then restart the watcher. |
+| No `changed:` line after a save | Confirm the file belongs to a watched module and uses a supported extension. Fonts require a full reinstall. |
+| App does not launch after prepare | Pin the real launcher component with `--launch-activity`, reconfigure, and prepare again. |
+| Zero or multiple devices | Connect one device or pin `--device <serial>` in the profile. |
+
+The swapper normally selects the active APK through AGP's `output-metadata.json`, logged as
+`apk: … (output-metadata.json)`. If metadata is absent or unreadable, it warns that newest-file
+fallback may pick a stale variant. Pin the correct variant and remove stale ambiguity before
+preparing again.
+
+For machine-checkable watcher signals and exact failure text, see [`AGENTS.md`](AGENTS.md).
+
+## 10. Use an AI agent
+
+Read the [AI project setup and recovery guide](docs/ai-project-setup.md) and give your agent the
+copy/paste prompt there. It tells the agent to inventory the target before editing, preserve the
+project's JDK, Gradle structure/DSL, versions, variants, module layout, and mixed Java/Kotlin
+sources, create a reviewed configured profile, and make only the smallest required integration
+diff. It is intentionally a project-adaptation workflow rather than a catalog of hard-coded setup
+recipes. [`AGENTS.md`](AGENTS.md) supplies the non-interactive readiness and log contract.
+
+## 11. IDE plugin
+
+The [JetBrains Marketplace plugin](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload)
+bundles the watcher CLI and provides:
+
+- A status-bar Start/Stop widget with Off, Starting, Ready, Reloading, Error, and Rebuild-needed
+  states.
+- **Tools › Start/Stop Hot Reload**.
+- **Settings › Tools › Compose Hot Reload** with discovery, profile/configuration fields, target
+  JDK, device, SDK, experimental options, Gradle arguments, and the resolved command.
+- Failure and rebuild-needed notifications.
+
+The IDE plugin does not prepare or install the app. Complete the stable CLI setup first, then use
+the IDE for daily watching. See [IDE plugin settings](docs/ide-plugin-settings.md) for end-user
+instructions and the [plugin README](intellij-plugin/README.md) for build/development details. The
+signed 0.2.0 ZIP from the GitHub Release is also available for installation from disk.
+
+## 12. Repository layout
+
 - `protocol/` — Shared message definitions and binary protocol.
-- `runtime-client/` — Android AAR injected into apps: startup init, JVMTI agent `.so`, socket server, and Compose bridge shims.
-- `engine/` — JVM library: orchestrator for watcher, Gradle compiler, class diffing, D8 dexing, and client protocol.
-- `cli/` — Thin CLI wrapper around the engine.
-- `bootstrap/` — Java 17, AGP-free Gradle bootstrap used by explicit zero-touch mode.
-- `gradle-plugin/` — Gradle plugin that wires the runtime-client into debug builds and sets compiler flags.
-- `intellij-plugin/` — IntelliJ IDEA / Android Studio plugin (status bar widget, CLI spawner).
-- `samples/` — Example apps (single-module and multi-module).
-- `e2e/` — Scripted emulator end-to-end tests.
-- `docs/` — Project plan, findings, and architectural notes.
-- `tasks/` — Task specifications and progress tracking.
+- `runtime-client/` — Android AAR with startup initialization, JVMTI agent, socket server, and
+  Compose bridge.
+- `engine/` — Watcher orchestration, Gradle compilation, class diffing, D8, and device protocol.
+- `cli/` — Thin command-line interface over the engine.
+- `bootstrap/` — AGP-free bootstrap used by experimental zero-touch mode.
+- `gradle-plugin/` — Debug runtime wiring and required compiler flags.
+- `intellij-plugin/` — IntelliJ/Android Studio status and CLI launcher.
+- `samples/` — Single-module and multi-module example apps.
+- `e2e/` — Scripted emulator end-to-end tests and documentation contracts.
+- `docs/` — Setup, compatibility, design, and implementation notes.
+- `tasks/` — Decision-complete task specifications and outcomes.
 
-## 9. Status
-**0.2.0 — next unified release (in validation).** Its GitHub Release and JitPack artifacts will
-align the CLI, Gradle plugin, runtime client, and IntelliJ/Android Studio plugin after authorized
-publication. Until then, the published Marketplace plugin is
-[0.1.8](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload). The stable contract is
-explicit configured-plugin integration and matching profiles; zero-touch and live literals remain
-experimental.
+## 13. Status
 
-**0.1.6 — security hardening + project-agnostic release.** Adds socket peer-uid authorization and debuggable-only enforcement in the runtime client, project-agnostic configuration with Gradle discovery and IDE profiles, zero-touch `hotreload start`, and IDE plugin 0.1.6 (pre-Start environment preflight with surfaced fatal errors, Android SDK auto-discovery, bundled CLI).
+**0.2.0 — published on GitHub, JitPack, and JetBrains Marketplace.** The
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) provides
+the CLI and signed IDE ZIP. The Gradle plugin and runtime AAR resolve from
+[JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0), and the matching IDE plugin
+is on [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload).
 
-**0.1.0 — first public release.** Hot reload supports single-module and multi-module applications, resource edits, the AOSP LiveEdit interpreter for structural changes, and composable signature changes via lambda proxies. See the [Project Plan](docs/PLAN.md) for future milestones.
-
-## 10. Troubleshooting
-If hot reload fails to connect or experience issues on device, run `hotreload doctor` to verify your environment, SDK toolchain, device status, project configuration, and runtime handshake:
-```bash
-./gradlew -q :cli:run --args="doctor --project $PWD/samples/single-module --app-id dev.hotreload.sample"
-```
-
-* **APK Selection**: The swapper locates the active APK using AGP's `output-metadata.json` (logged as `apk: … (output-metadata.json)`). If the metadata is absent or unreadable, it logs a warning (`apk: no matching output-metadata.json — newest-APK fallback may pick a stale variant`) and falls back to recursive newest-mtime search, which can pick a stale variant APK.
-
-* **`fingerprint: MISMATCH`**: `watch`/`start` refuses because the APK installed by `hotreload prepare` was built for a different configuration than the one you are now watching. The canonical cause is a live-literals mismatch — the APK was `prepare`d with `--literals` but you are running `watch` without it, or vice versa; swapping in that state silently corrupts the Compose slot table. The message names every differing field. Fix it by re-running matching `hotreload prepare`, relaunching, and restarting. `--ignore-fingerprint` is diagnostic only, not the normal recovery.
-
-## 11. Live-literals fast path (experimental, opt-in)
-Editing only a constant inside a composable — a plain string, number, boolean, or char — can skip Gradle + d8 + class redefinition entirely and push the new value straight into Compose's live-literals mechanism, for a sub-100ms update. It is **off by default** because the Compose compiler's live-literals instrumentation adds overhead to debug builds.
-
-In configured mode, build the app with the property and watch with `--literals`:
-```bash
-./gradlew :app:installDebug -Photreload.liveLiterals=true
-./gradlew -q :cli:run --args="watch --literals --project $PWD/samples/single-module --app-id dev.hotreload.sample"
-```
-In zero-touch mode the CLI supplies the matching compiler option itself, so use the same mode and
-flag for preparation and watching (or let `start` do both):
-
-```bash
-hotreload start --zero-touch --literals --project /path/to/your/project
-```
-
-`watch --literals` fails fast if the installed app wasn't built with the property. Only single, contiguous literal edits take the fast path; anything else (template strings, `const val`, structural edits, multi-file saves) falls back to the normal compile-and-swap path automatically.
+The stable contract remains explicit configured-plugin integration with matching profiles.
+Zero-touch and live literals remain experimental. See the [Project Plan](docs/PLAN.md) for release
+evidence and future work.

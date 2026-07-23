@@ -21,8 +21,12 @@ require_text runtime-client/lib/build.gradle.kts "version = \"$VERSION\""
 require_text gradle-plugin/src/main/kotlin/dev/hotreload/gradle/HotReloadPlugin.kt "runtime-client:$VERSION"
 require_text intellij-plugin/gradle.properties "pluginVersion=$VERSION"
 require_text README.md "id(\"dev.hotreload\") version \"$VERSION\""
-require_text README.md "**$VERSION — next unified release (in validation).**"
+require_text README.md 'useModule("com.github.xception-hash.compose-hot-reload:gradle-plugin:${requested.version}")'
+require_text README.md "**$VERSION — published on GitHub, JitPack, and JetBrains Marketplace.**"
 require_text scripts/verify-release-artifacts.sh "usage: \$0 <version> <mavenLocal|repository-url>"
+require_text scripts/verify-release-artifacts.sh 'MARKER_GROUP="dev.hotreload"'
+require_text scripts/verify-release-artifacts.sh 'MARKER_GROUP="com.github.xception-hash.compose-hot-reload"'
+require_text scripts/verify-release-artifacts.sh 'dev.hotreload.gradle.plugin:$VERSION'
 
 if rg -n '0\\.1\\.8.*current unified release|current unified release.*0\\.1\\.8' \
     README.md docs/project-configuration.md intellij-plugin/README.md docs/ide-plugin-settings.md; then

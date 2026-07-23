@@ -1,20 +1,18 @@
 # Phase 1 — MVP vertical slice: status & operational notes
 
+> [!NOTE]
+> This is a historical implementation record from July 2026, not a setup guide. The commands and
+> manual runtime wiring used during Phase 1 predate profiles, CLI-owned preparation, and the
+> released Gradle/IDE plugins. Use the root
+> [Stable Quickstart](../README.md#4-stable-quickstart-configured-gradle-plugin) or the
+> [AI setup guide](ai-project-setup.md) for current onboarding.
+
 **Exit gate MET 2026-07-04** on `samples/single-module` (API 36 arm64 emulator):
 composable body edit → visible on device in **~1.1s** (1160ms / 1117ms over two runs),
 same PID, `remember` + `rememberSaveable` preserved, via `hotreload watch`.
 
-## Running it
-```bash
-source scripts/env.sh   # JAVA_HOME etc.
-./gradlew -q :cli:run --args="watch --project $PWD/samples/single-module --app-id dev.hotreload.sample"
-# then edit a composable body in the sample and save
-```
-Prereqs: emulator up (`scripts/emulator-up.sh`), sample installed & running
-(`(cd samples/single-module && ./gradlew :app:installDebug)`, launch it). Device state
-checks: `PKG=dev.hotreload.sample scripts/ui-state.sh`, `scripts/taps.sh`.
-
 ## Architecture as built
+
 - `protocol/` — dependency-free framed binary protocol; sources compiled into BOTH the
   JVM engine and the AAR (srcDir sharing, no publishing).
 - `runtime-client/` — standalone Android build (composite-included by samples) producing
@@ -26,6 +24,7 @@ checks: `PKG=dev.hotreload.sample scripts/ui-state.sh`, `scripts/taps.sh`.
   `invalidateGroupsWithKey`. `cli/` — arg parsing only.
 
 ## Post-Phase-0 findings (gotchas discovered in Phase 1)
+
 - **TCP bind = EPERM without the INTERNET permission**, even loopback. Transport is an
   abstract-namespace Unix socket `hotreload-<applicationId>` + `adb forward tcp:0
   localabstract:<name>` (AOSP deployer approach). Never force a manifest permission.
@@ -37,7 +36,8 @@ checks: `PKG=dev.hotreload.sample scripts/ui-state.sh`, `scripts/taps.sh`.
 - Classifier includes structural/inject verdicts (proven paths), so Phase 2's breadth is
   mostly orchestration + e2e coverage, not new mechanisms.
 
-## Remaining Phase 1 items (Opus/agy-friendly)
+## Items that remained at the time
+
 - `gradle-plugin` (T05, not yet specced): inject runtime-client into debug builds, set
   compiler flags, so users don't hand-edit their app like the sample does.
 - README quickstart; e2e harness (`e2e/`) automating the gate test above.

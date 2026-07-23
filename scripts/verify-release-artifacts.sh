@@ -13,15 +13,21 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# The plugin artifact targets JDK 21. Keep this scratch consumer on the repository's JBR,
-# independent from a caller's target-project JDK selection.
+# Keep this scratch consumer on the repository's JBR, independent from a caller's
+# target-project JDK selection.
 unset JAVA_HOME
 source "$REPO_ROOT/scripts/env.sh"
 
 if [ "$REPOSITORY" = "mavenLocal" ]; then
     REPOSITORY_BLOCK="mavenLocal()"
+    # java-gradle-plugin publishes its conventional marker locally.
+    MARKER_GROUP="dev.hotreload"
 else
     REPOSITORY_BLOCK="maven { url = uri(\"$REPOSITORY\") }"
+    # JitPack exposes every module from this multi-module repository under its
+    # repository group. The README's resolutionStrategy maps the plugin ID to the
+    # direct module; this probe additionally proves JitPack's real marker POM.
+    MARKER_GROUP="com.github.xception-hash.compose-hot-reload"
 fi
 
 cat > "$TMP_DIR/settings.gradle.kts" <<EOF
@@ -59,7 +65,7 @@ configurations.create("runtimeProbe")
 configurations.create("markerProbe")
 dependencies {
     add("runtimeProbe", "com.github.xception-hash.compose-hot-reload:runtime-client:$VERSION")
-    add("markerProbe", "dev.hotreload:dev.hotreload.gradle.plugin:$VERSION")
+    add("markerProbe", "$MARKER_GROUP:dev.hotreload.gradle.plugin:$VERSION")
 }
 
 tasks.register("verifyReleaseArtifacts") {
@@ -72,7 +78,7 @@ tasks.register("verifyReleaseArtifacts") {
         check(marker.isNotEmpty()) {
             "plugin marker was not resolved: \$marker"
         }
-        println("RESOLVE_OK: plugin marker/module and runtime-client:$VERSION")
+        println("RESOLVE_OK: plugin marker ($MARKER_GROUP), module, and runtime-client:$VERSION")
     }
 }
 EOF
