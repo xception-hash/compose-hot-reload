@@ -97,6 +97,20 @@ expansion project.
   reset its remembered state. `FactsExtractor` now excludes only those debug operands from method
   hashes; focused host coverage still detects real rendered-literal changes.
 
+### Completed clean-clone documentation gate
+
+- Added `e2e/run-clean-clone-configured.sh`. It creates a fresh local clone without `.agents`,
+  copies the public single-module sample into an independent target repository, removes its local
+  composites, and applies the documented configured-plugin setup against the already verified
+  Maven Local 0.2.0 publications. Maven Local is the necessary pre-publication stand-in for the
+  README's JitPack repository; the separate artifact resolver proves the same coordinates.
+- PASS: the isolated clone built its own CLI distribution and the target pinned an explicit profile,
+  completed matching prepare then Doctor, reached watcher readiness, preserved its PID across a
+  visible body edit and reversal, stopped the watcher, and restored every tracked target source.
+- The gate exposed and corrected the public ordering error: Doctor validates an installed runtime,
+  so the stable flow is `prepare`, then `doctor`, then `watch`. README, AI, configuration, IDE,
+  and root agent guidance now agree.
+
 ### Findings and operational gotchas
 
 - Android 16 rejects the historical `adb shell monkey` launcher fallback. The sample suites use
@@ -106,14 +120,14 @@ expansion project.
   suite cleanup stop it; do not infer success from a surviving process or elapsed time.
 - The API-36 device gate used Android Studio JBR 21 and build-tools 36.0.0. Clearing a pre-set
   target JDK before sourcing `scripts/env.sh` is necessary for this checkout's CLI toolchain.
+- Before publication, the clean-clone gate resolves the locally published release artifacts rather
+  than JitPack; public JitPack resolution remains a required post-publication check.
 
 ### Remaining
 
-1. Complete the clean-clone documentation gate, including a clean target copy and exact restoration
-   evidence.
-2. Complete the maintainer production-target configured smoke: Doctor, matching prepare/start,
+1. Complete the maintainer production-target configured smoke: matching prepare/Doctor/start,
    app and watched-library body edit/reversal, stable PID, Stop, and source/device restoration.
-3. After those local gates pass, obtain maintainer authorization for PR/push, merge, tagging, GitHub
+2. After those local gates pass, obtain maintainer authorization for PR/push, merge, tagging, GitHub
    Release, JitPack proof, Marketplace submission, and the post-publication Marketplace smoke.
 
 ## Goal

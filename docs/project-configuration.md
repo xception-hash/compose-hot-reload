@@ -5,7 +5,7 @@ capabilities:
 
 - **Stable configured mode**: the target project explicitly applies the `dev.hotreload` Gradle
   plugin to the app and every watched code module. Review discovery, pin an explicit profile, then
-  use matching `doctor`, `prepare`, and `watch`/ `start`.
+  use matching `prepare`, `doctor`, and `watch`/ `start`.
 - **Experimental zero-touch mode**: the CLI supplies its bundled bootstrap plugin and runtime AAR for
   each Gradle invocation. It does not change the target project's settings, build files,
   sources, or local properties, but init-script/composite/lifecycle and exact parity issues make

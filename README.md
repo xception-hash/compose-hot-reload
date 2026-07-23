@@ -22,8 +22,8 @@ It leverages a custom JVMTI agent attached to debuggable apps to perform class r
 ## 2. Supported path and compatibility tiers
 
 **The stable, release-blocking path is configured mode:** explicitly apply the `dev.hotreload`
-Gradle plugin, review and save an explicit CLI profile, run `doctor`, then use matching `prepare`
-and `watch` (or `start`). The CLI owns the installed APK baseline; do not describe an ordinary
+Gradle plugin, review and save an explicit CLI profile, run matching `prepare` and `doctor`, then
+use `watch` (or `start`). The CLI owns the installed APK baseline; do not describe an ordinary
 Android Studio `installDebug` APK plus a profile as the supported path.
 
 | Tier | What it means |
@@ -112,8 +112,8 @@ pins an app, a watched library, and the target project's JDK:
   --project-java-home /path/to/jdk-17 \
   --device emulator-5554"
 ./gradlew -q :cli:run --args="config show --profile my-app"
-./gradlew -q :cli:run --args="doctor --profile my-app"
 ./gradlew -q :cli:run --args="prepare --profile my-app"
+./gradlew -q :cli:run --args="doctor --profile my-app"
 ./gradlew -q :cli:run --args="watch --profile my-app" > /tmp/hotreload.log 2>&1 &
 ```
 

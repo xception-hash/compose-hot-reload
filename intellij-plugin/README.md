@@ -25,7 +25,7 @@ use a raw override or fingerprint bypass as normal setup recovery.
    watched code module.
 2. Open **Settings | Tools | Compose Hot Reload**, click **Refresh discovery**, review its values,
    and save an explicit configured profile.
-3. Run the matching **Doctor** and **prepare** flow to install the debug APK baseline, then launch
+3. Run the matching **prepare** and **Doctor** flow to install and verify the debug APK baseline, then launch
    the app on one API-30+ device.
 4. Click the status-bar widget or **Tools | Start Hot Reload** and wait for **Ready** before saving
    a Compose-body edit. Click **Stop** before changing configuration or ending the session.

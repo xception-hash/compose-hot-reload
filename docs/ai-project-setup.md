@@ -36,8 +36,8 @@ runtime wiring, Kotlin class-shape flags, Compose metadata, coverage handling, a
 5. **Pin the setup.** Run `inspect` or `configure` as a suggestion. Compare its app ID,
    module closure, variants, and directories with the build; correct them explicitly; save a
    profile; then show `config show`.
-6. **Prepare before watching.** Run `doctor --profile <name>`, then matching
-   `prepare --profile <name>`. Start one background watcher with that profile and wait for
+6. **Prepare before watching.** Run matching `prepare --profile <name>`, then
+   `doctor --profile <name>` against the installed APK. Start one background watcher with that profile and wait for
    `watching …` before editing. See [AGENTS.md](../AGENTS.md) for exact signals.
 7. **Prove one safe edit.** Make or request one reversible composable-body text/style edit.
    Require `changed:` plus `hot-swapped:`, `interpreted:`, or `literal-pushed:`; capture a
@@ -73,7 +73,7 @@ Read AGENTS.md and docs/ai-project-setup.md from the Compose Hot Reload reposito
 Android project using the stable configured-plugin path. First inspect and report the Gradle/AGP/
 Kotlin/JDK/app-module/variant/module graph without editing. Then propose the smallest target-project
 diff. Do not use zero-touch, live literals, or --ignore-fingerprint unless I explicitly opt in.
-After I accept the target diff, run doctor, matching prepare, and one background watcher; wait for
+After I accept the target diff, run matching prepare, doctor, and one background watcher; wait for
 the `watching` readiness line before a reversible test edit. Classify failures using the documented
 log contract and adapt this target project before proposing changes to Compose Hot Reload itself.
 ```

@@ -2,7 +2,7 @@
 
 The [README](README.md) and [AI project setup guide](docs/ai-project-setup.md) are the
 authoritative install/usage guides. Default to their stable configured Gradle-plugin path:
-review discovery, save an explicit profile, run matching `doctor` and `prepare`, then watch.
+review discovery, save an explicit profile, run matching `prepare` and `doctor`, then watch.
 This file adds the non-interactive watcher pattern and machine-checkable success/failure signals.
 Zero-touch is opt-in experimental recovery, never the default for an unconfigured project.
 
