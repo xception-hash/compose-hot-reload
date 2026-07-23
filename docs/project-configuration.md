@@ -19,12 +19,12 @@ page covers non-default project layouts and the compatibility coverage maintaine
 
 ## Published release
 
-The next unified release, [0.2.0](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0),
-is under validation. Until it is published, install the current
-[0.1.8 Marketplace plugin](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) and use
-matching released artifacts. Once 0.2.0 is authorized and published, use its signed IDE-plugin ZIP
-or Marketplace plugin with the matching CLI distribution and resolve the configured-mode Gradle
-plugin and runtime AAR from [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0).
+[0.2.0](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) is published on
+GitHub, with its CLI distribution and signed IDE ZIP. Its configured-mode Gradle plugin and runtime
+AAR resolve from [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0). The
+[Marketplace listing](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) remains on
+0.1.8 while the submitted 0.2.0 update awaits approval; until then, use the signed GitHub ZIP for
+the matching IDE artifact.
 
 ## Configure once, then start
 

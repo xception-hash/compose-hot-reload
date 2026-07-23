@@ -123,18 +123,23 @@ expansion project.
   project, not a new universal compatibility claim. No target versions or unrelated build logic
   were changed.
 
-### Current PR and CI state
+### Release actions — 2026-07-23
 
-- PR #29, `T41: ship the narrow 0.2.0 configured release`, is open from
-  `release/0.2.0-narrow-support` and includes `03904db`. The complete branch diff and privacy
-  scans passed before push.
-- The first compatibility-contract CI run failed only because its static assertion still expected
-  the old Android launcher command. The runner had correctly moved to explicit
-  `--launch-activity .MainActivity` after Android 16 rejected the historical `monkey` fallback.
-  Commit `03904db` updates the assertion to require that exact safer command; local
-  compatibility/docs/version contracts pass and the corrected contract workflow is green.
-- The required e2e/compatibility device workflow is still running at this checkpoint. No merge,
-  tag, GitHub Release, JitPack trigger, or Marketplace submission has occurred.
+- **Merged release commit:** PR #29 merged as `7f3399b46ede24241c394e95fe289980126f6f16` after
+  contract, e2e, repro, and compatibility checks succeeded. Annotated tag `0.2.0` targets that
+  exact commit.
+- **GitHub Release:** [0.2.0](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0)
+  is public with `cli.zip` and `hotreload-intellij-plugin-0.2.0-signed.zip`. Its published SHA-256
+  digests match the exact-commit locally built assets.
+- **JitPack:** its build completed from `7f3399b` and listed the real marker POM, plugin module,
+  and runtime AAR. JitPack republishes the marker under
+  `com.github.xception-hash.compose-hot-reload`, while Maven Local retains its conventional
+  `dev.hotreload` group. The resolver now proves the repository-appropriate marker plus the direct
+  plugin module and runtime AAR; both Maven Local and
+  `scripts/verify-release-artifacts.sh 0.2.0 https://jitpack.io` pass.
+- **Marketplace:** signed update `1114979` for 0.2.0 was submitted through the secure workflow.
+  It remains pending approval; the public listing still serves 0.1.8. No Marketplace-artifact
+  install or production smoke has occurred.
 
 ### Findings and operational gotchas
 
@@ -153,16 +158,11 @@ expansion project.
 
 ### Remaining
 
-1. Wait for PR #29 review and every required CI check to pass. Investigate any failure from its
-   exact log; do not weaken a contract or skip a device gate.
-2. Obtain explicit maintainer authorization to merge PR #29 through GitHub. Never push to `main`.
-3. After merge, obtain separate explicit authorization to tag the merged commit `0.2.0` (no `v`),
-   create the GitHub Release, and attach the signed IDE ZIP and documented CLI artifact.
-4. Trigger/inspect JitPack, fetch real artifact URLs, and run
-   `scripts/verify-release-artifacts.sh 0.2.0 https://jitpack.io`.
-5. Obtain explicit maintainer authorization to sign and submit the IDE plugin. After Marketplace
-   approval, install the Marketplace artifact, complete the configured Start → Ready → edit → Stop
-   production smoke, then update release provenance and mark T41 DONE.
+1. Wait for Marketplace update `1114979` to be approved and listed. Investigate a rejection from
+   its exact Marketplace result; do not submit a replacement blindly.
+2. Install the approved Marketplace artifact and complete the configured production
+   Start → Ready → visible body edit/revert → Stop smoke.
+3. Update final provenance and mark T41/T43 DONE only after that installed-artifact proof.
 
 ## Goal
 

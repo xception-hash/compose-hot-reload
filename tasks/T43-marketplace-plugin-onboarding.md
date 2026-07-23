@@ -25,12 +25,12 @@ where to get help without needing a source checkout.
   `dev.hotreload.ide`, Marketplace ID `32850`, direct page
   `https://plugins.jetbrains.com/plugin/32850-compose-hot-reload`, and currently published
   version 0.1.8. Its current description is only the former two-sentence summary.
-- Started the source/documentation half. The next plugin build now carries a full Marketplace-safe
-  onboarding description, and public repository documentation links to the published 0.1.8 page
-  while accurately describing 0.2.0 as under release validation.
-- The Marketplace page itself cannot change until a maintainer-authorized signed plugin upload.
-  After that upload, verify the rendered description and replace the temporary published-version
-  wording in these docs with the actual released version.
+- Started the source/documentation half. The 0.2.0 plugin build carries a full Marketplace-safe
+  onboarding description, while public repository documentation accurately distinguishes the
+  published GitHub/JitPack release from the Marketplace listing that still serves 0.1.8.
+- Signed Marketplace update `1114979` for 0.2.0 is submitted and pending approval. After approval,
+  verify the rendered description and replace the remaining temporary Marketplace-version wording
+  with the actual published version.
 - Local ZIP smoke PASS: rebuilt `hotreload-intellij-plugin-0.2.0.zip`, inspected its generated
   descriptor/description, and installed it into Android Studio. Against a matching prepared,
   configured multi-module target, the bundled CLI reached Ready, completed a visible app-body edit
@@ -44,19 +44,15 @@ where to get help without needing a source checkout.
 
 ## Release dependency
 
-T43's Marketplace upload is deliberately deferred until T41's 0.2.0 release gates are complete:
-the clean-clone documentation gate, maintainer production configured smoke, authorized PR/push and
-merge, release tag/GitHub Release, and artifact validation. Do not upload the current 0.2.0 plugin
-before that sequence completes.
-
-Current checkpoint: T41 PR #29 is open and includes `03904db`, which corrected its stale launcher
-contract assertion. Its required device workflow is still running. T43 must not start an external
-Marketplace action until the PR is reviewed/merged, the release tag and JitPack artifacts are
-verified, and the maintainer explicitly authorizes signing/submission.
+T43's Marketplace upload was deferred until T41's clean-clone, production configured smoke, PR
+merge, release tag/GitHub Release, and artifact validation completed. Those release actions are
+now verified; the signed 0.2.0 update is pending Marketplace approval. Do not substitute a local
+ZIP result for the required Marketplace-artifact smoke.
 
 During the authorized 0.2.0 release, complete T43 in this order:
 
-1. Build, sign, and upload the reviewed 0.2.0 plugin ZIP containing this description.
+1. Build, sign, and upload the reviewed 0.2.0 plugin ZIP containing this description. **Done:**
+   update `1114979` is pending approval.
 2. Wait for Marketplace approval and verify the rendered listing and direct install page.
 3. Install the Marketplace artifact, run the configured Start → Ready → Stop smoke, and record its
    result.

@@ -280,9 +280,9 @@ discovery** as a suggestion, review and save an explicit configured profile, run
 **Ready** before the first save; use **Stop** when finished. Use one selected API-30+ device and one
 watcher at a time.
 
-The currently published Marketplace listing is version 0.1.8. Its description will be expanded in
-the next maintainer-authorized plugin update; the source documentation below already describes the
-stable configured workflow.
+The currently published Marketplace listing is version 0.1.8. Version 0.2.0 has been submitted
+for Marketplace approval; until that approval completes, install the signed 0.2.0 ZIP from the
+GitHub Release rather than treating the Marketplace listing as the 0.2.0 artifact.
 
 **Install from disk:**
 Build the plugin zip:
@@ -291,11 +291,9 @@ cd intellij-plugin && ./gradlew buildPlugin
 ```
 This produces `build/distributions/hotreload-intellij-plugin-0.2.0.zip`. Install it in your IDE via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
 
-The next unified release is 0.2.0: install the currently published IDE plugin from the
-[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload), download a
-signed ZIP or CLI distribution from the
-[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0), and
-resolve the Gradle plugin/runtime AAR from [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0).
+The 0.2.0 GitHub Release provides the signed ZIP and CLI distribution, and its Gradle plugin and
+runtime AAR resolve from [JitPack](https://jitpack.io/#xception-hash/compose-hot-reload/0.2.0).
+Marketplace approval for the matching IDE artifact is still pending.
 
 See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 
@@ -313,11 +311,12 @@ See [`intellij-plugin/README.md`](intellij-plugin/README.md) for full details.
 - `tasks/` — Task specifications and progress tracking.
 
 ## 9. Status
-**0.2.0 — next unified release (in validation).** Its GitHub Release and JitPack artifacts will
-align the CLI, Gradle plugin, runtime client, and IntelliJ/Android Studio plugin after authorized
-publication. Until then, the published Marketplace plugin is
-[0.1.8](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload). The stable contract is
-explicit configured-plugin integration and matching profiles; zero-touch and live literals remain
+**0.2.0 — GitHub Release and JitPack published; Marketplace approval pending.** The
+[GitHub Release](https://github.com/xception-hash/compose-hot-reload/releases/tag/0.2.0) provides
+the CLI and signed IDE ZIP, and JitPack resolves the Gradle plugin marker/module and runtime AAR.
+The [Marketplace listing](https://plugins.jetbrains.com/plugin/32850-compose-hot-reload) remains
+on 0.1.8 until the submitted 0.2.0 update is approved. The stable contract is explicit
+configured-plugin integration and matching profiles; zero-touch and live literals remain
 experimental.
 
 **0.1.6 — security hardening + project-agnostic release.** Adds socket peer-uid authorization and debuggable-only enforcement in the runtime client, project-agnostic configuration with Gradle discovery and IDE profiles, zero-touch `hotreload start`, and IDE plugin 0.1.6 (pre-Start environment preflight with surfaced fatal errors, Android SDK auto-discovery, bundled CLI).
