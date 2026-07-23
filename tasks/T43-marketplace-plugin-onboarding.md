@@ -31,6 +31,16 @@ where to get help without needing a source checkout.
 - The Marketplace page itself cannot change until a maintainer-authorized signed plugin upload.
   After that upload, verify the rendered description and replace the temporary published-version
   wording in these docs with the actual released version.
+- Local ZIP smoke PASS: rebuilt `hotreload-intellij-plugin-0.2.0.zip`, inspected its generated
+  descriptor/description, and installed it into Android Studio. Against a matching prepared,
+  configured multi-module target, the bundled CLI reached Ready, completed a visible app-body edit
+  and reversion without a process restart, then Stop removed the watcher. The temporary target
+  wiring, profile, baseline, and emulator app were restored/removed afterward.
+- Usability finding: the settings page's default watched-modules value (`app`) is an explicit
+  override, so selecting a multi-module CLI profile alone can mismatch a baseline prepared for a
+  wider module list. For this smoke, pinning the exact prepared module mappings in the UI resolved
+  the mismatch without `--ignore-fingerprint`. This is a follow-up UX concern; it does not replace
+  the required Marketplace-artifact smoke.
 
 ## Release dependency
 
