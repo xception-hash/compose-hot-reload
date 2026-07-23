@@ -85,6 +85,10 @@ done
 
 grep -Fq -- 'Profiles do not store `--sdk` or `--build-tools`' "$README" ||
     fail "README must explain the profile boundary for SDK/build-tools"
+grep -Fq -- '#### How profiles work' "$README" ||
+    fail "README must explain the profile lifecycle"
+grep -Fq -- '`--literals` and `--zero-touch` are enable-only flags' "$README" ||
+    fail "README must explain boolean profile precedence"
 grep -Fq -- 'Start launches `watch`, not `start`.' "$PLUGIN_README" ||
     fail "plugin README must explain what Start launches"
 grep -Fq -- 'Start launches `watch`, not `start`.' "$IDE_SETTINGS" ||

@@ -35,7 +35,8 @@ for installation from disk.
 ## Configure once, then start
 
 `configure` resolves Gradle discovery and writes a profile outside the target repository.
-Explicit command-line options always override profile values.
+The profile is the reusable input shared by `inspect`, `prepare`, `doctor`, `watch`, and `start`;
+it does not modify the target project.
 
 For a conventional project, begin with the minimum:
 
@@ -74,6 +75,14 @@ configuration and its reproducible expanded watch command with:
 ```bash
 hotreload config show --profile mobile-client-stage
 ```
+
+The TOML records the absolute project path, application ID, variant, ordered module-directory
+mappings, per-module variants, Gradle arguments, target-project JDK, device, launch activity,
+live-literals choice, and integration mode. A sibling `.discovery.json` cache may hold resolved
+module metadata. Explicit scalar or repeatable CLI options replace stored values for one
+invocation. The boolean `--literals` and `--zero-touch` flags are enable-only; to turn either off,
+rerun `configure` without that mode and save the result, preferably under a distinct profile name.
+Reusing `--save-as` replaces the existing profile and refreshes its discovery cache.
 
 Prepare and inspect the runtime handshake once:
 

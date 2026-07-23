@@ -157,6 +157,26 @@ hotreload configure --project /path/to/your/project --save-as my-app
 hotreload config show --profile my-app
 ```
 
+#### How profiles work
+
+- `configure --save-as <name>` resolves the project and writes a schema-versioned TOML profile
+  outside the target repository. By default it lives at
+  `~/.config/compose-hot-reload/projects/<name>.toml`; `XDG_CONFIG_HOME` or
+  `HOTRELOAD_CONFIG_DIR` can relocate the configuration root.
+- A profile records the absolute project path, application ID, variant, ordered module-directory
+  mappings, per-module variants, Gradle arguments, target-project JDK, device, launch activity,
+  live-literals choice, and configured versus zero-touch integration mode. When discovery
+  metadata is available, `configure` also writes a `<name>.discovery.json` sidecar used to recover
+  module metadata on later commands.
+- `--profile <name>` supplies defaults to `inspect`, `prepare`, `doctor`, `watch`, and `start`.
+  Explicit scalar or repeatable command-line options replace the corresponding profile values for
+  that invocation. `--literals` and `--zero-touch` are enable-only flags: they can enable a mode
+  for an invocation but cannot disable a mode already stored in the profile.
+- `config show --profile <name>` prints the stored TOML and an expanded `watch` command. Running
+  `configure` again with the same `--save-as` name replaces the profile and refreshes its discovery
+  sidecar. Prefer separate named profiles for different variants or experimental modes rather
+  than repeatedly overriding APK-shaping values.
+
 Verify the application ID, app module, variant, watched-module closure, physical directories,
 target JDK, device, and launch activity. If discovery is wrong, run `configure` again with explicit
 options. For example:
@@ -173,10 +193,8 @@ hotreload configure \
   --device emulator-5554
 ```
 
-Profiles are stored outside the target repository at
-`~/.config/compose-hot-reload/projects/<name>.toml`. Explicit command-line flags override profile
-values. Profiles do not store `--sdk` or `--build-tools`; if you override either, repeat it
-identically for `prepare`, `doctor`, and `watch`/`start`. See
+Profiles do not store `--sdk` or `--build-tools`; if you override either, repeat it identically for
+`prepare`, `doctor`, and `watch`/`start`. See
 [Project configuration and compatibility](docs/project-configuration.md) for flavors, module
 mappings, Gradle arguments, and other non-default layouts.
 
