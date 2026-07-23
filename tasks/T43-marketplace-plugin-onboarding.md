@@ -32,6 +32,23 @@ where to get help without needing a source checkout.
   After that upload, verify the rendered description and replace the temporary published-version
   wording in these docs with the actual released version.
 
+## Release dependency
+
+T43's Marketplace upload is deliberately deferred until T41's 0.2.0 release gates are complete:
+the clean-clone documentation gate, maintainer production configured smoke, authorized PR/push and
+merge, release tag/GitHub Release, and artifact validation. Do not upload the current 0.2.0 plugin
+before that sequence completes.
+
+During the authorized 0.2.0 release, complete T43 in this order:
+
+1. Build, sign, and upload the reviewed 0.2.0 plugin ZIP containing this description.
+2. Wait for Marketplace approval and verify the rendered listing and direct install page.
+3. Install the Marketplace artifact, run the configured Start → Ready → Stop smoke, and record its
+   result.
+4. Replace every temporary “published 0.1.8” / “0.2.0 under validation” statement in the README,
+   IDE-plugin README, IDE settings guide, project configuration guide, Marketplace change notes,
+   task progress, and roadmap with the actual 0.2.0 publication/provenance information.
+
 ## Scope
 
 1. **Marketplace listing metadata**
