@@ -158,8 +158,8 @@ The only stable onboarding path claimed by 0.2.0 is **configured mode**:
 2. Use `hotreload configure`/`inspect` only to produce an initial suggestion. Review it, then pin
    the app module, application ID, variant, watched modules, module directories/variants, target
    JDK, Gradle arguments, and device in an explicit profile.
-3. Use `hotreload doctor --profile <name>` and a matching `hotreload prepare --profile <name>` (or
-   `start`) so the CLI owns the installed APK baseline.
+3. Use matching `hotreload prepare --profile <name>` and `hotreload doctor --profile <name>` (or
+   `start`) so the CLI owns and validates the installed APK baseline before watching.
 4. Watch with the exact same profile. Do not mix an Android Studio/ordinary `installDebug` APK
    with a profile and describe that as the supported path.
 5. Require one API-30+ device/emulator and a debuggable variant. The runtime must remain absent
@@ -231,7 +231,7 @@ Restructure `README.md` without removing the technical feature/limitation inform
    - JitPack plugin resolution;
    - applying `dev.hotreload` to the app and every watched code module;
    - `configure` with explicit profile review;
-   - `doctor`, matching `prepare`, then `watch`/`start`;
+   - matching `prepare`, `doctor`, then `watch`/`start`;
    - readiness and one body-edit success signal;
    - Stop/cleanup.
 3. Move zero-touch out of Quickstart into an “Experimental zero-touch evaluation” section. State
@@ -332,7 +332,7 @@ coding agent to work in this order:
    `javac -version` for the selected target JDK before Gradle.
 5. **Pin configuration:** run inspect/configure as a suggestion, review its module/variant/app-ID
    output against the build, correct it explicitly, save a profile, and show `config show`.
-6. **Prepare and validate:** run `doctor`, matching `prepare`, launch, start one background watcher,
+6. **Prepare and validate:** run matching `prepare`, then `doctor`, launch, start one background watcher,
    and wait for `watching …` before editing. Reuse AGENTS.md's exact log signals.
 7. **One safe proof:** make or ask the user for one reversible composable-body text/style change,
    require `changed:` plus `hot-swapped:`/`interpreted:`/`literal-pushed:`, verify stable PID when
@@ -363,7 +363,7 @@ Read AGENTS.md and docs/ai-project-setup.md from the Compose Hot Reload reposito
 Android project using the stable configured-plugin path. First inspect and report the Gradle/AGP/
 Kotlin/JDK/app-module/variant/module graph without editing. Then propose the smallest target-project
 diff. Do not use zero-touch, live literals, or --ignore-fingerprint unless I explicitly opt in.
-After I accept the target diff, run doctor, matching prepare, and one background watcher; wait for
+After I accept the target diff, run matching prepare, doctor, and one background watcher; wait for
 the `watching` readiness line before a reversible test edit. Classify failures using the documented
 log contract and adapt this target project before proposing changes to Compose Hot Reload itself.
 ```
@@ -414,7 +414,7 @@ Required release-candidate evidence, using built artifacts rather than source-le
    broad compatibility framework. The gate must use a full JDK 17; vendor is not asserted.
 4. The AGP-9/JDK-21 configured lane passes the same minimal packaged-artifact smoke.
 5. One clean public production-grade project passes the stable configured path using only the
-   0.2.0 README/AI guide: explicit setup, Doctor, prepare, body edit/reversal in app and watched
+   0.2.0 README/AI guide: explicit setup, prepare, Doctor, body edit/reversal in app and watched
    library, stable PID, and Stop. This is a maintainer gate; sanitize all recorded findings.
 6. Clean-clone documentation gate: on a fresh checkout and clean target copy, a person/agent
    following README plus the AI guide reaches Ready and completes one reversible body edit without

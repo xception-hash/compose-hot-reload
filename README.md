@@ -276,7 +276,7 @@ Install [Compose Hot Reload](https://plugins.jetbrains.com/plugin/32850-compose-
 **Settings ▸ Plugins**. The Marketplace plugin includes its CLI, so no repository clone or separate
 CLI installation is required. Then open **Settings ▸ Tools ▸ Compose Hot Reload**, use **Refresh
 discovery** as a suggestion, review and save an explicit configured profile, run matching
-**Doctor**/**prepare**, and use the status-bar widget or **Tools ▸ Start Hot Reload**. Wait for
+**prepare**/**Doctor**, and use the status-bar widget or **Tools ▸ Start Hot Reload**. Wait for
 **Ready** before the first save; use **Stop** when finished. Use one selected API-30+ device and one
 watcher at a time.
 
