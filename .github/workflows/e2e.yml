@@ -158,6 +158,16 @@ jobs:
       - name: Check compatibility fixture and documentation contract
         run: bash e2e/check-compatibility-contract.sh
 
+      # Release helpers intentionally clear JAVA_HOME so their JVM selection cannot be
+      # inherited from a target project. On Linux, env.sh must then resolve the JDK
+      # installed above rather than its macOS Android Studio default.
+      - name: Verify portable CLI JDK resolution
+        run: |
+          unset JAVA_HOME
+          source scripts/env.sh
+          test -x "$JAVA_HOME/bin/java"
+          "$JAVA_HOME/bin/java" -version
+
       - name: Build CLI distribution with JDK 21
         run: ./gradlew :cli:installDist :cli:verifyZeroTouchDistribution
 
