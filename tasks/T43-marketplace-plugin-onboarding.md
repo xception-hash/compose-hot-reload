@@ -49,10 +49,10 @@ the clean-clone documentation gate, maintainer production configured smoke, auth
 merge, release tag/GitHub Release, and artifact validation. Do not upload the current 0.2.0 plugin
 before that sequence completes.
 
-Current checkpoint: T41 PR #29 is open at `03904db`. Its corrected contract check is green and its
-required device workflow is still running. T43 must not start an external Marketplace action until
-the PR is reviewed/merged, the release tag and JitPack artifacts are verified, and the maintainer
-explicitly authorizes signing/submission.
+Current checkpoint: T41 PR #29 is open and includes `03904db`, which corrected its stale launcher
+contract assertion. Its required device workflow is still running. T43 must not start an external
+Marketplace action until the PR is reviewed/merged, the release tag and JitPack artifacts are
+verified, and the maintainer explicitly authorizes signing/submission.
 
 During the authorized 0.2.0 release, complete T43 in this order:
 

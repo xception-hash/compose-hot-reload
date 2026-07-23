@@ -126,8 +126,8 @@ expansion project.
 ### Current PR and CI state
 
 - PR #29, `T41: ship the narrow 0.2.0 configured release`, is open from
-  `release/0.2.0-narrow-support` at `03904db`. The complete branch diff and privacy scans passed
-  before push.
+  `release/0.2.0-narrow-support` and includes `03904db`. The complete branch diff and privacy
+  scans passed before push.
 - The first compatibility-contract CI run failed only because its static assertion still expected
   the old Android launcher command. The runner had correctly moved to explicit
   `--launch-activity .MainActivity` after Android 16 rejected the historical `monkey` fallback.

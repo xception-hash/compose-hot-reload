@@ -18,7 +18,8 @@ URLs and evidence.
 
 ### Verified
 
-- Branch `release/0.2.0-narrow-support` is pushed at `03904db`; PR #29 is open against `main`.
+- Branch `release/0.2.0-narrow-support` is pushed and includes `03904db`; PR #29 is open against
+  `main`.
 - Local host/documentation/version/Maven Local artifact gates, configured single/multi/capture,
   packaged AGP-8/JDK-17 and AGP-9/JDK-21 lanes, clean-clone onboarding, and production-target
   configured smoke all passed.
