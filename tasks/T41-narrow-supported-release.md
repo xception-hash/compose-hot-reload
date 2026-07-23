@@ -111,6 +111,18 @@ expansion project.
   so the stable flow is `prepare`, then `doctor`, then `watch`. README, AI, configuration, IDE,
   and root agent guidance now agree.
 
+### Completed maintainer production-target configured smoke
+
+- PASS: a clean public multi-module Compose target completed the stable configured path against
+  Maven Local 0.2.0 artifacts: explicit `:app` plus watched `:feature:foryou:impl` modules,
+  `demoDebug`, a pinned JBR 21 target Gradle home, matching prepare, Doctor runtime handshake,
+  watcher readiness, app-body and watched-library body edits and reversions, stable PID, Stop,
+  and source/device/profile restoration.
+- The target is deliberately outside the CI-tested lanes (AGP 9.0.0, Kotlin 2.3.0, Compose BOM
+  2025.09.01), so this is evidence that the stable contract can adapt to an unlisted existing
+  project, not a new universal compatibility claim. No target versions or unrelated build logic
+  were changed.
+
 ### Findings and operational gotchas
 
 - Android 16 rejects the historical `adb shell monkey` launcher fallback. The sample suites use
@@ -122,12 +134,13 @@ expansion project.
   target JDK before sourcing `scripts/env.sh` is necessary for this checkout's CLI toolchain.
 - Before publication, the clean-clone gate resolves the locally published release artifacts rather
   than JitPack; public JitPack resolution remains a required post-publication check.
+- A flavor-suffixed application ID may require a fully qualified launch activity from the manifest,
+  rather than the default `.MainActivity` shorthand. Pin that value before prepare so it is part of
+  the matching profile baseline.
 
 ### Remaining
 
-1. Complete the maintainer production-target configured smoke: matching prepare/Doctor/start,
-   app and watched-library body edit/reversal, stable PID, Stop, and source/device restoration.
-2. After those local gates pass, obtain maintainer authorization for PR/push, merge, tagging, GitHub
+1. Obtain maintainer authorization for PR/push, merge, tagging, GitHub
    Release, JitPack proof, Marketplace submission, and the post-publication Marketplace smoke.
 
 ## Goal
