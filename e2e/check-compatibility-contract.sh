@@ -102,7 +102,7 @@ for text in \
     require_text "$RUNNER" "$text"
 done
 
-require_text e2e/run.sh 'args="start --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample"'
+require_text e2e/run.sh 'args="start --project $REPO_ROOT/samples/single-module --app-id dev.hotreload.sample --launch-activity .MainActivity"'
 require_text e2e/run.sh 'PASS: configured start fixture path'
 
 for text in \
