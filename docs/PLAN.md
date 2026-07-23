@@ -1,6 +1,6 @@
 # Compose Hot Reload for Android — Project Plan
 
-## Status (2026-07-20) — 0.1.8 unified release shipped; Phase F validation complete
+## Status (2026-07-23) — 0.1.8 unified release shipped; T41 release validation in progress
 
 T01–T28 and the full T33 project-agnostic roadmap (phases 1–10) are done and **merged to `main`
 (PR #19, `f674233`)**. The product works end-to-end (body edits, structural adds, multi-module,
@@ -65,7 +65,7 @@ canonical roadmap — update it here, link it elsewhere.
 | T38 | Maintainer Android Studio smoke of local plugin 0.1.8 in zero-touch and configured local-composite modes | medium | ✅ DONE 2026-07-18 — both modes pass; configured first/second/restoration edits retained one PID, Stop reached Off, temporary wiring/scaffold was removed, and matching zero-touch state was restored. |
 | T39 | Configured watched-library repeat edit fails to update the rendered Compose frame | medium | ✅ DONE 2026-07-18 — configured plugin now enables FunctionKeyMeta in every Compose module; Kotlin-2.3 two-save fixture and real Android Studio Mode B first/second/restoration gate pass with stable PID. |
 | T40 | Android Studio discovery/Doctor can deadlock while draining a noisy Gradle child process | medium | ✅ DONE 2026-07-18 — concurrent stream-separating collector and deterministic 2 MiB real-child regression; the Settings-modal callback now returns to the active dialog. Plugin host gates pass, and large-target Refresh discovered 2 modules, Start reached Ready, and Stop returned Off. |
-| T41 | Narrow 0.2.0 release: stable configured-plugin/profile path, AI-assisted setup, aligned artifacts, and bounded packaged-artifact validation | large | 🚧 IN PROGRESS 2026-07-21 — host/documentation/version milestone committed as `092a3e0`; configured packaged AGP-8/JDK-17 and AGP-9/JDK-21 Maven-Local device gates pass as `ba3b5a2`. Remaining: existing configured device suites, clean-clone/production validation, then maintainer-only release actions. |
+| T41 | Narrow 0.2.0 release: stable configured-plugin/profile path, AI-assisted setup, aligned artifacts, and bounded packaged-artifact validation | large | 🚧 IN PROGRESS 2026-07-23 — host/documentation/version milestone (`092a3e0`), packaged AGP-8/JDK-17 and AGP-9/JDK-21 device lanes (`ba3b5a2`), configured single-module suite, configured capture suite, and multi-module suite 4/4 twice all pass. T42 (`b890922`) fixed feature-module state loss caused by Compose debug-location hash noise. Remaining: clean-clone documentation gate, maintainer production configured smoke, then authorized release actions. |
 
 The 0.1.8 release is complete. T41 is the active next release effort; optional housekeeping
 remains outside its fixed scope:

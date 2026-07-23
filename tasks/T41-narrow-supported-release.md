@@ -45,7 +45,7 @@ T41 creates one coherent 0.2.0 release and narrows what the project promises. It
 contract, documentation, packaging, and release-validation task. It is not another compatibility
 expansion project.
 
-## Progress — 2026-07-21
+## Progress — 2026-07-23
 
 ### Completed host milestone (`092a3e0`)
 
@@ -80,13 +80,40 @@ expansion project.
   Doctor, Ready, a visible edit and reversal, stable PID, and Stop (`ba3b5a2`). The Gradle plugin
   publication now declares and emits JVM 17 compatibility for the supported target-JDK-17 lane.
 
+### Completed configured-device milestone (`b890922`)
+
+- PASS: the configured single-module suite completed all standard cases on one API-36 emulator:
+  configured `start`, body and state-preserving leaf edits, structural/new-class/interpreter paths,
+  resources including bitmaps, and signature-change recovery. Live literals remained intentionally
+  skipped because the suite was not rebuilt with its experimental compiler mode.
+- PASS: the configured multi-module suite completed all 4 cases twice. It now verifies that a
+  capture-heavy `:feature` composable keeps `Feature count: 1` across its own body edit, renders
+  `FeatureX:`, uses targeted group invalidation, keeps one PID, and restores sources and watcher
+  state after each run.
+- PASS: configured capture completed sequential watched-library edits, a structural helper
+  addition, and its interpreter-backed removal with callback behavior and one PID intact.
+- T42 found and fixed a real classifier precision bug: Compose compiler source-location operands
+  changed enclosing lambda bytes for a leaf edit, so the engine invalidated a parent group and
+  reset its remembered state. `FactsExtractor` now excludes only those debug operands from method
+  hashes; focused host coverage still detects real rendered-literal changes.
+
+### Findings and operational gotchas
+
+- Android 16 rejects the historical `adb shell monkey` launcher fallback. The sample suites use
+  their explicit `MainActivity` components, and the configured `start` suite supplies the supported
+  `--launch-activity .MainActivity` override because prepare reinstalls and must relaunch the app.
+- A watcher is a blocking daemon. Start only one per device, wait for `watching …`, and let the
+  suite cleanup stop it; do not infer success from a surviving process or elapsed time.
+- The API-36 device gate used Android Studio JBR 21 and build-tools 36.0.0. Clearing a pre-set
+  target JDK before sourcing `scripts/env.sh` is necessary for this checkout's CLI toolchain.
+
 ### Remaining
 
-1. With one API-30+ device attached, run the existing configured single-module, multi-module, and
-   configured-capture suites.
-2. Complete the clean-clone documentation gate and the maintainer production-target configured
-   smoke. Restore all test targets, watcher, and device state.
-3. After local acceptance, obtain maintainer authorization for PR/push, merge, tagging, GitHub
+1. Complete the clean-clone documentation gate, including a clean target copy and exact restoration
+   evidence.
+2. Complete the maintainer production-target configured smoke: Doctor, matching prepare/start,
+   app and watched-library body edit/reversal, stable PID, Stop, and source/device restoration.
+3. After those local gates pass, obtain maintainer authorization for PR/push, merge, tagging, GitHub
    Release, JitPack proof, Marketplace submission, and the post-publication Marketplace smoke.
 
 ## Goal

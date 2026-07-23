@@ -126,6 +126,11 @@ continues to cover the configured default sample.
 
 ## Validation findings
 
+- Android 16 can reject the default `monkey` launcher fallback. If `prepare` or `start` reports
+  that the freshly installed app is not running, pass the known launcher component through
+  `--launch-activity .MainActivity` (or the target's equivalent), save it in the profile, then run
+  matching prepare/start again. This is a launch recovery, not a reason to bypass `doctor` or APK
+  fingerprint checks.
 - `hotreload start` prepares an absent app and then enters the normal watch loop. The configured
   fixture deliberately captures its process ID **after** readiness because preparation force-stops
   and relaunches the application; later state-preservation assertions must use that post-start PID.
